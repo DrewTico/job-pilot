@@ -30,6 +30,8 @@ htmlcov/
 *.bak
 
 # explicit PII guards
+facts.yaml
+**/facts.yaml
 career_facts.yaml
 answer_bank.yaml
 **/career_facts.yaml

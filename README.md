@@ -182,7 +182,7 @@ NOTES block — and it is built around an **honesty gate**: it can rewrite empha
 and wording, but it cannot fabricate.
 
 - **Immutable career facts.** The base résumé (`.docx`) is parsed once into
-  `data/career_facts.yaml` (gitignored) — the source of truth. Company names,
+  `data/facts.yaml` (gitignored) — the source of truth. Company names,
   titles, and durations are fixed; the tailoring model is constrained to them.
 - **No invented metrics.** Only real numbers from the career facts are cited,
   woven into achievements. If a role has no real metric, a specific *qualitative*
@@ -326,7 +326,7 @@ src/job_agent/
   discovery.py       board-token discovery (probe official ATS APIs, cached)
   cli.py             search / tailor / apply / applications / dashboard / discover
   tailor/
-    extract.py       base resume (.docx) -> career_facts.yaml
+    extract.py       base resume (.docx) -> data/facts.yaml
     career_facts.py  frozen CareerFacts models + allow-lists
     tailor.py        mega prompt + facts + JD -> Sonnet -> resume + NOTES
     render_pdf.py    ATS-safe PDF + editable .docx (two-column skills layout)

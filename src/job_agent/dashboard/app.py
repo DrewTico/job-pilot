@@ -73,7 +73,7 @@ def create_app(*, data_dir: Path = Path("data"),
     ``apply_session_factory`` are injectable for tests; the defaults call the
     real service functions (i.e. the CLI paths)."""
     data_dir = Path(data_dir)
-    facts_path = Path(facts_path or data_dir / "career_facts.yaml")
+    facts_path = Path(facts_path or data_dir / "facts.yaml")
     out_dir = Path(out_dir or data_dir / "output")
     searcher = searcher or (lambda days: service.run_search_cli(profile_path, days))
     tailorer = tailorer or (lambda job_id: service.run_tailor_cli(

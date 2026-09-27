@@ -199,7 +199,7 @@ def test_endpoint_grounds_for_review_and_still_pauses_eeo(tmp_path):
 
     from job_agent.dashboard.app import create_app
 
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(
         "authorized_us: true\nrequires_sponsorship: false\n")
     client = TestClient(create_app(data_dir=tmp_path))

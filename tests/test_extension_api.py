@@ -51,7 +51,7 @@ RAW_FIELDS = [
 
 @pytest.fixture
 def client(tmp_path):
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     return TestClient(create_app(data_dir=tmp_path))
 
@@ -117,7 +117,7 @@ def test_unaddressable_controls_are_skipped_not_guessed(client):
 
 
 def test_missing_answer_bank_is_a_clear_error(tmp_path):
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     client = TestClient(create_app(data_dir=tmp_path))
     resp = _post(client, RAW_FIELDS)
     assert resp.status_code == 400
@@ -127,7 +127,7 @@ def test_missing_answer_bank_is_a_clear_error(tmp_path):
 # --- resume hint: which file the human should attach (never auto-uploaded) -----------
 
 def test_file_fields_pause_and_the_response_recommends_the_tailored_pdf(tmp_path):
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     out = tmp_path / "output"
     out.mkdir()
@@ -167,7 +167,7 @@ def test_free_text_drafts_with_the_existing_screening_drafter(tmp_path, monkeypa
     from job_agent.apply import screening
     monkeypatch.setattr(screening, "make_llm_generate",
                         lambda settings: lambda prompt: "I shipped an ML feature store at Acme.")
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     client = TestClient(create_app(data_dir=tmp_path))
 
@@ -194,7 +194,7 @@ def test_consent_still_pauses_even_with_a_drafter_available(tmp_path, monkeypatc
     from job_agent.apply import screening
     monkeypatch.setattr(screening, "make_llm_generate",
                         lambda settings: lambda prompt: "should never appear")
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     client = TestClient(create_app(data_dir=tmp_path))
     data = client.post("/api/extension/fill-values",
@@ -219,7 +219,7 @@ def test_response_reports_drafting_on_with_a_key(tmp_path, monkeypatch):
     from job_agent.apply import screening
     monkeypatch.setattr(screening, "make_llm_generate",
                         lambda settings: lambda prompt: "drafted text")
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     client = TestClient(create_app(data_dir=tmp_path))
     data = client.post("/api/extension/fill-values",
@@ -376,7 +376,7 @@ def test_cors_never_allows_web_origins(client):
 
 def test_cors_can_be_pinned_to_one_extension_id(tmp_path, monkeypatch):
     monkeypatch.setenv("JOB_AGENT_EXTENSION_ID", "b" * 32)
-    (tmp_path / "career_facts.yaml").write_text(FACTS_YAML)
+    (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     client = TestClient(create_app(data_dir=tmp_path))
     allowed = _post_with_origin(client, "chrome-extension://" + "b" * 32)

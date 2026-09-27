@@ -619,7 +619,7 @@ def _build_parser() -> argparse.ArgumentParser:
     t = sub.add_parser("tailor", help="Tailor your resume to a searched job.")
     t.add_argument("--demo", action="store_true", help="Fake resume + JD end-to-end (no key).")
     t.add_argument("--job", help="Job id from a prior search (data/last_search.json).")
-    t.add_argument("--facts", default="data/career_facts.yaml", help="Career facts YAML.")
+    t.add_argument("--facts", default="data/facts.yaml", help="Career facts YAML.")
     t.add_argument("--jd", help="Use this JD text file instead of re-fetching.")
     t.add_argument("--out-dir", default="data/output", help="Where to write the PDF/DOCX.")
 
@@ -630,7 +630,7 @@ def _build_parser() -> argparse.ArgumentParser:
     a.add_argument("--submit", action="store_true",
                    help="Enable REAL submission (still gated by your in-session approval).")
     a.add_argument("--answers", default="data/answer_bank.yaml", help="Answer bank YAML.")
-    a.add_argument("--facts", default="data/career_facts.yaml", help="Career facts YAML.")
+    a.add_argument("--facts", default="data/facts.yaml", help="Career facts YAML.")
     a.add_argument("--resume", default=None, help="Tailored resume PDF to upload.")
     a.add_argument("--tailor-out", default="data/output", dest="tailor_out",
                    help="Where tailored resumes are written (for auto-detect).")

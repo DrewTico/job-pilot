@@ -1,6 +1,6 @@
 """Immutable career facts — the source of truth the tailoring engine obeys.
 
-Loaded from ``career_facts.yaml`` (real: gitignored; demo: committed fake). The
+Loaded from ``data/facts.yaml`` (gitignored), or bundled fake facts for demos. The
 frozen models make employers/titles/durations/certs read-only in memory, and the
 helper accessors give ``verify.py`` the exact allow-lists it enforces.
 """

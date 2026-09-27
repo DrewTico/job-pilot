@@ -8,7 +8,7 @@ way to a real employer.
 Design rules baked in (not just documented):
 
 * **Contact is never duplicated.** Name / email / phone / location come from
-  ``career_facts.yaml``; the bank only adds apply-specific links. :func:`resolve_contact`
+  ``facts.yaml``; the bank only adds apply-specific links. :func:`resolve_contact`
   merges the two into one :class:`Contact`.
 * **Work authorization must be explicit.** ``authorized_us`` and
   ``requires_sponsorship`` have no defaults — a bank that omits them fails to

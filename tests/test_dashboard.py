@@ -338,7 +338,7 @@ def test_resume_endpoint_serves_the_tailored_pdf(tmp_path):
     out.mkdir(parents=True)
     # the same filename the tailor pipeline produces for this job
     (out / "Jordan_ML_Engineer_Plaid.pdf").write_bytes(b"%PDF-1.4 fake")
-    (tmp_path / "career_facts.yaml").write_text(
+    (tmp_path / "facts.yaml").write_text(
         "name: Jordan Rivers\nemail: j@x.com\nphone: '1'\nrole: MLE\n"
         "employers:\n  - company: Acme\n    title: DE\n    duration: 2y\n"
         "skills_inventory: {}\neducation: []\n")
@@ -367,7 +367,7 @@ def test_resume_endpoint_never_escapes_the_output_dir(tmp_path):
     data["jobs"]["evil"] = {**data["jobs"]["j1"], "id": "evil",
                             "title": "../../secrets", "company": "../x"}
     (tmp_path / "last_search.json").write_text(_json.dumps(data))
-    (tmp_path / "career_facts.yaml").write_text(
+    (tmp_path / "facts.yaml").write_text(
         "name: Jordan Rivers\nemail: j@x.com\nphone: '1'\nrole: MLE\n"
         "employers:\n  - company: Acme\n    title: DE\n    duration: 2y\n"
         "skills_inventory: {}\neducation: []\n")

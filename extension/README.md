@@ -69,7 +69,7 @@ show under "Needs your answer".
    python -m job_agent dashboard          # default port 8642
    ```
 
-   You need `data/career_facts.yaml` and `data/answer_bank.yaml`, same as the
+   You need `data/facts.yaml` and `data/answer_bank.yaml`, same as the
    CLI apply flow.
 
 2. **Load the extension** (Chrome / Edge / Brave):

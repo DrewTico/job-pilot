@@ -1,7 +1,7 @@
 """One-time extraction: base resume (.docx) → immutable career facts (YAML).
 
 This reads the base resume with python-docx and produces the source-of-truth
-``career_facts.yaml`` that the tailoring engine is constrained to. Company names,
+``facts.yaml`` that the tailoring engine is constrained to. Company names,
 titles, and durations are captured verbatim from the resume; only the true
 metric-bearing clauses are pulled into ``real_metrics`` (nothing is invented).
 
