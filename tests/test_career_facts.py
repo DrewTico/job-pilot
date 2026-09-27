@@ -50,3 +50,15 @@ def test_norm_treats_ampersand_and_punctuation_as_same_identity():
     # '&' vs 'and', trailing period, en-dash — all cosmetic, same identity.
     assert norm("JPMorgan Chase & Co.") == norm("JPMorgan Chase and Co")
     assert norm("Jul 2024 – Present") == norm("Jul 2024 - Present")
+
+
+def test_legacy_facts_without_candidate_fields_load():
+    cf = load_career_facts(DEMO / "demo_career_facts.yaml")
+    assert cf.summary == ""
+    assert cf.gpa is None
+    assert cf.citizenship is None
+    assert cf.requires_sponsorship is None
+    assert cf.open_to_relocation is None
+    assert cf.open_to_remote is None
+    assert cf.honors == ()
+    assert cf.credentials == ()

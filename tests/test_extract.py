@@ -143,3 +143,50 @@ def test_inline_skills_with_mixed_runs_and_no_education(tmp_path):
     assert facts['education'] == []
     assert facts['employers'] == []
     assert facts['projects'][0]['real_bullets'] == ['SKILLS improved through practice.']
+
+
+@pytest.mark.parametrize('heading', ['SUMMARY', 'PROFESSIONAL SUMMARY:'])
+@pytest.mark.parametrize('following', [[], [('SKILLS', True), ('Languages: Python', False)]])
+def test_summary_preserved_verbatim(tmp_path, heading, following):
+    lines = ['  Builds reliable tools.  ', '', 'Tests\tcarefully.\nDocuments results.']
+    path = resume(tmp_path, [
+        ('Casey Example', True), ('Developer', False), (heading, True),
+        *[(line, False) for line in lines], *following,
+    ])
+    expected = '\n'.join(lines)
+    assert extract_career_facts(path)['summary'] == expected
+    assert build_career_facts(path, email='', phone='')['summary'] == expected
+    assert build_career_facts(path, email='', phone='', summary='')['summary'] == ''
+    assert build_career_facts(
+        path, email='', phone='', summary='Explicit approved summary.',
+    )['summary'] == 'Explicit approved summary.'
+
+
+@pytest.mark.parametrize('sequence_type', [list, tuple])
+@pytest.mark.parametrize('flag', [True, False, None])
+def test_candidate_facts_round_trip(tmp_path, sequence_type, flag):
+    path = resume(tmp_path, [
+        ('Casey Example', True), ('Developer', False),
+        ('WORK EXPERIENCE', True),
+        ('Example Labs | Remote | Developer  Jan 2020 - Present', True),
+    ])
+    supplied = {
+        'summary': 'Builds test tools.', 'gpa': '3.70', 'citizenship': 'Exampleland',
+        'requires_sponsorship': flag, 'open_to_relocation': flag, 'open_to_remote': flag,
+        'honors': sequence_type(['Example College Award']),
+        'credentials': sequence_type(['Example Training Credential']),
+    }
+    facts = build_career_facts(path, email='casey@example.invalid', phone='', **supplied)
+    loaded = load_career_facts(write_career_facts(facts, tmp_path / 'synthetic.yaml'))
+    for field, value in supplied.items():
+        assert getattr(loaded, field) == (tuple(value) if field in ('honors', 'credentials') else value)
+
+
+def test_candidate_facts_are_not_inferred(tmp_path):
+    path = resume(tmp_path, [('Casey Example', True), ('Developer', False)])
+    facts = build_career_facts(path, email='', phone='')
+    assert facts['summary'] == ''
+    for field in ('gpa', 'citizenship', 'requires_sponsorship', 'open_to_relocation', 'open_to_remote'):
+        assert facts[field] is None
+    assert facts['honors'] == []
+    assert facts['credentials'] == []

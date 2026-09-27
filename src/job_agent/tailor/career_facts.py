@@ -54,6 +54,14 @@ class CareerFacts(BaseModel):
     skills_inventory: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     employers: tuple[Employer, ...] = Field(min_length=1)
     projects: tuple[Project, ...] = ()
+    summary: str = ""
+    gpa: str | None = None
+    citizenship: str | None = None
+    requires_sponsorship: bool | None = None
+    open_to_relocation: bool | None = None
+    open_to_remote: bool | None = None
+    honors: tuple[str, ...] = ()
+    credentials: tuple[str, ...] = ()
 
     # --- allow-lists consumed by the no-drift verifier ---------------------
 

@@ -110,7 +110,19 @@ def _metric_clauses(bullets: list[str]) -> list[str]:
 
 def extract_career_facts(docx_path: str | Path) -> dict[str, Any]:
     """Parse the resume into a career-facts dict (no contact PII, no certs)."""
-    paras = _paragraphs(Document(str(docx_path)))
+    doc = Document(str(docx_path))
+    paras = _paragraphs(doc)
+    # Read summary text before the general parser strips whitespace/blank paragraphs.
+    summary_lines: list[str] = []
+    in_summary = False
+    for paragraph in doc.paragraphs:
+        heading = paragraph.text.strip().upper().rstrip(":")
+        if heading in _SECTION_MARKERS:
+            if in_summary:
+                break
+            in_summary = heading in ("SUMMARY", "PROFESSIONAL SUMMARY")
+        elif in_summary:
+            summary_lines.append(paragraph.text)
     texts = [t for t, _ in paras]
 
     name = texts[0] if texts else ""
@@ -206,6 +218,7 @@ def extract_career_facts(docx_path: str | Path) -> dict[str, Any]:
     return {
         "name": name,
         "role": role,
+        "summary": "\n".join(summary_lines),
         "education": education,
         "skills_inventory": skills_inventory,
         "employers": employers,
@@ -221,8 +234,16 @@ def build_career_facts(
     location: str | None = None,
     links: list[str] | None = None,
     certifications: list[dict[str, str]] | None = None,
+    summary: str | None = None,
+    gpa: str | None = None,
+    citizenship: str | None = None,
+    requires_sponsorship: bool | None = None,
+    open_to_relocation: bool | None = None,
+    open_to_remote: bool | None = None,
+    honors: list[str] | tuple[str, ...] = (),
+    credentials: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
-    """Extraction + the explicitly-supplied contact/cert facts."""
+    """Extract facts and add explicit candidate facts; omitted summary uses the resume."""
     facts = extract_career_facts(docx_path)
     facts.update({
         "email": email,
@@ -230,9 +251,19 @@ def build_career_facts(
         "location": location,
         "links": links or [],
         "certifications": certifications or [],
+        "summary": facts["summary"] if summary is None else summary,
+        "gpa": gpa,
+        "citizenship": citizenship,
+        "requires_sponsorship": requires_sponsorship,
+        "open_to_relocation": open_to_relocation,
+        "open_to_remote": open_to_remote,
+        "honors": list(honors),
+        "credentials": list(credentials),
     })
     # Order keys for a readable YAML file.
     order = ["name", "role", "email", "phone", "location", "links",
+             "summary", "gpa", "citizenship", "requires_sponsorship",
+             "open_to_relocation", "open_to_remote", "honors", "credentials",
              "education", "certifications", "skills_inventory", "employers"]
     if "projects" in facts:
         order.append("projects")
