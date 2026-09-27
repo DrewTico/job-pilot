@@ -9,11 +9,13 @@ and must not match against the stale pre-typing list.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
-FILL_DIR = "/Users/aravindpranav/job-agent/extension/content"
+FILL_DIR = str(Path(__file__).resolve().parents[1] / "extension" / "content")
 
 FIXTURE = """
 <div id="wrap">

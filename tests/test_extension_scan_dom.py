@@ -12,11 +12,13 @@ No textarea card existed on the captured form, so none is fixtured here.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 playwright = pytest.importorskip("playwright.sync_api")
 
-SCAN_JS = "/Users/aravindpranav/job-agent/extension/content/scan.js"
+SCAN_JS = str(Path(__file__).resolve().parents[1] / "extension" / "content" / "scan.js")
 
 # Question texts and option texts below are the capture, verbatim.
 FIXTURE = """

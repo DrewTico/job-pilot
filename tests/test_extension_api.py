@@ -293,7 +293,7 @@ def test_option_alias_matching_usa_to_united_states():
     """
     proc = subprocess.run(
         [node, "-e", script,
-         "/Users/aravindpranav/job-agent/extension/content/match.js"],
+         str(Path(__file__).resolve().parents[1] / "extension" / "content" / "match.js")],
         capture_output=True, text=True)
     assert proc.returncode == 0, proc.stderr + proc.stdout
 
