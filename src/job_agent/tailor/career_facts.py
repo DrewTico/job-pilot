@@ -62,6 +62,10 @@ class CareerFacts(BaseModel):
     open_to_remote: bool | None = None
     honors: tuple[str, ...] = ()
     credentials: tuple[str, ...] = ()
+    academic_focus: tuple[str, ...] = ()
+    leadership: tuple[str, ...] = ()
+    known_gaps: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
 
     # --- allow-lists consumed by the no-drift verifier ---------------------
 

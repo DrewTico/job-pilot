@@ -31,6 +31,7 @@ _SECTION_MARKERS = ("OBJECTIVE", "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS",
 # Only clauses matching these are treated as real, citable metrics.
 _METRIC = re.compile(
     r"\d{1,3}\s*%|\d[\d,]*\+?\s*(?:daily users|users|years|applications|records)"
+    r"|\b\d[\d,]*\+?\s+(?:hours?\s+per\s+week|student-athletes?)\b"
     r"|minutes to seconds|tripl(?:e|ed)",
     re.IGNORECASE,
 )
@@ -242,6 +243,10 @@ def build_career_facts(
     open_to_remote: bool | None = None,
     honors: list[str] | tuple[str, ...] = (),
     credentials: list[str] | tuple[str, ...] = (),
+    academic_focus: list[str] | tuple[str, ...] = (),
+    leadership: list[str] | tuple[str, ...] = (),
+    known_gaps: list[str] | tuple[str, ...] = (),
+    notes: list[str] | tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Extract facts and add explicit candidate facts; omitted summary uses the resume."""
     facts = extract_career_facts(docx_path)
@@ -259,11 +264,16 @@ def build_career_facts(
         "open_to_remote": open_to_remote,
         "honors": list(honors),
         "credentials": list(credentials),
+        "academic_focus": list(academic_focus),
+        "leadership": list(leadership),
+        "known_gaps": list(known_gaps),
+        "notes": list(notes),
     })
     # Order keys for a readable YAML file.
     order = ["name", "role", "email", "phone", "location", "links",
              "summary", "gpa", "citizenship", "requires_sponsorship",
              "open_to_relocation", "open_to_remote", "honors", "credentials",
+             "academic_focus", "leadership", "known_gaps", "notes",
              "education", "certifications", "skills_inventory", "employers"]
     if "projects" in facts:
         order.append("projects")

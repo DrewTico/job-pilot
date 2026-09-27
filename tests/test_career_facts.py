@@ -62,3 +62,6 @@ def test_legacy_facts_without_candidate_fields_load():
     assert cf.open_to_remote is None
     assert cf.honors == ()
     assert cf.credentials == ()
+    for field in ('academic_focus', 'leadership', 'known_gaps', 'notes'):
+        assert getattr(cf, field) == ()
+        assert cf.model_dump(mode='json')[field] == []

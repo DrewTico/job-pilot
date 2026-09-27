@@ -175,11 +175,15 @@ def test_candidate_facts_round_trip(tmp_path, sequence_type, flag):
         'requires_sponsorship': flag, 'open_to_relocation': flag, 'open_to_remote': flag,
         'honors': sequence_type(['Example College Award']),
         'credentials': sequence_type(['Example Training Credential']),
+        'academic_focus': sequence_type(['Distributed systems', 'Database design']),
+        'leadership': sequence_type(['Coordinated the example robotics club']),
+        'known_gaps': sequence_type(['No production container experience']),
+        'notes': sequence_type(['Confirm availability before scheduling']),
     }
     facts = build_career_facts(path, email='casey@example.invalid', phone='', **supplied)
     loaded = load_career_facts(write_career_facts(facts, tmp_path / 'synthetic.yaml'))
     for field, value in supplied.items():
-        assert getattr(loaded, field) == (tuple(value) if field in ('honors', 'credentials') else value)
+        assert getattr(loaded, field) == (tuple(value) if isinstance(value, (list, tuple)) else value)
 
 
 def test_candidate_facts_are_not_inferred(tmp_path):
@@ -190,3 +194,44 @@ def test_candidate_facts_are_not_inferred(tmp_path):
         assert facts[field] is None
     assert facts['honors'] == []
     assert facts['credentials'] == []
+    for field in ('academic_focus', 'leadership', 'known_gaps', 'notes'):
+        assert facts[field] == []
+
+
+@pytest.mark.parametrize('clause', [
+    'Saved 8+ hours per week through report automation',
+    'Mentored 24+ student-athletes in the example tutoring program',
+    'Saved 8 hours per week through report automation',
+    'Mentored 24 student-athletes in the example tutoring program',
+    'Reduced latency by 25%',
+    'Supported 1,200+ daily users',
+    'Served 200 users',
+    'Provided support for 3 years',
+    'Maintained 12 applications',
+    'Processed 5,000 records',
+    'Reduced runtime from minutes to seconds',
+    'Tripled throughput',
+])
+def test_metric_clauses_preserved_from_synthetic_resume(tmp_path, clause):
+    path = resume(tmp_path, [
+        ('Casey Example', True), ('Developer', False), ('EXPERIENCE', True),
+        ('Example Labs\tJan 2020 - Present', True), ('Developer\tRemote', False),
+        (f'{clause}; Maintained documentation.', False), (f'{clause}.', False),
+    ])
+    facts = extract_career_facts(path)
+    assert facts['employers'][0]['real_metrics'] == [clause]
+
+
+@pytest.mark.parametrize('bullet', [
+    'Used Python 3',
+    'Joined the team in 2021',
+    'Worked on version 8+',
+    'Read chapter 24',
+    'Reviewed 8 weekly reports',
+    'Documented 24 student-athleteship examples',
+    'Reviewed 8 hours per weekday of logs',
+])
+def test_unrelated_numbers_are_not_metrics(bullet):
+    from job_agent.tailor.extract import _metric_clauses
+
+    assert _metric_clauses([bullet]) == []
