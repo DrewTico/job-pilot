@@ -5,8 +5,8 @@ This reads the base resume with python-docx and produces the source-of-truth
 titles, and durations are captured verbatim from the resume; only the true
 metric-bearing clauses are pulled into ``real_metrics`` (nothing is invented).
 
-Contact fields and certifications are NOT in the resume text — they're supplied
-explicitly (see ``build_career_facts``) so no PII is hardcoded in this module.
+Contact fields and certifications are supplied explicitly (see
+``build_career_facts``); contact lines in the resume are not used as the role.
 
 Run via the CLI (``python -m job_agent tailor extract ...``) or ``main()``.
 """
@@ -25,7 +25,8 @@ _DURATION = re.compile(
     r"([A-Z][a-z]{2,8}\.?\s+\d{4}\s*[-–]\s*(?:Present|[A-Z][a-z]{2,8}\.?\s+\d{4}))\s*$"
 )
 _SECTION_MARKERS = ("OBJECTIVE", "PROFESSIONAL SUMMARY", "TECHNICAL SKILLS",
-                    "EDUCATION", "WORK EXPERIENCE")
+                    "EDUCATION", "WORK EXPERIENCE", "SKILLS", "EXPERIENCE",
+                    "PROJECTS", "SUMMARY")
 
 # Only clauses matching these are treated as real, citable metrics.
 _METRIC = re.compile(
@@ -50,6 +51,19 @@ def _paragraphs(doc: Document) -> list[tuple[str, bool]]:
 
 def _is_employer_header(text: str, is_bold: bool) -> bool:
     return is_bold and "|" in text and bool(_DURATION.search(text))
+
+
+def _is_contact_line(text: str) -> bool:
+    """Recognize contact indicators without relying on candidate-specific values."""
+    return bool(
+        re.search(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", text)
+        or re.search(r"\b(?:www\.)?(?:linkedin\.com|github\.com)(?:/|\b)", text, re.I)
+        or re.search(
+            r"(?<!\w)(?:\+?\d{1,3}[ .-]?)?(?:\(\d{3}\)|\d{3})"
+            r"[ .-]?\d{3}[ .-]?\d{4}(?!\w)", text
+        )
+        or len([part for part in text.split("|") if part.strip()]) >= 3
+    )
 
 
 def _split_header(text: str) -> tuple[str, str, str, str]:
@@ -101,39 +115,70 @@ def extract_career_facts(docx_path: str | Path) -> dict[str, Any]:
 
     name = texts[0] if texts else ""
     role = texts[1] if len(texts) > 1 else ""
+    if _is_contact_line(role) or role.upper().rstrip(":") in _SECTION_MARKERS:
+        role = ""
 
-    # Index the section markers so we can slice between them.
-    marker_idx = {m: i for i, (t, _) in enumerate(paras)
-                  for m in _SECTION_MARKERS if t.upper().startswith(m)}
+    # Slice each section at the next heading, independent of section order.
+    sections: dict[str, list[tuple[str, bool]]] = {}
+    current_section = None
+    for text, is_bold in paras:
+        heading = text.upper().rstrip(":")
+        if heading in _SECTION_MARKERS:
+            current_section = {"SKILLS": "TECHNICAL SKILLS",
+                               "EXPERIENCE": "WORK EXPERIENCE"}.get(heading, heading)
+            sections.setdefault(current_section, [])
+        elif current_section:
+            sections[current_section].append((text, is_bold))
 
-    # Education: between EDUCATION and WORK EXPERIENCE.
-    education = []
-    if "EDUCATION" in marker_idx and "WORK EXPERIENCE" in marker_idx:
-        for text, _ in paras[marker_idx["EDUCATION"] + 1: marker_idx["WORK EXPERIENCE"]]:
-            education.append(text)
-
-    # Technical skills: between TECHNICAL SKILLS and EDUCATION, grouped by bold header.
+    education = [text for text, _ in sections.get("EDUCATION", [])]
     skills_inventory: dict[str, list[str]] = {}
-    if "TECHNICAL SKILLS" in marker_idx and "EDUCATION" in marker_idx:
-        current = None
-        for text, is_bold in paras[marker_idx["TECHNICAL SKILLS"] + 1: marker_idx["EDUCATION"]]:
-            if is_bold:
-                current = text
-                skills_inventory[current] = []
-            elif current:
-                skills_inventory[current].append(text)
+    current = None
+    for text, is_bold in sections.get("TECHNICAL SKILLS", []):
+        inline = re.match(r"^[•●▪*\-]?\s*([^:]+):\s*(.*)$", text)
+        if inline:
+            current = inline.group(1).strip()
+            skills_inventory.setdefault(current, []).extend(_paren_aware_split(inline.group(2)))
+        elif is_bold:
+            current = text
+            skills_inventory[current] = []
+        elif current:
+            skills_inventory[current].append(text)
 
-    # Work experience: split by employer headers.
+    # Preserve project headings verbatim, including any dates or descriptors.
+    projects: list[dict[str, Any]] = []
+    for text, is_bold in sections.get("PROJECTS", []):
+        if is_bold:
+            projects.append({"header": text, "real_bullets": []})
+        elif projects:
+            projects[-1]["real_bullets"].append(text)
+        else:
+            projects.append({"header": "", "real_bullets": [text]})
+
     employers: list[dict[str, Any]] = []
-    work = paras[marker_idx.get("WORK EXPERIENCE", len(paras)) + 1:]
-    header_positions = [i for i, (t, b) in enumerate(work) if _is_employer_header(t, b)]
+    work = sections.get("WORK EXPERIENCE", [])
+    header_positions = [i for i, (t, b) in enumerate(work)
+                        if _is_employer_header(t, b)
+                        or (b and bool(_DURATION.search(t)) and "|" not in t)]
     for n, start in enumerate(header_positions):
         end = header_positions[n + 1] if n + 1 < len(header_positions) else len(work)
         block = work[start:end]
-        company, location, title, duration = _split_header(block[0][0])
+        split_layout = "|" not in block[0][0]
+        if split_layout:
+            header = block[0][0]
+            duration = _DURATION.search(header).group(1).strip()
+            company = _DURATION.sub("", header).strip()
+            title, location = "", ""
+            if len(block) > 1:
+                # Tabs, pipes, or alignment spaces separate title and location.
+                details = re.split(r"\t+|\s*\|\s*| {2,}", block[1][0], maxsplit=1)
+                title = details[0].strip()
+                location = details[1].strip() if len(details) > 1 else ""
+            body = block[2:]
+        else:
+            company, location, title, duration = _split_header(block[0][0])
+            body = block[1:]
 
         # project description = paragraphs after header until "Key Responsibilities".
-        body = block[1:]
         resp_at = next((i for i, (t, _) in enumerate(body)
                         if "key responsibilities" in t.lower()), len(body))
         env_at = next((i for i, (t, _) in enumerate(body)
@@ -141,6 +186,9 @@ def extract_career_facts(docx_path: str | Path) -> dict[str, Any]:
         project_description = " ".join(t for t, _ in body[:resp_at]).strip()
         bullets = [t for t, _ in body[resp_at + 1: env_at]
                    if "key responsibilities" not in t.lower()]
+        if split_layout and resp_at == len(body):
+            project_description = ""
+            bullets = [t for t, _ in body[:env_at]]
         environment_raw = body[env_at][0] if env_at < len(body) else ""
         environment_raw = re.sub(r"(?i)^environment:\s*", "", environment_raw).strip()
 
@@ -161,6 +209,7 @@ def extract_career_facts(docx_path: str | Path) -> dict[str, Any]:
         "education": education,
         "skills_inventory": skills_inventory,
         "employers": employers,
+        **({"projects": projects} if "PROJECTS" in sections else {}),
     }
 
 
@@ -185,6 +234,8 @@ def build_career_facts(
     # Order keys for a readable YAML file.
     order = ["name", "role", "email", "phone", "location", "links",
              "education", "certifications", "skills_inventory", "employers"]
+    if "projects" in facts:
+        order.append("projects")
     return {k: facts[k] for k in order}
 
 

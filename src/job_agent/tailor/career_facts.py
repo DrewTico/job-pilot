@@ -34,6 +34,12 @@ class Employer(BaseModel):
     real_skills: tuple[str, ...] = ()
 
 
+class Project(BaseModel):
+    model_config = ConfigDict(frozen=True)
+    header: str
+    real_bullets: tuple[str, ...] = ()
+
+
 class CareerFacts(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -47,6 +53,7 @@ class CareerFacts(BaseModel):
     certifications: tuple[Certification, ...] = ()
     skills_inventory: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     employers: tuple[Employer, ...] = Field(min_length=1)
+    projects: tuple[Project, ...] = ()
 
     # --- allow-lists consumed by the no-drift verifier ---------------------
 

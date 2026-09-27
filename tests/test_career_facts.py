@@ -27,6 +27,12 @@ def test_facts_are_frozen():
         cf.employers[0].company = "Changed Corp"
 
 
+def test_legacy_facts_without_projects_load():
+    cf = load_career_facts(DEMO / "demo_career_facts.yaml")
+    assert cf.projects == ()
+    assert cf.model_dump(mode="json")["projects"] == []
+
+
 def test_invalid_facts_raise(tmp_path):
     bad = tmp_path / "bad.yaml"
     bad.write_text("name: x\nrole: y\n")  # no employers (min_length=1)
