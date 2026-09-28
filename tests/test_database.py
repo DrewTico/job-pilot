@@ -81,6 +81,43 @@ def test_idempotency_and_seen_timestamps(engine):
             assert row.last_seen == LATE.replace(tzinfo=None)
 
 
+@pytest.mark.parametrize('attachment_day', [2, 4])
+def test_seen_only_identity_attaches_without_losing_history(engine, attachment_day):
+    attached_at = datetime(2026, 1, attachment_day, tzinfo=timezone.utc)
+    with database_session(engine) as session:
+        identity = JobIdentity(source='synthetic', external_id='123',
+                               first_seen=EARLY, last_seen=LATE)
+        session.add(identity)
+        session.flush()
+        identity_id = identity.id
+        assert identity.job_id is None
+        assert identity.posting_url is None
+        assert identity.apply_url is None
+
+    with database_session(engine) as session:
+        repo = JobRepository(session)
+        job = repo.create_job(company='Synthetic Co', title='Engineer', location='Remote',
+                              posting_url=POSTING, seen_at=attached_at)
+        attached = attach(repo, job, seen_at=attached_at)
+        assert attached.id == identity_id
+        job_id = job.id
+
+    with database_session(engine) as session:
+        repo = JobRepository(session)
+        identity = repo.get_identity('synthetic', '123')
+        job = repo.get_job(job_id)
+        assert identity.job_id == job_id
+        assert identity.posting_url == POSTING
+        assert identity.apply_url == APPLY
+        for row in (identity, job):
+            assert row.first_seen == EARLY.replace(tzinfo=None)
+            assert row.last_seen == max(LATE, attached_at).replace(tzinfo=None)
+        other = create(repo)
+        with pytest.raises(ValueError, match='already belongs'):
+            attach(repo, other)
+        assert identity.job_id == job_id
+
+
 def test_source_scope_and_no_company_title_location_uniqueness(engine):
     with database_session(engine) as session:
         repo = JobRepository(session)
@@ -153,14 +190,14 @@ def test_database_enforces_identity_uniqueness_and_restricts_job_deletion(engine
 
 def test_schema_version_and_only_requested_tables(engine):
     with engine.connect() as connection:
-        assert connection.exec_driver_sql('PRAGMA user_version').scalar_one() == 1
+        assert connection.exec_driver_sql('PRAGMA user_version').scalar_one() == 2
         tables = connection.exec_driver_sql(
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).scalars().all()
-        assert set(tables) == {'jobs', 'job_identities'}
+        assert set(tables) == {'jobs', 'job_identities', 'search_runs', 'search_results'}
 
 
-@pytest.mark.parametrize('version', [2, 99])
+@pytest.mark.parametrize('version', [3, 99])
 def test_unknown_version_is_not_modified(tmp_path, version):
     path = tmp_path / 'future.sqlite'
     with sqlite3.connect(path) as connection:

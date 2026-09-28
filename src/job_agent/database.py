@@ -12,11 +12,11 @@ from pathlib import Path
 from typing import Iterator
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Engine, UniqueConstraint, event
+from sqlalchemy import JSON, Column, DateTime, Engine, UniqueConstraint, event
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -45,20 +45,45 @@ class JobIdentity(SQLModel, table=True):
     __table_args__ = (UniqueConstraint("source", "external_id"),)
 
     id: int | None = Field(default=None, primary_key=True)
-    job_id: str = Field(foreign_key="jobs.id", index=True)
+    job_id: str | None = Field(default=None, foreign_key="jobs.id", index=True)
     source: str
     external_id: str
-    posting_url: str
+    posting_url: str | None = None
     apply_url: str | None = None
     first_seen: datetime = Field(sa_type=DateTime)
     last_seen: datetime = Field(sa_type=DateTime)
 
 
+class SearchRun(SQLModel, table=True):
+    __tablename__ = "search_runs"
+
+    id: str = Field(primary_key=True)  # Semantic SHA-256 of the legacy snapshot.
+    generated_at: str | None = None
+    total: int | None = None
+    new_count: int | None = None
+    sources_queried: int | None = None
+    payload: dict = Field(sa_column=Column(JSON, nullable=False))
+
+
+class SearchResult(SQLModel, table=True):
+    __tablename__ = "search_results"
+    __table_args__ = (UniqueConstraint("run_id", "legacy_key"),)
+
+    id: int | None = Field(default=None, primary_key=True)
+    run_id: str = Field(foreign_key="search_runs.id")
+    legacy_key: str
+    identity_id: int | None = Field(default=None, foreign_key="job_identities.id")
+    unresolved: str | None = None
+    # Exact persisted keys only, including explicit nulls and booleans.
+    payload: dict = Field(sa_column=Column(JSON, nullable=False))
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v1.
+    """Explicitly create/open a file and initialize schema v2.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently migrated. Parent directories must already exist.
+    silently adopted. Version 1 is upgraded transactionally. Parent directories
+    must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
 
@@ -74,7 +99,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, SCHEMA_VERSION):
+            if version not in (0, 1, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -84,7 +109,29 @@ def initialize_database(path: str | Path) -> Engine:
                 if tables:
                     raise ValueError("Refusing to initialize a nonempty unversioned database")
                 SQLModel.metadata.create_all(
-                    connection, tables=[CanonicalJob.__table__, JobIdentity.__table__]
+                    connection, tables=[CanonicalJob.__table__, JobIdentity.__table__,
+                                        SearchRun.__table__, SearchResult.__table__]
+                )
+                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            if version == 1:
+                # Rebuild only the identity table to permit honest seen-only rows.
+                connection.exec_driver_sql(
+                    "CREATE TABLE identities_v2 (id INTEGER PRIMARY KEY, "
+                    "job_id VARCHAR REFERENCES jobs(id), source VARCHAR NOT NULL, "
+                    "external_id VARCHAR NOT NULL, posting_url VARCHAR, apply_url VARCHAR, "
+                    "first_seen DATETIME NOT NULL, last_seen DATETIME NOT NULL, "
+                    "UNIQUE(source, external_id))"
+                )
+                connection.exec_driver_sql(
+                    "INSERT INTO identities_v2 SELECT * FROM job_identities"
+                )
+                connection.exec_driver_sql("DROP TABLE job_identities")
+                connection.exec_driver_sql("ALTER TABLE identities_v2 RENAME TO job_identities")
+                connection.exec_driver_sql(
+                    "CREATE INDEX ix_job_identities_job_id ON job_identities(job_id)"
+                )
+                SQLModel.metadata.create_all(
+                    connection, tables=[SearchRun.__table__, SearchResult.__table__]
                 )
                 connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
@@ -147,8 +194,13 @@ class JobRepository:
             raise ValueError(f"Unknown canonical job: {job_id}")
         identity = self.get_identity(source, external_id)
         if identity is not None:
-            if identity.job_id != job_id:
+            if identity.job_id is not None and identity.job_id != job_id:
                 raise ValueError("Source identity already belongs to another job")
+            if identity.job_id is None:
+                identity.job_id = job_id
+                identity.posting_url = posting_url
+                identity.apply_url = apply_url
+            identity.first_seen = min(identity.first_seen, observed)
             identity.last_seen = max(identity.last_seen, observed)
         else:
             identity = JobIdentity(
@@ -156,7 +208,8 @@ class JobRepository:
                 posting_url=posting_url, apply_url=apply_url,
                 first_seen=observed, last_seen=observed,
             )
-        job.last_seen = max(job.last_seen, observed)
+        job.first_seen = min(job.first_seen, identity.first_seen)
+        job.last_seen = max(job.last_seen, identity.last_seen)
         self.session.add(identity)
         self.session.add(job)
         self.session.flush()
@@ -168,6 +221,13 @@ class JobRepository:
         identity = self.get_identity(source, external_id)
         if identity is None:
             raise ValueError("Unknown source identity")
+        if identity.job_id is None:
+            observed = _utc(seen_at)
+            identity.first_seen = min(identity.first_seen, observed)
+            identity.last_seen = max(identity.last_seen, observed)
+            self.session.add(identity)
+            self.session.flush()
+            return identity
         return self.add_identity(
             identity.job_id, source=source, external_id=external_id,
             posting_url=identity.posting_url, apply_url=identity.apply_url,
