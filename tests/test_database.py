@@ -190,14 +190,15 @@ def test_database_enforces_identity_uniqueness_and_restricts_job_deletion(engine
 
 def test_schema_version_and_only_requested_tables(engine):
     with engine.connect() as connection:
-        assert connection.exec_driver_sql('PRAGMA user_version').scalar_one() == 2
+        assert connection.exec_driver_sql('PRAGMA user_version').scalar_one() == 3
         tables = connection.exec_driver_sql(
             "SELECT name FROM sqlite_master WHERE type='table'"
         ).scalars().all()
-        assert set(tables) == {'jobs', 'job_identities', 'search_runs', 'search_results'}
+        assert set(tables) == {'jobs', 'job_identities', 'search_runs', 'search_results',
+                               'application_events'}
 
 
-@pytest.mark.parametrize('version', [3, 99])
+@pytest.mark.parametrize('version', [4, 99])
 def test_unknown_version_is_not_modified(tmp_path, version):
     path = tmp_path / 'future.sqlite'
     with sqlite3.connect(path) as connection:

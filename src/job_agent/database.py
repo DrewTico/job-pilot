@@ -16,7 +16,7 @@ from sqlalchemy import JSON, Column, DateTime, Engine, UniqueConstraint, event
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -38,6 +38,12 @@ class CanonicalJob(SQLModel, table=True):
     apply_url: str | None = None
     first_seen: datetime = Field(sa_type=DateTime)
     last_seen: datetime = Field(sa_type=DateTime)
+    # Legacy status is mixed; kind prevents treating submitted as applied.
+    application_status: str | None = None
+    application_status_kind: str | None = None
+    application_notes: str | None = None
+    application_follow_up: str | None = None
+    application_updated_at: datetime | None = Field(default=None, sa_type=DateTime)
 
 
 class JobIdentity(SQLModel, table=True):
@@ -78,12 +84,38 @@ class SearchResult(SQLModel, table=True):
     payload: dict = Field(sa_column=Column(JSON, nullable=False))
 
 
+class ApplicationEvent(SQLModel, table=True):
+    """Immutable evidence, including exact legacy fields and import provenance."""
+    __tablename__ = "application_events"
+
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    import_key: str | None = Field(default=None, unique=True)
+    job_id: str | None = Field(default=None, foreign_key="jobs.id", index=True)
+    external_job_id: str
+    source: str
+    company: str
+    title: str
+    attempt_id: str
+    status: str
+    status_kind: str
+    reason: str
+    notes: str
+    follow_up: str
+    occurred_at: datetime = Field(sa_type=DateTime)
+    legacy_date: str | None = None
+    provenance: str
+    file_sha256: str | None = None
+    record_index: int | None = None
+    unresolved: str | None = None
+    payload: dict = Field(sa_column=Column(JSON, nullable=False))
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v2.
+    """Explicitly create/open a file and initialize schema v3.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Version 1 is upgraded transactionally. Parent directories
-    must already exist.
+    silently adopted. Versions 1 and 2 are upgraded transactionally.
+    Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
 
@@ -99,7 +131,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, SCHEMA_VERSION):
+            if version not in (0, 1, 2, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -110,7 +142,8 @@ def initialize_database(path: str | Path) -> Engine:
                     raise ValueError("Refusing to initialize a nonempty unversioned database")
                 SQLModel.metadata.create_all(
                     connection, tables=[CanonicalJob.__table__, JobIdentity.__table__,
-                                        SearchRun.__table__, SearchResult.__table__]
+                                        SearchRun.__table__, SearchResult.__table__,
+                                        ApplicationEvent.__table__]
                 )
                 connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             if version == 1:
@@ -134,6 +167,24 @@ def initialize_database(path: str | Path) -> Engine:
                     connection, tables=[SearchRun.__table__, SearchResult.__table__]
                 )
                 connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            if version in (1, 2):
+                for name, sql_type in (
+                    ("application_status", "VARCHAR"),
+                    ("application_status_kind", "VARCHAR"),
+                    ("application_notes", "VARCHAR"),
+                    ("application_follow_up", "VARCHAR"),
+                    ("application_updated_at", "DATETIME"),
+                ):
+                    connection.exec_driver_sql(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
+                ApplicationEvent.__table__.create(connection)
+                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            # Enforce append-only history even for direct SQL/ORM callers.
+            for operation in ("UPDATE", "DELETE"):
+                connection.exec_driver_sql(
+                    f"CREATE TRIGGER IF NOT EXISTS application_events_no_{operation.lower()} "
+                    f"BEFORE {operation} ON application_events BEGIN "
+                    "SELECT RAISE(ABORT, 'application_events is append-only'); END"
+                )
             connection.commit()
     except Exception:
         engine.dispose()
