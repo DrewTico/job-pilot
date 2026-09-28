@@ -320,6 +320,15 @@ def test_style_gate_flags_em_and_en_dashes():
                verify_answer("I built pipelines – they were fast.", FACTS))
 
 
+def test_screening_uses_full_shared_banned_phrase_list():
+    from job_agent.writing_lint import lint_writing
+
+    for text in ("I am passionate.", "A dynamic team.", "A go-getter.",
+                 "I hope this email finds you well.", "Synergy."):
+        assert verify_answer(text, FACTS) == lint_writing(text)
+        assert lint_writing(text)
+
+
 def test_style_gate_flags_banned_phrases_whole_word():
     for text in ("I leveraged Spark daily.",
                  "I am passionate about data.",

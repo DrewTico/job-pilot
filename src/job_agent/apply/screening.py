@@ -27,6 +27,8 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from job_agent.writing_lint import lint_writing
+
 from job_agent.apply.answer_bank import AnswerBank
 from job_agent.apply.fields import FieldType, FillPlan, FormField, PlannedFill
 from job_agent.apply.filler import _is_legal_consent
@@ -113,38 +115,6 @@ _METRIC_TOKEN = re.compile(
     r"\$\s?\d[\d,]*(?:\.\d+)?\s*[kKmM]?|\b\d[\d,]*(?:\.\d+)?\s*%|"
     r"\b\d[\d,]*(?:\.\d+)?\s*[kKmM]\b|\b\d[\d,]*(?:\.\d+)?x\b|\b\d[\d,]*(?:\.\d+)?\+")
 
-# Mechanical style rules. DELIBERATE SPLIT: these are the deterministic,
-# string-checkable voice rules (dashes, banned phrases, the not-only/but
-# construction). TOPICAL honesty — "does the draft claim experience the facts
-# don't contain?" — is semantic and is enforced in the PROMPT (DRAFT_SYSTEM +
-# _TYPE_INSTRUCTIONS), with the regenerate-once-then-flag gate as backstop.
-# Violations here FLAG the draft for human review; nothing is ever silently
-# rewritten.
-_BANNED_STYLE = (
-    "leverage", "spearheaded", "passionate about", "excited to", "deep dive",
-    "robust", "seamless", "cutting-edge", "in today's landscape", "i thrive",
-    "wealth of experience", "delve", "testament", "underscore",
-)
-# whole-word, stem-tolerant ("leveraged", "underscores"), flexible whitespace
-_BANNED_STYLE_RES = tuple(
-    (phrase, re.compile(r"\b" + re.escape(phrase).replace(r"\ ", r"\s+") + r"\w*",
-                        re.IGNORECASE))
-    for phrase in _BANNED_STYLE)
-_NOT_ONLY_BUT = re.compile(
-    r"\bnot\s+(?:only|just)\b[^.?!]{0,120}?\bbut\b", re.IGNORECASE | re.DOTALL)
-
-
-def _style_violations(text: str) -> list[str]:
-    """The mechanical voice-rule violations in ``text`` (see split note above)."""
-    violations: list[str] = []
-    if "—" in text or "–" in text:
-        violations.append("style: em/en dash (use a period or a comma)")
-    for phrase, pattern in _BANNED_STYLE_RES:
-        if pattern.search(text):
-            violations.append(f"style: banned phrase {phrase!r}")
-    if _NOT_ONLY_BUT.search(text):
-        violations.append("style: 'not only/just X but Y' construction")
-    return violations
 
 
 def verify_answer(text: str, facts: CareerFacts, company: str = "") -> list[str]:
@@ -172,7 +142,7 @@ def verify_answer(text: str, facts: CareerFacts, company: str = "") -> list[str]
         if (v := _to_value(num)) is not None and v not in banked:
             violations.append(f"metric {tok.strip()!r} is not among the banked real metrics")
 
-    violations.extend(_style_violations(text))
+    violations.extend(lint_writing(text))
     return violations
 
 
