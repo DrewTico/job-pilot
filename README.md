@@ -89,12 +89,18 @@ python -m job_agent discover                          # grow the board list (see
 `search` fetches live jobs from the boards in `search_profile.yaml`, filters to
 the recency window (default 30 days), scores each survivor, prints them ranked
 — hiding jobs you already applied to (`--include-applied` shows them) — and
-saves the run to `data/last_search.json`. `tailor --job <ID>` (an ID from that
+saves the run to `data/job_pilot.sqlite3` (under `Settings.data_dir`). `tailor --job <ID>` (an ID from that
 table) re-fetches the full JD, tailors your base résumé to it, runs the no-drift
 gate, and writes `data/output/<company>_<role>.pdf` (+ `.docx`) plus a NOTES
 block to review. `apply --job <ID>` opens that job's application in a
 **visible** browser, fills it from your answer bank + tailored PDF, and shows a
 full review — see below.
+
+On first real use, existing `last_search.json` and `seen.json` are imported
+transactionally. Malformed JSON stops cutover. Successful import leaves both
+files unchanged; subsequent searches and readers use SQLite only. Demo commands
+remain isolated. Job lookup accepts a unique external ID, `source:id`, or
+`canonical:<uuid>`; ambiguous bare IDs produce an error.
 
 Useful search flags: `--profile PATH`, `--limit N`, `--days N` (recency
 window, default 30; `--max-age-hours N` overrides it for sub-day windows),

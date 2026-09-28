@@ -1,7 +1,7 @@
 """Command-line entry point.
 
     python -m job_agent search --demo     # Slice 1: discover & score (no key/network)
-    python -m job_agent search            # real search (writes data/last_search.json)
+    python -m job_agent search            # real search (writes SQLite search state)
     python -m job_agent tailor --demo     # Slice 2: tailor a fake resume, sample PDF
     python -m job_agent tailor --job <id> # tailor your resume to a searched job
 
@@ -29,7 +29,10 @@ from job_agent.models import Job, ScoredJob
 from job_agent.scoring import score_jobs
 from job_agent.search import SearchOutcome
 from job_agent.seen_cache import SeenCache
-from job_agent.store import load_job_record, resolve_apply_url, save_search
+from job_agent.store import resolve_apply_url
+from job_agent.search_state import (load_job_record, search_database, database_path,
+                                    SQLiteSeenCache, SearchRepository, AmbiguousJobError)
+from job_agent.database import database_session
 from job_agent.tailor.career_facts import load_career_facts
 from job_agent.tailor.jd_fetch import get_full_jd
 from job_agent.tailor.render_pdf import (
@@ -155,6 +158,8 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
         return 0
 
     settings = load_settings()
+    if getattr(args, "data_dir", None) is not None:
+        settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
     if not settings.anthropic_api_key:
         console.print("[red]ANTHROPIC_API_KEY is not set.[/red] Add it to .env or use --demo.")
         return 2
@@ -164,18 +169,18 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
         console.print(f"[red]{exc}[/red]")
         return 2
     console.print(f"[bold cyan]job-agent search[/bold cyan] — scoring with {settings.model}\n")
-    outcome = search.run(profile, seen_cache=SeenCache(settings.data_dir / "seen.json"),
-                         fresh_window=window)
-    _print_pipeline_summary(console, outcome, args.max_age_hours)
-    if not outcome.jobs:
-        _print_ranked_table(console, [], args.limit)
-        return 0
-    console.print(f"[dim]Scoring {len(outcome.jobs)} job(s) with the LLM…[/dim]")
-    scored = score_jobs(outcome.jobs, settings, profile, method=args.method)
-    saved = save_search(scored, outcome.boards, settings.data_dir / "last_search.json",
-                        first_seen=outcome.first_seen, new_job_ids=outcome.new_job_ids,
-                        baseline=outcome.baseline_scan,
-                        sources_queried=len(outcome.per_source))
+    with search_database(settings.data_dir) as engine, database_session(engine) as session:
+        cache = SQLiteSeenCache(session)
+        outcome = search.run(profile, seen_cache=cache, fresh_window=window)
+        _print_pipeline_summary(console, outcome, args.max_age_hours)
+        scored = []
+        if outcome.jobs:
+            console.print(f"[dim]Scoring {len(outcome.jobs)} job(s) with the LLM…[/dim]")
+            scored = score_jobs(outcome.jobs, settings, profile, method=args.method)
+        SearchRepository(session).record_search(
+            scored, outcome.boards, cache=cache, baseline=outcome.baseline_scan,
+            sources_queried=len(outcome.per_source))
+    saved = database_path(settings.data_dir)
     # Hide roles with an in-flight application (everything is still SAVED above;
     # this is a render-level filter — --include-applied overrides it). getattr:
     # programmatic callers (the dashboard) build their own Namespace.
@@ -308,6 +313,8 @@ def cmd_tailor(console: Console, args: argparse.Namespace) -> int:
         console.print("[red]Provide --job <id>[/red] (from a prior `search`) or use --demo.")
         return 2
     settings = load_settings()
+    if getattr(args, "data_dir", None) is not None:
+        settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
     if not settings.anthropic_api_key:
         console.print("[red]ANTHROPIC_API_KEY is not set.[/red] Add it to .env.")
         return 2
@@ -317,9 +324,13 @@ def cmd_tailor(console: Console, args: argparse.Namespace) -> int:
         console.print(f"[red]{exc}[/red]")
         return 2
 
-    record = load_job_record(settings.data_dir / "last_search.json", args.job)
+    try:
+        record = load_job_record(settings.data_dir, args.job)
+    except AmbiguousJobError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
     if not record:
-        console.print(f"[red]Job id {args.job!r} not found in data/last_search.json.[/red] "
+        console.print(f"[red]Job id {args.job!r} not found in the latest SQLite search.[/red] "
                       "Run `search` first, then pass an ID from the table.")
         return 2
     job = Job.model_validate(record)
@@ -419,9 +430,11 @@ def cmd_apply(console: Console, args: argparse.Namespace) -> int:
             return 2
 
         settings = load_settings()
-        record = load_job_record(settings.data_dir / "last_search.json", args.job)
+        if getattr(args, "data_dir", None) is not None:
+            settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+        record = load_job_record(settings.data_dir, args.job)
         if not record:
-            console.print(f"[red]Job id {args.job!r} not found in data/last_search.json.[/red] "
+            console.print(f"[red]Job id {args.job!r} not found in the latest SQLite search.[/red] "
                           "Run a search first.")
             return 1
         apply_url = resolve_apply_url(record)
@@ -476,6 +489,9 @@ def cmd_apply(console: Console, args: argparse.Namespace) -> int:
         result = run_apply(cfg, io=io)
         _print_apply_result(console, result)
         return 0
+    except AmbiguousJobError as exc:
+        console.print(f"[red]{exc}[/red]")
+        return 2
     except PlaywrightNotInstalled as exc:
         console.print(f"[red]{exc}[/red]")
         return 1
@@ -618,7 +634,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     t = sub.add_parser("tailor", help="Tailor your resume to a searched job.")
     t.add_argument("--demo", action="store_true", help="Fake resume + JD end-to-end (no key).")
-    t.add_argument("--job", help="Job id from a prior search (data/last_search.json).")
+    t.add_argument("--job", help="Job ID from the latest search (source:id or canonical:<id> also accepted).")
     t.add_argument("--facts", default="data/facts.yaml", help="Career facts YAML.")
     t.add_argument("--jd", help="Use this JD text file instead of re-fetching.")
     t.add_argument("--out-dir", default="data/output", help="Where to write the PDF/DOCX.")

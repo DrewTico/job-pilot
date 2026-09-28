@@ -16,7 +16,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from job_agent.apply.tracker import Status, upsert_job_state
 from job_agent.dashboard import service
-from job_agent.store import load_job_record, resolve_apply_url
+from job_agent.store import resolve_apply_url
+from job_agent.search_state import load_job_record, AmbiguousJobError
 
 _STATIC = Path(__file__).resolve().parent / "static"
 
@@ -75,7 +76,7 @@ def create_app(*, data_dir: Path = Path("data"),
     data_dir = Path(data_dir)
     facts_path = Path(facts_path or data_dir / "facts.yaml")
     out_dir = Path(out_dir or data_dir / "output")
-    searcher = searcher or (lambda days: service.run_search_cli(profile_path, days))
+    searcher = searcher or (lambda days: service.run_search_cli(profile_path, days, data_dir=data_dir))
     tailorer = tailorer or (lambda job_id: service.run_tailor_cli(
         job_id, data_dir=data_dir, facts_path=facts_path, out_dir=out_dir))
     previewer = previewer or (lambda job_id: service.run_apply_preview(
@@ -102,7 +103,10 @@ def create_app(*, data_dir: Path = Path("data"),
     sessions: dict[str, object] = {}   # live apply sessions, one browser each
 
     def _require_job(job_id: str) -> dict:
-        record = load_job_record(data_dir / "last_search.json", job_id)
+        try:
+            record = load_job_record(data_dir, job_id)
+        except AmbiguousJobError as exc:
+            raise HTTPException(409, str(exc)) from exc
         if record is None:
             raise HTTPException(404, f"job id {job_id!r} not in the last search")
         return record
@@ -113,14 +117,14 @@ def create_app(*, data_dir: Path = Path("data"),
 
     @app.get("/api/jobs")
     def jobs() -> dict:
-        return service.jobs_view(data_dir / "last_search.json",
+        return service.jobs_view(data_dir,
                                  data_dir / "applications.json")
 
     @app.post("/api/search")
     def run_search(req: SearchRequest) -> dict:
         result = searcher(req.days)
         # whatever the run printed, the table shows what's now on disk
-        return {**result, **service.jobs_view(data_dir / "last_search.json",
+        return {**result, **service.jobs_view(data_dir,
                                               data_dir / "applications.json")}
 
     @app.post("/api/track")

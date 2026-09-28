@@ -1,4 +1,4 @@
-"""Explicit, opt-in import of search state; never called by production paths.
+"""Idempotent legacy import, also used at the first production SQLite cutover.
 
 All supplied files are read and validated before opening the single write
 transaction. No file is rewritten. Snapshots retain absent versus null fields.

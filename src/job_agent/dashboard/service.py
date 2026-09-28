@@ -77,15 +77,11 @@ def jobs_view(last_search_path: str | Path,
               tracker_path: str | Path | None = None) -> dict:
     """The latest saved search, ranked like the CLI table, with each job's
     tracked state (status / notes / follow-up) joined in by job id."""
-    import json
+    from job_agent.search_state import latest_search
 
+    # Accept the old path argument for existing service callers/tests.
     path = Path(last_search_path)
-    if not path.exists():
-        return {"generated_at": None, "meta": None, "jobs": []}
-    try:
-        data = json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError):
-        return {"generated_at": None, "meta": None, "jobs": []}
+    data = latest_search(path.parent if path.name == "last_search.json" else path)
     jobs = list(data.get("jobs", {}).values())
     jobs.sort(key=lambda j: (_VERDICT_RANK.get(j.get("verdict"), 0),
                              j.get("score") if j.get("score") is not None else -1),
@@ -102,11 +98,16 @@ def jobs_view(last_search_path: str | Path,
         markers = applied_markers(tracker_path)
     from job_agent.apply.tracker import is_already_applied
 
+    from collections import Counter
+    external_counts = Counter(str(j.get("id")) for j in jobs)
     for j in jobs:
         j["tracked"] = tracked.get(str(j.get("id")))
         j["already_applied"] = is_already_applied(
             markers, job_id=str(j.get("id")), company=j.get("company", ""),
             title=j.get("title", ""))
+        if external_counts[str(j.get("id"))] > 1:
+            j["external_id"] = j["id"]
+            j["id"] = f"{j.get('source')}:{j['id']}"
     return {"generated_at": data.get("generated_at"),
             "meta": data.get("meta"), "jobs": jobs}
 
@@ -122,7 +123,7 @@ def _run_cli(handler, ns: Namespace) -> dict:
     return {"ok": code == 0, "exit_code": code, "output": console.export_text()}
 
 
-def run_search_cli(profile_path: str | Path, days: int = 30) -> dict:
+def run_search_cli(profile_path: str | Path, days: int = 30, *, data_dir: Path | None = None) -> dict:
     """Run the real search+score pipeline via the CLI's own command function."""
     from job_agent.cli import cmd_search
 
@@ -130,7 +131,7 @@ def run_search_cli(profile_path: str | Path, days: int = 30) -> dict:
     # "Hide applied" toggle filters client-side, so the printed table hides too).
     ns = Namespace(demo=False, profile=str(profile_path), days=days,
                    max_age_hours=None, limit=None, method="structured",
-                   include_applied=False)
+                   include_applied=False, data_dir=data_dir)
     return _run_cli(cmd_search, ns)
 
 
@@ -160,14 +161,14 @@ def run_tailor_cli(job_id: str, *, data_dir: Path, facts_path: Path,
                    out_dir: Path) -> dict:
     """Tailor one job via the CLI's own command function; report the PDF path."""
     from job_agent.cli import _resume_filename, cmd_tailor
-    from job_agent.store import load_job_record
+    from job_agent.search_state import load_job_record
     from job_agent.tailor.career_facts import load_career_facts
 
     ns = Namespace(demo=False, job=job_id, facts=str(facts_path), jd=None,
-                   out_dir=str(out_dir))
+                   out_dir=str(out_dir), data_dir=data_dir)
     result = _run_cli(cmd_tailor, ns)
     if result["ok"]:
-        record = load_job_record(data_dir / "last_search.json", job_id) or {}
+        record = load_job_record(data_dir, job_id) or {}
         try:
             facts = load_career_facts(facts_path)
             filename = _resume_filename(facts.name.split()[0],
@@ -262,11 +263,11 @@ def _assemble_apply_inputs(job_id: str, *, data_dir: Path, facts_path: Path,
     from job_agent.apply.answer_bank import load_answer_bank, resolve_contact
     from job_agent.cli import _find_tailored_resume
     from job_agent.config import load_settings
-    from job_agent.store import load_job_record
+    from job_agent.search_state import load_job_record
     from job_agent.tailor.career_facts import load_career_facts
 
     settings = load_settings()
-    record = load_job_record(data_dir / "last_search.json", job_id)
+    record = load_job_record(data_dir, job_id)
     if record is None:
         raise KeyError(job_id)
     facts = load_career_facts(facts_path)
