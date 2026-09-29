@@ -40,6 +40,9 @@ class Job(BaseModel):
     remote: bool | None = None
     # Best-effort country marker for the location rule; None when unknown.
     country: str | None = None
+    # Employer assistance, distinct from a requirement to relocate.
+    relocation: Literal["supported", "not_supported", "required"] | None = None
+    visa_sponsorship: bool | None = None
     description: str = ""
 
     def dedup_key(self) -> str:

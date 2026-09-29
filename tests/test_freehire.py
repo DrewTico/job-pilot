@@ -123,6 +123,58 @@ def test_meta_is_optional():
     assert fetch_payload({"data": []}) == []
 
 
+@pytest.mark.parametrize("source_name,parameter", [
+    ("freehire", "countries"), ("freehire", "q_fields"),
+    ("freehire-relocation", "relocation"), ("freehire-relocation", "q_fields"),
+])
+@respx.mock
+def test_ignored_critical_discovery_parameter(source_name, parameter):
+    payload = load_fixture("freehire.json")
+    payload["meta"] = {"ignored_params": [parameter]}
+    respx.get(ENDPOINT).respond(200, json=payload)
+    with pytest.raises(SourceError, match=f"critical discovery parameters: {parameter}"):
+        build_source(source_name, "ai engineer").fetch()
+
+
+@pytest.mark.parametrize("source_name", ["freehire", "freehire-relocation"])
+@pytest.mark.parametrize("meta", [
+    None, {}, {"ignored_params": None}, {"ignored_params": []},
+    {"ignored_params": ["sort", "order", "description_format"]},
+])
+@respx.mock
+def test_ignored_params_success(source_name, meta):
+    payload = load_fixture("freehire.json")
+    payload.pop("meta", None)
+    if meta is not None:
+        payload["meta"] = meta
+    respx.get(ENDPOINT).respond(200, json=payload)
+    assert len(build_source(source_name, "ai engineer").fetch()) == 1
+
+
+@pytest.mark.parametrize("source_name", ["freehire", "freehire-relocation"])
+@pytest.mark.parametrize("ignored", [
+    "countries", {}, 1, False, [None], [{}], [1], [""], [" "], ["sort", None],
+])
+@respx.mock
+def test_malformed_ignored_params_fails_closed(source_name, ignored):
+    payload = load_fixture("freehire.json")
+    payload["meta"] = {"ignored_params": ignored}
+    respx.get(ENDPOINT).respond(200, json=payload)
+    with pytest.raises(SourceError, match="meta.ignored_params"):
+        build_source(source_name, "ai engineer").fetch()
+
+
+@pytest.mark.parametrize("source_name,parameter", [
+    ("freehire", "relocation"), ("freehire-relocation", "countries"),
+])
+@respx.mock
+def test_unsent_lane_filter_is_not_critical(source_name, parameter):
+    payload = load_fixture("freehire.json")
+    payload["meta"] = {"ignored_params": [parameter]}
+    respx.get(ENDPOINT).respond(200, json=payload)
+    assert len(build_source(source_name, "ai engineer").fetch()) == 1
+
+
 def test_bad_rows_do_not_discard_page():
     payload = load_fixture("freehire.json")
     good = payload["data"][0]
@@ -171,3 +223,52 @@ def test_http_failure_propagates():
     respx.get(ENDPOINT).respond(403)
     with pytest.raises(SourceError, match="403"):
         FreeHireSource("ai engineer").fetch()
+
+
+@respx.mock
+def test_relocation_request_and_shared_identity():
+    from job_agent.sources import FreeHireRelocationSource
+    route = respx.get(ENDPOINT).respond(200, json=load_fixture('freehire.json'))
+    us = FreeHireSource('ai engineer').fetch()[0]
+    assert 'relocation' not in route.calls[0].request.url.params
+    source = build_source('freehire-relocation', '"ai engineer"')
+    assert isinstance(source, FreeHireRelocationSource)
+    relocated = source.fetch()[0]
+    assert route.call_count == 2  # exactly one request per fetch
+    request = route.calls[1].request
+    assert dict(request.url.params) == {
+        'q': '"ai engineer"', 'q_fields': 'title', 'relocation': 'supported',
+        'description_format': 'text', 'sort': 'posted_at', 'order': 'desc',
+        'limit': '100', 'offset': '0',
+    }
+    assert 'authorization' not in request.headers
+    assert (relocated.source, relocated.id) == (us.source, us.id)
+    assert relocated.source == 'freehire'
+
+
+@pytest.mark.parametrize('source_name', ['freehire', 'freehire-relocation'])
+@pytest.mark.parametrize('enrichment,relocation,visa', [
+    ({'relocation': 'supported', 'visa_sponsorship': True}, 'supported', True),
+    ({'relocation': 'not_supported', 'visa_sponsorship': False}, 'not_supported', False),
+    ({'relocation': 'required'}, 'required', None),
+    ({}, None, None), (None, None, None), ([], None, None),
+    ({'relocation': {}, 'visa_sponsorship': 'true'}, None, None),
+    ({'relocation': 'unknown', 'visa_sponsorship': 1}, None, None),
+])
+@respx.mock
+def test_mobility_normalization(source_name, enrichment, relocation, visa):
+    payload = load_fixture('freehire.json')
+    payload['data'][0]['enrichment'] = enrichment
+    respx.get(ENDPOINT).respond(200, json=payload)
+    job = build_source(source_name, 'ai engineer').fetch()[0]
+    assert job.relocation == relocation
+    assert job.visa_sponsorship is visa
+
+
+@pytest.mark.parametrize('location', ['China', 'Seoul, Korea'])
+def test_structured_us_eligibility_survives_foreign_display(location):
+    from job_agent.config import SearchProfile
+    from job_agent.search import passes_location
+    payload = load_fixture('freehire.json')
+    payload['data'][0].update(location=location, countries=['CN', 'KR', 'US'])
+    assert passes_location(fetch_payload(payload)[0], SearchProfile(keywords=['ai'], sources=[{'ats': 'freehire', 'board': 'ai'}]))

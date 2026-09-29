@@ -300,3 +300,25 @@ def test_pipeline_managers_eligibility_and_enriched_experience(tmp_path):
     assert enriched == [str(i) for i in range(4, 11)]
     assert {j.id for j in out.jobs} == {"4", "5", "6", "7"}
     assert out.boards == ["b"] * 4
+
+
+@pytest.mark.parametrize('relocation,visa,expected', [
+    ('supported', True, True), ('supported', None, True),
+    ('supported', False, False), ('required', True, False),
+    ('not_supported', True, False), (None, True, False),
+])
+@pytest.mark.parametrize('country,location', [('GB', 'London'), (None, 'London, UK')])
+def test_foreign_mobility(country, location, relocation, visa, expected):
+    assert passes_location(make_job(country=country, location=location,
+        relocation=relocation, visa_sponsorship=visa), profile()) is expected
+
+
+@pytest.mark.parametrize('relocation', ['supported', 'required', 'not_supported', None])
+def test_us_mobility_does_not_change_eligibility(relocation):
+    assert passes_location(make_job(country='US', location='China',
+        relocation=relocation, visa_sponsorship=False), profile())
+
+
+def test_unknown_mobility_preserves_remote_gate():
+    job = make_job(location='Remote', remote=True, relocation='supported')
+    assert not passes_location(job, profile(location=LocationRule(remote_ok=False)))

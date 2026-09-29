@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import pytest
 from types import SimpleNamespace
 
 from job_agent.config import LocationRule, SearchProfile, Settings, SourceRef
@@ -100,3 +101,17 @@ def test_score_jobs_uses_injected_client():
     results = score_jobs([JOB, JOB], settings, PROFILE, client=client)
     assert len(results) == 2
     assert all(r.verdict == "strong" for r in results)
+
+
+def test_prompt_mobility_without_llm(monkeypatch):
+    import job_agent.scoring as scoring
+    monkeypatch.setattr(scoring, '_call_structured', lambda *a: pytest.fail('LLM called'))
+    monkeypatch.setattr(scoring, '_call_tool', lambda *a: pytest.fail('LLM called'))
+    for visa, value in [(True, 'true'), (False, 'false'), (None, 'unknown')]:
+        prompt = scoring.build_user_prompt(JOB.model_copy(update={
+            'relocation': 'supported', 'visa_sponsorship': visa}), PROFILE)
+        assert 'Relocation support: supported' in prompt
+        assert f'Visa sponsorship: {value}' in prompt
+        for content in [PROFILE.candidate_summary, JOB.title, JOB.company, JOB.description,
+                        'lower mobility friction', 'uncertainty/gap', 'deterministic filtering']:
+            assert content in prompt

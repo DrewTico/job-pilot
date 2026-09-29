@@ -85,10 +85,11 @@ def passes_location(job: Job, profile: SearchProfile) -> bool:
     """Apply the location rule.
 
     * Known country → honor the allow-list, *even for remote roles* (a role that
-      is "remote within the UK" is still a non-US role and is dropped).
+      is "remote within the UK" still needs employer relocation support and
+      visa sponsorship that is not explicitly denied).
     * No structured country → infer one from the location text (``geo``). A
-      *clearly* foreign string ("Bengaluru, India") is dropped here, before
-      scoring, exactly as if the country were structured.
+      *clearly* foreign string ("Bengaluru, India") follows the same mobility
+      exception as a structured country.
     * Still unknown → keep it: if it's remote, gate on ``remote_ok``; otherwise
       leave it for the scorer to weigh.
     """
@@ -96,7 +97,8 @@ def passes_location(job: Job, profile: SearchProfile) -> bool:
     country = job.country or infer_country(job.location)
     allowed = _country_allowed(country, rule.allowed_countries)
     if allowed is not None:
-        return allowed
+        return allowed or (job.relocation == "supported"
+                           and job.visa_sponsorship is not False)
     if job.remote:
         return rule.remote_ok
     return True

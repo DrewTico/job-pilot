@@ -47,13 +47,22 @@ Method = Literal["structured", "tool"]
 
 def build_user_prompt(job: Job, profile: SearchProfile) -> str:
     """The per-job scoring prompt (Prompt A)."""
+    mobility = ""
+    if job.relocation is not None or job.visa_sponsorship is not None:
+        mobility = (f"- Relocation support: {job.relocation or 'unknown'}\n"
+                    f"- Visa sponsorship: {str(job.visa_sponsorship).lower() if job.visa_sponsorship is not None else 'unknown'}\n")
     return (
         f"CANDIDATE:\n{profile.candidate_summary.strip()}\n\n"
         f"JOB:\n"
         f"- Title: {job.title}\n"
         f"- Company: {job.company}\n"
         f"- Location: {job.location} (remote={job.remote}, country={job.country})\n"
+        f"{mobility}"
         f"- Description: {job.description or '(no description available)'}\n\n"
+        "MOBILITY: U.S. roles have lower mobility friction for this candidate. "
+        "International roles with confirmed relocation support are viable. "
+        "Unknown international visa sponsorship is an uncertainty/gap, not an automatic rejection. "
+        "International visa_sponsorship=false should normally be removed by deterministic filtering.\n\n"
         "Return JSON with: score (integer 0-100), verdict "
         "(strong|possible|skip), reasons (short strings), and "
         "missing_requirements (short strings)."

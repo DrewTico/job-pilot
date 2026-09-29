@@ -51,9 +51,10 @@ def _requires_clearance(text: str) -> bool:
 
 def _graduate_only(title: str, description: str) -> bool:
     title = _normalize(title)
-    # A degree-qualified internship title is an explicit candidate restriction.
-    if (re.search(r"\bintern(?:ship)?\b", title) and re.search(_GRAD, title)
-            and not _BACHELOR.search(title) and not _PREFERRED.search(title)):
+    # Degree-scoped early-career titles explicitly restrict the candidate path.
+    if (re.search(r"\b(?:intern(?:ship)?|new[ -]+grad(?:uate)?)\b", title) and re.search(_GRAD, title)
+            and not _BACHELOR.search(title) and not _PREFERRED.search(title)
+            and not re.search(r"\bor equivalent\s+(?:experience|qualification|education)", title)):
         return True
     for clause in _clauses(title + "\n" + description):
         if (_BACHELOR.search(clause) or _PREFERRED.search(clause)

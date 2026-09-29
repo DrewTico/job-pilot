@@ -87,3 +87,11 @@ def test_independent_hard_requirements(description):
 ])
 def test_local_exceptions_and_ambiguous_ms(description):
     assert eligible(description=description)
+
+
+@pytest.mark.parametrize('scope,expected', [
+    ('PhD', False), ('MS/PhD', False), ('BS/MS/PhD', True),
+    ("Bachelor's/MS/PhD", True), ('PhD or equivalent experience', True),
+])
+def test_degree_scoped_new_grad(scope, expected):
+    assert eligible(title=f'Machine Learning Engineer Perception LLM/VLM ({scope}, New Grad)') is expected

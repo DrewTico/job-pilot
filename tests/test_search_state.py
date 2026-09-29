@@ -208,3 +208,21 @@ def test_production_cli_effective_window(tmp_path, monkeypatch, flags, expected)
     args = cli._build_parser().parse_args(["search", *flags])
     assert cli.cmd_search(Console(), args) == 0
     assert windows == [expected]
+
+
+@pytest.mark.parametrize('relocation,visa', [('supported', True), ('not_supported', False), ('required', None)])
+def test_freehire_keyword_board_change_and_mobility_roundtrip(tmp_path, relocation, visa):
+    original = job(source='freehire', relocation=relocation, visa_sponsorship=visa)
+    scan(tmp_path, [original])
+    before = load_job_record(tmp_path, 'freehire:1')
+    with search_database(tmp_path) as engine, database_session(engine) as session:
+        cache = SQLiteSeenCache(session)
+        SearchRepository(session).record_search([ScoredJob(job=original)],
+            ['freehire-relocation/"new grad engineer"'], cache=cache, baseline=False)
+    after = load_job_record(tmp_path, 'freehire:1')
+    assert after['canonical_id'] == before['canonical_id']
+    assert after['first_seen'] == before['first_seen']
+    assert after['board'] == 'freehire-relocation/"new grad engineer"'
+    assert Job.model_validate(after) == original
+    with search_database(tmp_path) as engine, database_session(engine) as session:
+        assert len(session.exec(select(JobIdentity)).all()) == 1

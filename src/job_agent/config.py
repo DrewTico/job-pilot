@@ -60,7 +60,7 @@ class SearchProfile(BaseModel):
 
     _KNOWN_ATS = {"greenhouse", "lever", "ashby", "smartrecruiters",
                   # cross-company search sources: board = keyword query / tag
-                  "sr-search", "remotive", "remoteok", "freehire"}
+                  "sr-search", "remotive", "remoteok", "freehire", "freehire-relocation"}
 
     @field_validator("max_seniority")
     @classmethod

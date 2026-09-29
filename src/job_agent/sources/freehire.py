@@ -37,24 +37,43 @@ class FreeHireSource(JobSource):
 
     ats = "freehire"
 
+    def discovery_filter(self) -> dict[str, str]:
+        return {"countries": "US"}
+
     def fetch(self) -> list[Job]:
-        # Prefilter US jobs at the public API; Job Pilot's location stage still runs.
-        payload = get_json(API_URL, params={
+        params = {
             "q": self.board,
             "q_fields": "title",
-            "countries": "US",
+            **self.discovery_filter(),
             "description_format": "text",
             "sort": "posted_at",
             "order": "desc",
             "limit": 100,
             "offset": 0,
-        })
+        }
+        payload = get_json(API_URL, params=params)
         if not isinstance(payload, dict):
             raise SourceError("FreeHire search response must be an object")
         if not isinstance(payload.get("data"), list):
             raise SourceError("FreeHire search response data must be a list")
         if "meta" in payload and not isinstance(payload["meta"], dict):
             raise SourceError("FreeHire search response meta must be an object")
+        ignored = payload.get("meta", {}).get("ignored_params")
+        if ignored is not None:
+            if not isinstance(ignored, list) or not all(
+                isinstance(name, str) and name.strip() for name in ignored
+            ):
+                raise SourceError("FreeHire meta.ignored_params must be a list of nonempty strings")
+            critical = {"q_fields"}
+            if params.get("countries") == "US":
+                critical.add("countries")
+            if params.get("relocation") == "supported":
+                critical.add("relocation")
+            dropped = critical.intersection(name.strip() for name in ignored)
+            if dropped:
+                raise SourceError(
+                    "FreeHire ignored critical discovery parameters: " + ", ".join(sorted(dropped))
+                )
 
         jobs: list[Job] = []
         for raw in payload["data"][:100]:
@@ -65,6 +84,10 @@ class FreeHireSource(JobSource):
             mode = _text(raw.get("work_mode")).lower()
             remote = True if mode == "remote" else False if mode in {"onsite", "hybrid"} else None
             location = _text(raw.get("location")) or ("Remote" if remote else "Unknown")
+            enrichment = raw.get("enrichment")
+            enrichment = enrichment if isinstance(enrichment, dict) else {}
+            relocation = enrichment.get("relocation")
+            visa = enrichment.get("visa_sponsorship")
             jobs.append(Job(
                 id=raw["public_slug"],
                 source="freehire",
@@ -77,5 +100,17 @@ class FreeHireSource(JobSource):
                 description=truncate(_text(raw.get("description"))),
                 remote=remote,
                 country=_country(raw.get("countries"), location),
+                relocation=(relocation if isinstance(relocation, str) and relocation in
+                            {"supported", "not_supported", "required"} else None),
+                visa_sponsorship=visa if isinstance(visa, bool) else None,
             ))
         return jobs
+
+
+class FreeHireRelocationSource(FreeHireSource):
+    """Optional secondary discovery lane: one relocation-supported page."""
+
+    ats = "freehire-relocation"
+
+    def discovery_filter(self) -> dict[str, str]:
+        return {"relocation": "supported"}

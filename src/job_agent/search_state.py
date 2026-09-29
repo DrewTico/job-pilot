@@ -96,7 +96,7 @@ class SearchRepository:
                 identity = self.jobs.get_identity(job.source, job.id)
             previous = self.session.exec(select(SearchResult).where(
                 SearchResult.identity_id == identity.id)).all()
-            if job.source not in ('sr-search', 'remotive', 'remoteok') and any(
+            if job.source not in ('sr-search', 'remotive', 'remoteok', 'freehire') and any(
                 r.payload.get('board') not in (None, '', board) for r in previous
             ):
                 raise ValueError(f'Conflicting board for source identity {job.source}:{job.id}')

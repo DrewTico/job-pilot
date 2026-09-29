@@ -17,7 +17,7 @@ keywords:
   - mlops
 
 # Location rule: keep a job if it is remote OR onsite/hybrid within an allowed
-# country. Jobs whose country is known and NOT allowed are dropped before scoring.
+# country. Known foreign roles need relocation support and no explicit visa denial.
 # Jobs with an unknown country are kept and left for the scorer to judge.
 location:
   remote_ok: true
@@ -49,6 +49,12 @@ sources:
   # - { ats: freehire, board: "applied ai engineer" }
   # - { ats: freehire, board: "machine learning engineer" }
   # - { ats: freehire, board: "generative ai" }
+  # Optional SECONDARY relocation-supported lane; keep the US lane primary.
+  # First 100 newest results only; unknown visa sponsorship needs later verification.
+  # - { ats: freehire-relocation, board: '"applied ai engineer"' }
+  # - { ats: freehire-relocation, board: '"machine learning intern"' }
+  # - { ats: freehire-relocation, board: '"software engineer intern"' }
+  # - { ats: freehire-relocation, board: '"new grad software engineer"' }
   # Per-company boards (board = company identifier) — one more source,
   # not the only one:
   - { ats: greenhouse,      board: databricks }

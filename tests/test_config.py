@@ -20,6 +20,7 @@ def test_cross_company_search_ats_names_are_known():
         SourceRef(ats="remotive", board="machine learning"),
         SourceRef(ats="remoteok", board="machine-learning"),
         SourceRef(ats="freehire", board="ai engineer"),
+        SourceRef(ats="freehire-relocation", board='"ai engineer"'),
         SourceRef(ats="greenhouse", board="stripe"),
     ])
     assert prof.unknown_sources() == []     # none warned about / skipped
