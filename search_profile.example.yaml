@@ -43,6 +43,12 @@ sources:
   - { ats: sr-search, board: "data scientist" }
   - { ats: remotive,  board: "machine learning" }
   - { ats: remoteok,  board: machine-learning }     # tag slug, not free text
+  # FreeHire public API: first 100 results per query, newest first.
+  # Prefiltered to US jobs before Job Pilot's existing location stage runs.
+  # - { ats: freehire, board: "ai engineer" }
+  # - { ats: freehire, board: "applied ai engineer" }
+  # - { ats: freehire, board: "machine learning engineer" }
+  # - { ats: freehire, board: "generative ai" }
   # Per-company boards (board = company identifier) — one more source,
   # not the only one:
   - { ats: greenhouse,      board: databricks }

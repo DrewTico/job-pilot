@@ -1,0 +1,21 @@
+{
+  "data": [
+    {
+      "public_slug": "example-applied-ai-engineer-123",
+      "source": "greenhouse",
+      "external_id": "123",
+      "url": "https://jobs.example.com/openings/123?ref=public",
+      "title": "Applied AI Engineer",
+      "company": "Example AI",
+      "location": "Remote - United States or Canada",
+      "description": "Build applied AI systems.\nUse Python for evaluation and deployment.",
+      "countries": ["US", "CA"],
+      "regions": ["Northern America"],
+      "work_mode": "remote",
+      "posted_at": "2026-09-29T12:30:00Z",
+      "enrichment": {},
+      "reality": {}
+    }
+  ],
+  "meta": {"total": 12345, "limit": 100, "offset": 0}
+}

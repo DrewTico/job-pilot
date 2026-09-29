@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from job_agent.sources.ashby import AshbySource
 from job_agent.sources.base import JobSource
+from job_agent.sources.freehire import FreeHireSource
 from job_agent.sources.greenhouse import GreenhouseSource
 from job_agent.sources.lever import LeverSource
 from job_agent.sources.remoteok import RemoteOKSource
@@ -20,6 +21,7 @@ _REGISTRY: dict[str, type[JobSource]] = {
     SmartRecruitersSearchSource.ats: SmartRecruitersSearchSource,
     RemotiveSource.ats: RemotiveSource,
     RemoteOKSource.ats: RemoteOKSource,
+    FreeHireSource.ats: FreeHireSource,
 }
 
 
@@ -37,5 +39,6 @@ __all__ = [
     "SmartRecruitersSearchSource",
     "RemotiveSource",
     "RemoteOKSource",
+    "FreeHireSource",
     "build_source",
 ]
