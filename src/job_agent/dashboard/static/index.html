@@ -284,7 +284,7 @@ function statusSelect(jobId, current, meta, attemptId = "") {
   // manually-submitted application needs no prior run); by attempt_id for old
   // records without a job id. One of the two is always present.
   const opts = ["<option value=''>—</option>"].concat(ALL_STATUSES.map((s) =>
-    `<option value="${s}" ${s === current ? "selected" : ""}>${esc(label(s))}</option>`));
+    `<option value="${s}" ${s === current ? "selected" : ""} ${USER_STATUSES.includes(s) ? "" : "disabled"}>${esc(label(s))}</option>`));
   return `<select class="status ${current ? `p-${esc(current)}` : ""}"
             data-status-for="${esc(jobId || attemptId)}"
             data-ids='${esc(JSON.stringify({job_id: jobId || "", attempt_id: attemptId || ""}))}'
@@ -346,9 +346,9 @@ function renderApps() {
     return;
   }
   const body = rows.map((r) => {
-    const meta = {company: r.company, title: r.title, source: r.source};
-    const key = r.job_id || r.attempt_id;      // every record is addressable
-    const ids = {job_id: r.job_id || "", attempt_id: r.attempt_id || ""};
+    const meta = {company: r.company, title: r.title, source: r.source, canonical_id: r.canonical_id};
+    const key = r.canonical_id || r.attempt_id || `${r.source}:${r.job_id}`;      // every record is addressable
+    const ids = {job_id: r.job_id || "", attempt_id: r.attempt_id || "", canonical_id: r.canonical_id};
     return `
     <tr>
       <td class="date">${esc((r.date || "").slice(0, 10))}</td>
@@ -455,7 +455,8 @@ function renderJobs() {
     return;
   }
   const body = rows.map((j) => {
-    const t = j.tracked, meta = {company: j.company, title: j.title, source: j.source};
+    const t = j.tracked, meta = {company: j.company, title: j.title, source: j.source, canonical_id: j.canonical_id};
+    const ids = {job_id: j.canonical_id ? j.external_id : j.id, canonical_id: j.canonical_id};
     const appliedPill = j.already_applied
       ? ` <span class="pill p-applied">already applied</span>` : "";
     const newPill = j.first_seen_this_scan === true
@@ -470,7 +471,7 @@ function renderJobs() {
       <td class="co">${esc(j.company)}</td>
       <td class="loc"><span class="tt tt-loc" title="${esc(j.location)}">${esc(j.location)}</span></td>
       <td class="src">${esc(j.source)}</td>
-      <td>${statusSelect(j.id, t?.status || "", meta)}${followFlag(t)}</td>
+      <td>${statusSelect(ids.job_id, t?.status || "", meta)}${followFlag(t)}</td>
       <td class="actions">
         <button class="primary" data-apply="${esc(j.id)}"
           title="Open this job in your own Chrome — the extension fills, you submit">Apply</button>
@@ -488,7 +489,7 @@ function renderJobs() {
       </td>
     </tr>
     <tr class="editor hidden" data-editor="${esc(j.id)}"><td colspan="8">
-      ${editorHtml(j.id, t, meta)}</td></tr>`;
+      ${editorHtml(j.id, t, meta, ids)}</td></tr>`;
   }).join("");
   $("#jobs-table").innerHTML = hiddenNote +
     `<table><thead><tr><th style="text-align:right">Score</th><th>Match</th><th>Title</th>
@@ -496,9 +497,16 @@ function renderJobs() {
      <tbody>${body}</tbody></table>`;
 }
 
+// Keep the external identity for tracking and use a qualified key for UI/API actions.
+function addressableJobs(jobs) {
+  return jobs.map((j) => ({...j, external_id: j.external_id || j.id,
+    id: j.canonical_id ? `canonical:${j.canonical_id}`
+      : j.source ? `${j.source}:${j.external_id || j.id}` : j.id}));
+}
+
 async function loadJobs() {
   const data = await api("/api/jobs");
-  JOBS = data.jobs;
+  JOBS = addressableJobs(data.jobs);
   renderJobsMeta(data.generated_at, data.meta);
   fillFilter($("#jf-source"), JOBS.map((j) => j.source));
   fillFilter($("#jf-status"), JOBS.map((j) => j.tracked?.status));
@@ -515,7 +523,7 @@ async function runSearch() {
     const data = await post("/api/search", {days: Number($("#days").value) || 7});
     log.textContent = data.output || "";
     log.classList.toggle("err", !data.ok);
-    JOBS = data.jobs;
+    JOBS = addressableJobs(data.jobs);
     renderJobsMeta(data.generated_at, data.meta);
     fillFilter($("#jf-source"), JOBS.map((j) => j.source));
     renderJobs();
@@ -532,10 +540,15 @@ async function saveTrack(ids, fields, meta, outEl) {
     const rec = await post("/api/track", {...ids, ...meta, ...fields});
     // reflect into local state without a refetch
     const i = APPS.findIndex((r) =>
-      (rec.attempt_id && r.attempt_id === rec.attempt_id) || (rec.job_id && r.job_id === rec.job_id));
+      (rec.attempt_id && r.attempt_id === rec.attempt_id) || (rec.canonical_id && r.canonical_id === rec.canonical_id));
     if (i >= 0) APPS[i] = rec; else APPS.unshift(rec);
-    const j = JOBS.find((x) => rec.job_id && String(x.id) === String(rec.job_id));
-    if (j) j.tracked = rec;
+    const j = JOBS.find((x) => rec.canonical_id
+      ? x.canonical_id === rec.canonical_id
+      : x.source === rec.source && String(x.external_id || x.id) === String(rec.job_id));
+    if (j) {
+      j.tracked = rec;
+      j.already_applied = ["submitted", "applied", "interviewing", "offer"].includes(rec.status);
+    }
     renderApps(); renderJobs();
     if (outEl) outEl.textContent = "Saved ✓";
   } catch (e) {
@@ -681,12 +694,12 @@ async function toggleApplied(id, out) {
   const current = j.tracked?.status || "";
   try {
     if (current === "applied") {
-      await post("/api/track", {job_id: String(id), company: j.company, title: j.title,
+      await post("/api/track", {job_id: String(j.canonical_id ? j.external_id : id), canonical_id: j.canonical_id, company: j.company, title: j.title,
                                 source: j.source, status: PRIOR_STATUS[id] || "saved"});
       delete PRIOR_STATUS[id];
     } else {
       PRIOR_STATUS[id] = current || "saved";
-      await post("/api/track", {job_id: String(id), company: j.company, title: j.title,
+      await post("/api/track", {job_id: String(j.canonical_id ? j.external_id : id), canonical_id: j.canonical_id, company: j.company, title: j.title,
                                 source: j.source, status: "applied"});
     }
     await Promise.all([loadJobs(), loadApps()]);

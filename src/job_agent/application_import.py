@@ -1,4 +1,4 @@
-"""Explicit opt-in import of legacy applications.json; never used by production.
+"""Validated import of legacy applications.json, also used by first-use cutover.
 
 Validate the entire input before a serialized, atomic write. Original payloads
 retain missing fields and unknown extra fields. A record's semantic hash plus
@@ -11,6 +11,7 @@ record dates win current state; equal dates use the last newly imported record.
 Replay never updates current state or retroactively remaps unresolved evidence.
 """
 
+from contextlib import nullcontext
 from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -53,12 +54,15 @@ def _occurred_at(value):
     return _utc(datetime.fromisoformat(value))
 
 
-def import_applications(engine: Engine, *, applications: str | Path) -> ApplicationImportReport:
+def import_applications(engine: Engine, *, applications: str | Path, session=None) -> ApplicationImportReport:
     """Import one explicit path, raising on missing, corrupt or invalid input.
 
     No canonical jobs/identities are created. Exact source + external ID is the
     only mapping evidence; absent or unattached identities remain unresolved.
+    An optional session joins the caller's serialized transaction, allowing the
+    production cutover marker and all imported state to commit together.
     """
+    owns_session = session is None
     raw = Path(applications).read_bytes()
     data = json.loads(raw, object_pairs_hook=_object, parse_constant=_invalid_constant)
     if not isinstance(data, list):
@@ -72,9 +76,10 @@ def import_applications(engine: Engine, *, applications: str | Path) -> Applicat
     file_hash = hashlib.sha256(raw).hexdigest()
     report = ApplicationImportReport()
     counts = Counter()
-    with database_session(engine) as session:
+    with (database_session(engine) if session is None else nullcontext(session)) as session:
         # Serialize the deduplication check and insert across concurrent imports.
-        session.connection().exec_driver_sql('BEGIN IMMEDIATE')
+        if owns_session:
+            session.connection().exec_driver_sql('BEGIN IMMEDIATE')
         for index, (payload, record, occurred) in enumerate(validated):
             digest = hashlib.sha256(json.dumps(
                 payload, sort_keys=True, separators=(',', ':'), ensure_ascii=True,

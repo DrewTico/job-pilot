@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from job_agent.apply.answer_bank import AnswerBank, Contact
-from job_agent.apply.tracker import load_applications
+from job_agent.application_state import load_applications
 from job_agent.dashboard.app import create_app
 from job_agent.dashboard.apply_session import ApplySession, SubmitBlocked
 
@@ -24,7 +24,7 @@ BANK = AnswerBank.model_validate({"authorized_us": True, "requires_sponsorship":
 CONTACT = Contact(name="Jordan Rivers", email="j@x.com", phone="1")
 RECORD = {"id": "j1", "title": "ML Engineer", "company": "Plaid",
           "apply_url": "http://apply.example/j1", "url": "http://apply.example/j1",
-          "source": "ashby", "description": ""}
+          "source": "ashby", "location": "Remote", "description": ""}
 
 _SCAN = [
     {"tag": "input", "type": "email", "name": "email", "label": "Email",
@@ -369,3 +369,31 @@ def test_apply_start_404s_for_unknown_job(tmp_path):
     app, _ = _app(tmp_path)
     resp = TestClient(app).post("/api/apply/start", json={"job_id": "nope"})
     assert resp.status_code == 404
+
+
+def test_session_uses_canonical_identity_and_preserves_notes(tmp_path):
+    from sqlmodel import select
+    from job_agent.application_state import application_database, upsert_job_state
+    from job_agent.database import ApplicationEvent, JobRepository, database_session
+    from job_agent.search_state import search_database
+
+    with search_database(tmp_path) as engine, database_session(engine) as db:
+        repo = JobRepository(db)
+        job = repo.create_job(company='Synthetic Co', title='Engineer', location='Remote',
+                              posting_url='https://example.test/job')
+        repo.add_identity(job.id, source='ashby', external_id='j1', posting_url=job.posting_url)
+        canonical_id = job.id
+    upsert_job_state(tmp_path, canonical_id=canonical_id, source='ashby', job_id='j1',
+                     status='saved', notes='Synthetic note', follow_up='2026-12-01')
+    session, _, _ = _session(tmp_path, record={**RECORD, 'canonical_id': canonical_id})
+    try:
+        session.start()
+        assert load_applications(tmp_path)[0].notes == 'Synthetic note'
+    finally:
+        session.cancel()
+    with application_database(tmp_path) as engine, database_session(engine) as db:
+        events = db.exec(select(ApplicationEvent)).all()
+        assert len(events) == 3
+        assert all(e.job_id == canonical_id for e in events)
+        assert all(e.notes == 'Synthetic note' and e.follow_up == '2026-12-01' for e in events)
+    assert not (tmp_path / 'applications.json').exists()

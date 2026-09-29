@@ -1,4 +1,4 @@
-"""Application tracking: the gitignored data/applications.json log + CLI table."""
+"""Legacy applications.json compatibility helpers and SQLite runner/CLI integration."""
 
 from __future__ import annotations
 
@@ -293,7 +293,8 @@ def test_apply_run_appends_a_tracked_record(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "open_browser", _fake_browser)
     result = runner.run_apply(_config(tmp_path), io=ScriptedIO(answers=[]).as_io())
     assert result.status == "dry_run"               # approved, but no --submit
-    (rec,) = load_applications(tmp_path / "applications.json")
+    from job_agent.application_state import load_applications as load_real
+    (rec,) = load_real(tmp_path / "applications.json")
     assert (rec.company, rec.title, rec.job_id, rec.source) == \
         ("Plaid", "ML Engineer", "j-123", "ashby")
     assert rec.status == "paused"                   # dry-run: nothing was sent
@@ -332,7 +333,8 @@ def test_submitted_run_is_tracked_as_submitted(tmp_path, monkeypatch):
     result = runner.run_apply(_config(tmp_path, submit_flag=True),
                               io=ScriptedIO(answers=[]).as_io())
     assert result.status == "submitted"
-    (rec,) = load_applications(tmp_path / "applications.json")
+    from job_agent.application_state import load_applications as load_real
+    (rec,) = load_real(tmp_path / "applications.json")
     assert rec.status == "submitted"
 
 
@@ -349,7 +351,8 @@ def test_crashed_run_is_tracked_as_failed(tmp_path, monkeypatch):
     monkeypatch.setattr(runner, "open_browser", browser)
     with pytest.raises(RuntimeError):
         runner.run_apply(_config(tmp_path), io=ScriptedIO(answers=[]).as_io())
-    (rec,) = load_applications(tmp_path / "applications.json")
+    from job_agent.application_state import load_applications as load_real
+    (rec,) = load_real(tmp_path / "applications.json")
     assert rec.status == "failed"
 
 

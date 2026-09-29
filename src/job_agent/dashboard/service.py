@@ -15,7 +15,7 @@ from pathlib import Path
 
 from rich.console import Console
 
-from job_agent.apply.tracker import load_applications
+from job_agent.application_state import load_applications
 from job_agent.store import resolve_apply_url
 
 _VERDICT_RANK = {"strong": 3, "possible": 2, "skip": 1, "unscored": 0}
@@ -31,35 +31,9 @@ def _needs_follow_up(record) -> bool:
     return bool(record.follow_up) and record.follow_up <= date.today().isoformat()
 
 
-def _dedupe_jobs(records: list) -> list:
-    """One row per JOB (records arrive newest-first, so first-seen = latest).
-
-    Collapses rows that logs accumulated before record_attempt deduped on
-    write: matched by job_id, else by the (company, title) match-key — the
-    same rule the tracker uses for sr-search's re-issued ids.
-    """
-    from job_agent.apply.tracker import _match_key
-
-    seen_ids: set[str] = set()
-    seen_pairs: set[tuple[str, str]] = set()
-    out = []
-    for r in records:
-        pair = ((_match_key(r.company), _match_key(r.title))
-                if r.company and r.title else None)
-        if (r.job_id and r.job_id in seen_ids) or (pair and pair in seen_pairs):
-            continue
-        if r.job_id:
-            seen_ids.add(r.job_id)
-        if pair:
-            seen_pairs.add(pair)
-        out.append(r)
-    return out
-
-
 def applications_view(log_path: str | Path) -> dict:
     """All tracked applications, newest first (one row per job), plus counts."""
-    records = _dedupe_jobs(
-        sorted(load_applications(log_path), key=lambda r: r.date, reverse=True))
+    records = sorted(load_applications(log_path), key=lambda r: r.date, reverse=True)
     counts = {"total": len(records)}
     for status in ("submitted", "paused", "failed"):
         counts[status] = sum(1 for r in records if r.status == status)
@@ -86,25 +60,26 @@ def jobs_view(last_search_path: str | Path,
     jobs.sort(key=lambda j: (_VERDICT_RANK.get(j.get("verdict"), 0),
                              j.get("score") if j.get("score") is not None else -1),
               reverse=True)
-    tracked: dict[str, dict] = {}
+    tracked: dict[str | tuple[str, str], dict] = {}
     markers = {"ids": set(), "pairs": set()}
     if tracker_path is not None:
-        from job_agent.apply.tracker import applied_markers
+        from job_agent.application_state import applied_markers
 
         for r in load_applications(tracker_path):     # later records win
             if r.job_id:
-                tracked[r.job_id] = {**r.model_dump(),
+                tracked[r.canonical_id or (r.source, r.job_id)] = {**r.model_dump(),
                                      "needs_follow_up": _needs_follow_up(r)}
         markers = applied_markers(tracker_path)
-    from job_agent.apply.tracker import is_already_applied
+    from job_agent.application_state import is_already_applied
 
     from collections import Counter
     external_counts = Counter(str(j.get("id")) for j in jobs)
     for j in jobs:
-        j["tracked"] = tracked.get(str(j.get("id")))
+        j["tracked"] = tracked.get(j.get("canonical_id") or (j.get("source"), str(j.get("id"))))
         j["already_applied"] = is_already_applied(
             markers, job_id=str(j.get("id")), company=j.get("company", ""),
-            title=j.get("title", ""))
+            title=j.get("title", ""), source=j.get("source", ""),
+            canonical_id=j.get("canonical_id"))
         if external_counts[str(j.get("id"))] > 1:
             j["external_id"] = j["id"]
             j["id"] = f"{j.get('source')}:{j['id']}"
@@ -303,5 +278,5 @@ def start_apply_session(job_id: str, *, data_dir: Path, facts_path: Path,
 
     inputs = _assemble_apply_inputs(job_id, data_dir=data_dir,
                                     facts_path=facts_path, out_dir=out_dir)
-    return ApplySession(tracker_path=data_dir / "applications.json",
+    return ApplySession(tracker_path=data_dir / "job_pilot.sqlite3",
                         out_dir=data_dir / "apply", **inputs)

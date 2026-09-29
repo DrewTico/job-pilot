@@ -130,12 +130,12 @@ def _print_ranked_table(console: Console, scored: list[ScoredJob], limit: int | 
 def _split_applied(scored: list[ScoredJob], markers: dict) -> tuple[list[ScoredJob], list[ScoredJob]]:
     """(fresh, already_applied): jobs with an in-flight application split out so
     the table doesn't resurface roles you already applied to."""
-    from job_agent.apply.tracker import is_already_applied
+    from job_agent.application_state import is_already_applied
 
     fresh, hidden = [], []
     for s in scored:
         applied = is_already_applied(markers, job_id=s.job.id,
-                                     company=s.job.company, title=s.job.title)
+                                     company=s.job.company, title=s.job.title, source=s.job.source)
         (hidden if applied else fresh).append(s)
     return fresh, hidden
 
@@ -186,9 +186,9 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
     # programmatic callers (the dashboard) build their own Namespace.
     shown, hidden = scored, []
     if not getattr(args, "include_applied", False):
-        from job_agent.apply.tracker import applied_markers
+        from job_agent.application_state import applied_markers
         shown, hidden = _split_applied(
-            scored, applied_markers(settings.data_dir / "applications.json"))
+            scored, applied_markers(settings.data_dir / "job_pilot.sqlite3"))
     _print_ranked_table(console, shown, args.limit)
     if hidden:
         console.print(f"[dim]Hid {len(hidden)} job(s) you already applied to "
@@ -484,7 +484,8 @@ def cmd_apply(console: Console, args: argparse.Namespace) -> int:
             job_id=record.get("id", ""),
             job_title=record.get("title", ""),
             source=record.get("source", ""),
-            applications_log=settings.data_dir / "applications.json",
+            applications_log=settings.data_dir / "job_pilot.sqlite3",
+            canonical_id=record.get("canonical_id"),
         )
         result = run_apply(cfg, io=io)
         _print_apply_result(console, result)
@@ -502,9 +503,9 @@ def cmd_apply(console: Console, args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------------- #
 
 def cmd_applications(console: Console, args: argparse.Namespace) -> int:
-    from job_agent.apply.tracker import load_applications
+    from job_agent.application_state import load_applications
 
-    records = load_applications(Path(args.log))
+    records = load_applications(Path(args.log) if args.log else load_settings().data_dir)
     if not records:
         console.print("[dim]No applications logged yet — run `job_agent apply`.[/dim]")
         return 0
@@ -655,8 +656,8 @@ def _build_parser() -> argparse.ArgumentParser:
                    help="Demo only: show the browser window (demo defaults to headless).")
 
     ap = sub.add_parser("applications", help="Show the log of every apply attempt.")
-    ap.add_argument("--log", default="data/applications.json",
-                    help="Path to the (gitignored) applications log.")
+    ap.add_argument("--log", default=None,
+                    help="Shared SQLite database (legacy log paths select the same directory).")
 
     d = sub.add_parser("dashboard", help="Local web dashboard (binds 127.0.0.1 only).")
     d.add_argument("--port", type=int, default=8642)

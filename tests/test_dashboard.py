@@ -69,7 +69,7 @@ def test_applications_endpoint_with_no_log_is_empty_not_an_error(tmp_path):
     assert data["records"] == []
 
 
-def test_applications_view_collapses_legacy_duplicate_rows(tmp_path):
+def test_applications_view_preserves_unresolved_legacy_evidence(tmp_path):
     # a log written BEFORE the one-record-per-job fix: same job twice, and the
     # sr-search id-reissue case (same company+title, different ids)
     import json as _json
@@ -89,10 +89,9 @@ def test_applications_view_collapses_legacy_duplicate_rows(tmp_path):
          "status": "paused", "attempt_id": "a4"},
     ]))
     data = service.applications_view(log)
-    assert data["counts"]["total"] == 2                 # one row per job
-    by_company = {r["company"]: r for r in data["records"]}
-    assert by_company["Scale AI"]["status"] == "paused"           # latest wins
-    assert by_company["Ginas Tech Jobs"]["status"] == "paused"
+    assert data["counts"]["total"] == 4  # no source identity: do not guess
+    assert {r["attempt_id"] for r in data["records"]} == {"a1", "a2", "a3", "a4"}
+
 
 
 # --- section 2: search + browse ------------------------------------------------------
@@ -200,13 +199,19 @@ def test_run_search_cli_namespace_satisfies_cmd_search(tmp_path, monkeypatch):
     profile = tmp_path / "profile.yaml"
     profile.write_text("keywords: [ml]\nsources:\n  - {ats: ashby, board: snowflake}\n")
     # this job is already applied -> the filter path must run, not crash
-    upsert_job_state(tmp_path / "applications.json", job_id="s1",
+    upsert_job_state(tmp_path / "applications.json", job_id="s1", source="ashby",
                      company="Snowflake", title="ML Engineer", status="applied")
 
     result = service.run_search_cli(profile, days=7)
     assert result["ok"] is True, result["output"]          # no AttributeError
     assert "Hid 1 job(s) you already applied to" in result["output"]
     assert "Snowflake" in result["output"]                 # named in the hid note
+    # A second real search must filter from SQLite, even with a broken stale log.
+    (tmp_path / "applications.json").write_text("{broken")
+    result = service.run_search_cli(profile, days=7)
+    assert result["ok"] is True
+    assert "Hid 1 job(s) you already applied to" in result["output"]
+    assert (tmp_path / "applications.json").read_text() == "{broken"
 
 
 # --- feature: editable status / notes / follow-up -------------------------------------
@@ -225,7 +230,7 @@ def test_track_endpoint_upserts_status_and_notes_and_persists(tmp_path):
     assert resp.json()["status"] == "interviewing"
 
     # persisted to the tracker file, not just in memory
-    from job_agent.apply.tracker import load_applications
+    from job_agent.application_state import load_applications
     (rec,) = load_applications(tmp_path / "applications.json")
     assert (rec.status, rec.notes, rec.follow_up) == \
         ("interviewing", "recruiter: Sam", "2026-07-20")
@@ -254,20 +259,21 @@ def test_applications_endpoint_flags_overdue_follow_ups(tmp_path):
     assert by_id["j2"]["needs_follow_up"] is False
 
 
-def test_jobs_endpoint_marks_already_applied_by_id_and_by_company_title(tmp_path):
+def test_jobs_endpoint_marks_applied_by_source_identity_without_fuzzy_matching(tmp_path):
     from job_agent.apply.tracker import upsert_job_state
     _seed_last_search(tmp_path / "last_search.json")
-    # j1 applied by exact id; j2's role applied under a DIFFERENT id
-    upsert_job_state(tmp_path / "applications.json", job_id="j1", company="Plaid",
+    # j1 has an exact source identity; j2 only has a similar company/title
+    upsert_job_state(tmp_path / "applications.json", job_id="j1", source="ashby", company="Plaid",
                      title="ML Engineer", status="submitted")
     upsert_job_state(tmp_path / "applications.json", job_id="other-run-id",
                      company="Stripe", title="AI Engineer", status="applied")
     jobs = TestClient(create_app(data_dir=tmp_path)).get("/api/jobs").json()["jobs"]
     by_id = {j["id"]: j for j in jobs}
     assert by_id["j1"]["already_applied"] is True          # id match
-    assert by_id["j2"]["already_applied"] is True          # company+title re-match
+    assert by_id["j2"]["already_applied"] is False          # company/title is not identity
     # a merely saved/paused job is NOT hidden material
-    upsert_job_state(tmp_path / "applications.json", job_id="j1", status="saved")
+    from job_agent.application_state import upsert_job_state as update_real
+    update_real(tmp_path, job_id="j1", source="ashby", status="saved")
     jobs = TestClient(create_app(data_dir=tmp_path)).get("/api/jobs").json()["jobs"]
     assert next(j for j in jobs if j["id"] == "j1")["already_applied"] is False
 
@@ -275,7 +281,7 @@ def test_jobs_endpoint_marks_already_applied_by_id_and_by_company_title(tmp_path
 def test_jobs_endpoint_joins_tracked_state_by_job_id(tmp_path):
     from job_agent.apply.tracker import upsert_job_state
     _seed_last_search(tmp_path / "last_search.json")
-    upsert_job_state(tmp_path / "applications.json", job_id="j1", company="Plaid",
+    upsert_job_state(tmp_path / "applications.json", job_id="j1", source="ashby", company="Plaid",
                      status="applied", notes="asked about visa")
     data = TestClient(create_app(data_dir=tmp_path)).get("/api/jobs").json()
     j1 = next(j for j in data["jobs"] if j["id"] == "j1")
@@ -312,7 +318,8 @@ def test_setting_applied_on_a_never_tracked_job_creates_and_persists(tmp_path):
 def test_records_without_a_job_id_are_updatable_by_attempt_id(tmp_path):
     # Old/manual records may have job_id="" — their dropdown must still work,
     # keyed by attempt_id instead.
-    from job_agent.apply.tracker import record_attempt, ApplicationRecord, load_applications
+    from job_agent.apply.tracker import record_attempt, ApplicationRecord
+    from job_agent.application_state import load_applications
     log = tmp_path / "applications.json"
     attempt = record_attempt(log, ApplicationRecord(
         company="OldCo", title="DS", job_id="", source="",

@@ -79,8 +79,8 @@ def test_open_unknown_job_is_404_and_opens_nothing(env):
 def test_open_without_any_url_is_404(tmp_path):
     (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "last_search.json").write_text(json.dumps(
-        {"jobs": {"j2": {"id": "j2", "title": "T", "company": "C",
-                         "location": "", "source": "x", "url": "",
+        {"generated_at": "2026-07-21T00:00:00+00:00", "jobs": {"j2": {"id": "j2", "title": "T", "company": "C",
+                         "location": "", "source": "greenhouse", "url": "",
                          "apply_url": None}}}))
     opened = []
     client = TestClient(create_app(

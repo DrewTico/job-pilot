@@ -286,12 +286,17 @@ tracked state joined in, and drives the same CLI code paths:
   first scan after the seen cache is empty there is no earlier scan to be "new
   since", so no row is badged and the new-count is omitted rather than showing
   a misleading number.
-- **Application tracker** (`apply/tracker.py`, gitignored
-  `data/applications.json`): per-job status (saved / applied / interviewing /
+- **Application tracker** (`application_state.py`, gitignored
+  `data/job_pilot.sqlite3`): per-job status (saved / applied / interviewing /
   offer / rejected), notes, and follow-up dates. Jobs with an in-flight
   application are hidden from search results by default, in both the CLI and
   the UI. A one-click **Mark applied / Undo** works whether or not autofill
-  ever ran.
+  ever ran. First real tracking use atomically imports `applications.json`, if
+  present, and records the cutover in SQLite. The original bytes remain unchanged;
+  subsequent tracking never reads or writes that file. Invalid legacy data aborts
+  the cutover. Attempt outcomes and pipeline edits append immutable events, with
+  source-scoped identities and canonical job relationships. `apply_log.jsonl`
+  remains a separate audit artifact.
 - **Apply** opens the job's stored apply URL in **your own Chrome** (real
   profile, extensions loaded — `open -a "Google Chrome"`, falling back to your
   default browser) and queues a fill task for the extension; the extension's

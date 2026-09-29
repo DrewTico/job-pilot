@@ -34,7 +34,8 @@ from job_agent.apply.review import Decision, ReviewOutcome
 from job_agent.apply.runner import _SUBMIT_SELECTOR, _TRACK_STATUS
 from job_agent.apply.screening import apply_drafts
 from job_agent.apply.submit import log_result, run_submit
-from job_agent.apply.tracker import ApplicationRecord, record_attempt, update_status
+from job_agent.apply.tracker import ApplicationRecord
+from job_agent.application_state import record_attempt, update_status
 from job_agent.dashboard.service import serialize_plan
 from job_agent.store import resolve_apply_url
 
@@ -147,7 +148,8 @@ class ApplySession:
             job_id=str(self._record.get("id", "")),
             date=datetime.now(timezone.utc).isoformat(),
             source=self._record.get("source", ""),
-            status="paused", reason="in dashboard review"))
+            status="paused", reason="in dashboard review"),
+            canonical_id=self._record.get("canonical_id"))
         # VISIBLE by definition: the human acts in this window (captcha, consent).
         self._page = stack.enter_context(self._browser_factory(headless=False))
         self._page.goto(resolve_apply_url(self._record), wait_until="load")

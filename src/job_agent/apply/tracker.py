@@ -1,13 +1,6 @@
-"""Application tracking: a gitignored JSON log of every apply attempt.
+"""Legacy JSON compatibility helpers for import models, tests, and the local demo.
 
-``data/applications.json`` (already covered by the ``/data/*`` gitignore — it
-holds personal job history) records one entry per ``run_apply`` attempt:
-company, role, job id, ISO date, source ATS, and a status that resolves to
-``submitted`` / ``paused`` / ``failed`` when the run completes.
-
-Everything is immutable in the codebase style: records are frozen models and
-updates rewrite the file with a new list rather than mutating in place. A
-missing or corrupt log reads as empty — tracking must never break an apply run.
+Real application flows use job_agent.application_state and the shared SQLite DB.
 """
 
 from __future__ import annotations

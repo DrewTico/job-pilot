@@ -14,7 +14,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field, model_validator
 
-from job_agent.apply.tracker import Status, upsert_job_state
+from job_agent.apply.tracker import Status
+from job_agent.application_state import upsert_job_state
 from job_agent.dashboard import service
 from job_agent.store import resolve_apply_url
 from job_agent.search_state import load_job_record, AmbiguousJobError
@@ -50,6 +51,7 @@ class TrackRequest(BaseModel):
 
     job_id: str = ""
     attempt_id: str = ""
+    canonical_id: str | None = None
     company: str = ""
     title: str = ""
     source: str = ""
@@ -113,30 +115,36 @@ def create_app(*, data_dir: Path = Path("data"),
 
     @app.get("/api/applications")
     def applications() -> dict:
-        return service.applications_view(data_dir / "applications.json")
+        return service.applications_view(data_dir / "job_pilot.sqlite3")
 
     @app.get("/api/jobs")
     def jobs() -> dict:
         return service.jobs_view(data_dir,
-                                 data_dir / "applications.json")
+                                 data_dir / "job_pilot.sqlite3")
 
     @app.post("/api/search")
     def run_search(req: SearchRequest) -> dict:
         result = searcher(req.days)
         # whatever the run printed, the table shows what's now on disk
         return {**result, **service.jobs_view(data_dir,
-                                              data_dir / "applications.json")}
+                                              data_dir / "job_pilot.sqlite3")}
 
     @app.post("/api/track")
     def track(req: TrackRequest) -> dict:
         try:
+            job = {}
+            if req.job_id and not req.canonical_id and not req.attempt_id:
+                job = _require_job(req.job_id)
             record = upsert_job_state(
-                data_dir / "applications.json", job_id=req.job_id,
-                attempt_id=req.attempt_id, company=req.company,
-                title=req.title, source=req.source, status=req.status,
+                data_dir / "job_pilot.sqlite3", job_id=str(job.get("id", req.job_id)),
+                canonical_id=req.canonical_id or job.get("canonical_id"),
+                attempt_id=req.attempt_id, company=job.get("company", req.company),
+                title=job.get("title", req.title), source=job.get("source", req.source), status=req.status,
                 notes=req.notes, follow_up=req.follow_up)
         except KeyError as exc:
             raise HTTPException(404, str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
         return {**record.model_dump(),
                 "needs_follow_up": service._needs_follow_up(record)}
 

@@ -42,6 +42,7 @@ def run_demo(io: PromptIO | None = None, *, out_dir: Path | None = None,
         auto_approve=True,         # simulated approval — no real employer involved
         company="Demo Co", job_title="Data Engineer (LOCAL DEMO)", source="demo",
         # tracked under the demo out-dir — never the real application history
+        demo_tracking=True,
         applications_log=demo_out / "applications.json",
     )
     return run_apply(cfg, io=io)

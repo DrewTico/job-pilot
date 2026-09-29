@@ -30,7 +30,7 @@ from job_agent.apply.prompt_io import PromptIO
 from job_agent.apply.review import Decision, request_approval
 from job_agent.apply.screening import Drafter, apply_drafts, store_approved_answers
 from job_agent.apply.submit import SubmitResult, log_result, run_submit
-from job_agent.apply.tracker import ApplicationRecord, record_attempt, update_status
+from job_agent.apply.tracker import ApplicationRecord
 
 _SUBMIT_SELECTOR = "button[type='submit'], input[type='submit'], button#submit"
 
@@ -57,7 +57,9 @@ class ApplyConfig:
     job_id: str = ""
     job_title: str = ""
     source: str = ""                  # ATS the job came from
-    applications_log: Path = field(default_factory=lambda: Path("data/applications.json"))
+    canonical_id: str | None = None
+    demo_tracking: bool = False
+    applications_log: Path = field(default_factory=lambda: Path("data/job_pilot.sqlite3"))
 
 
 def _clear_blockers(page, io: PromptIO) -> bool:
@@ -83,17 +85,24 @@ def run_apply(cfg: ApplyConfig, io: PromptIO | None = None) -> SubmitResult:
     Every attempt is logged to ``cfg.applications_log`` up front and resolved
     to submitted / paused / failed when the run completes (or crashes).
     """
-    attempt_id = record_attempt(cfg.applications_log, ApplicationRecord(
+    from job_agent.application_state import record_attempt, update_status
+
+    if cfg.demo_tracking:
+        from job_agent.apply.tracker import record_attempt as start, update_status as finish
+    else:
+        start = lambda path, record: record_attempt(path, record, canonical_id=cfg.canonical_id)
+        finish = update_status
+    attempt_id = start(cfg.applications_log, ApplicationRecord(
         company=cfg.company or cfg.job_label, title=cfg.job_title,
         job_id=cfg.job_id, date=datetime.now(timezone.utc).isoformat(),
         source=cfg.source, status="paused", reason="run in progress"))
     try:
         result = _run_flow(cfg, io or PromptIO())
     except Exception:
-        update_status(cfg.applications_log, attempt_id, "failed",
+        finish(cfg.applications_log, attempt_id, "failed",
                       "run crashed before completing — see terminal output")
         raise
-    update_status(cfg.applications_log, attempt_id,
+    finish(cfg.applications_log, attempt_id,
                   _TRACK_STATUS.get(result.status, "paused"), result.reason)
     return result
 
