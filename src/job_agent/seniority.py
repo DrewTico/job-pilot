@@ -30,7 +30,7 @@ _MARKERS: tuple[tuple[int, tuple[str, ...]], ...] = (
     (7, ("director", "head", "distinguished", "fellow")),
     (6, ("principal",)),
     (5, ("staff",)),
-    (4, ("lead",)),
+    (4, ("lead", "manager")),
     (3, ("senior", "sr", "snr")),
     (1, ("junior", "jr", "associate", "intern", "entry", "new grad", "graduate")),
 )

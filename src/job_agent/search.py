@@ -1,4 +1,5 @@
-"""The discovery pipeline: fetch → keyword → freshness → location → dedup.
+"""The discovery pipeline: fetch → keyword → freshness → location → seniority
+→ dedup → enrichment → eligibility → experience.
 
 The keyword pre-filter runs *before* anything expensive so we never spend an LLM
 call on the hundreds of unrelated roles a company board carries. Every stage's
@@ -13,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, ConfigDict
 
 from job_agent.config import SearchProfile
+from job_agent.eligibility import passes_eligibility
 from job_agent.experience import required_years
 from job_agent.geo import infer_country
 from job_agent.models import Job
@@ -20,7 +22,7 @@ from job_agent.seen_cache import SeenCache
 from job_agent.seniority import LEVEL_NAMES, seniority_rank
 from job_agent.sources import JobSource, build_source
 
-FRESH_WINDOW = timedelta(hours=24)
+FRESH_WINDOW = timedelta(days=14)
 
 # A job is dropped on experience only when its JD requires at least this many
 # more years than the candidate has (so an "8+ years" role is dropped for a
@@ -42,6 +44,7 @@ class StageCounts(BaseModel):
     after_location: int = 0
     after_seniority: int = 0
     after_dedup: int = 0
+    after_eligibility: int = 0
     after_experience: int = 0
 
 
@@ -102,7 +105,7 @@ def passes_location(job: Job, profile: SearchProfile) -> bool:
 def passes_seniority(job: Job, profile: SearchProfile) -> bool:
     """Drop titles above the profile's ceiling. ``max_seniority`` None = off.
 
-    With ``max_seniority: senior`` this drops Lead / Staff / Principal / Director
+    With ``max_seniority: senior`` this drops Lead / Manager / Staff / Principal / Director
     / VP and keeps Senior/Sr. and below — title-only, so it runs cheaply before
     dedup and enrichment.
     """
@@ -175,7 +178,7 @@ def run(
     kept = [(j, lbl) for (j, lbl) in all_jobs if matches_keywords(j.title, profile.keywords)]
     after_keyword = len(kept)
 
-    # Stage 2: freshness (default 24h).
+    # Stage 2: freshness (default 14 days).
     kept = [(j, lbl) for (j, lbl) in kept if is_fresh(j, now, seen_cache, fresh_window)]
     after_fresh = len(kept)
     seen_cache.save()
@@ -199,7 +202,7 @@ def run(
     after_dedup = len(deduped)
 
     # Enrich only the final survivors (e.g. SmartRecruiters detail fetch), so the
-    # experience filter below sees every source's full JD.
+    # eligibility and experience filters see every source's full JD.
     enriched_pairs: list[tuple[Job, str]] = []
     for job, lbl in deduped:
         board = lbl.split("/", 1)[1] if "/" in lbl else lbl
@@ -209,7 +212,11 @@ def run(
             warnings.append(f"{lbl}: enrich failed for {job.id} ({exc})")
             enriched_pairs.append((job, board))
 
-    # Stage 6: experience gap (needs the full JD, hence after enrichment).
+    # Stage 6: clear eligibility restrictions (needs the enriched JD).
+    enriched_pairs = [(j, b) for (j, b) in enriched_pairs if passes_eligibility(j)]
+    after_eligibility = len(enriched_pairs)
+
+    # Stage 7: experience gap (needs the full JD, hence after enrichment).
     enriched_pairs = [(j, b) for (j, b) in enriched_pairs if passes_experience(j, profile)]
     after_experience = len(enriched_pairs)
     jobs = [j for j, _ in enriched_pairs]
@@ -239,6 +246,7 @@ def run(
             after_location=after_location,
             after_seniority=after_seniority,
             after_dedup=after_dedup,
+            after_eligibility=after_eligibility,
             after_experience=after_experience,
         ),
         per_source=per_source,

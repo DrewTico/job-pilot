@@ -19,7 +19,7 @@ and uses an LLM to score how well each one fits you — then prints a ranked tab
 Company career pages are backed by a handful of ATS vendors that expose **public,
 no-auth JSON APIs**. Instead of scraping aggregators (which violates their terms),
 `job-agent` reads these official endpoints directly, normalizes every board into
-one shape, keeps only recently posted roles (default: the last 30 days) that match
+one shape, keeps only recently posted roles (default: the last 14 days) that match
 your keywords and location, and spends an LLM call only on those survivors.
 
 **Deliberate constraints:**
@@ -87,7 +87,7 @@ python -m job_agent discover                          # grow the board list (see
 ```
 
 `search` fetches live jobs from the boards in `search_profile.yaml`, filters to
-the recency window (default 30 days), scores each survivor, prints them ranked
+the recency window (default 14 days), scores each survivor, prints them ranked
 — hiding jobs you already applied to (`--include-applied` shows them) — and
 saves the run to `data/job_pilot.sqlite3` (under `Settings.data_dir`). `tailor --job <ID>` (an ID from that
 table) re-fetches the full JD, tailors your base résumé to it, runs the no-drift
@@ -103,7 +103,7 @@ remain isolated. Job lookup accepts a unique external ID, `source:id`, or
 `canonical:<uuid>`; ambiguous bare IDs produce an error.
 
 Useful search flags: `--profile PATH`, `--limit N`, `--days N` (recency
-window, default 30; `--max-age-hours N` overrides it for sub-day windows),
+window, default 14; `--max-age-hours N` overrides it for sub-day windows),
 `--include-applied`, `--method {structured,tool}`.
 
 ## How it works
@@ -131,7 +131,7 @@ written against a real captured response — see `tests/fixtures/`.
 Titles are matched against your keywords *before* anything expensive, so no LLM
 call is ever spent on an off-target job.
 
-**Recency window (default 30 days, `--days`).** Uses each board's real post date (Greenhouse
+**Recency window (default 14 days, `--days`).** Uses each board's real post date (Greenhouse
 `first_published`, Lever `createdAt`, Ashby `publishedAt`, SmartRecruiters
 `releasedDate`). For the rare posting with no date, it falls back to a small
 seen-ids cache under `/data` ("first observed within the window").

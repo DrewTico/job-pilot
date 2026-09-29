@@ -1,9 +1,9 @@
 """A tiny on-disk cache of when we first saw each job.
 
-Most boards expose a real post date, so the 24h filter uses that directly. But
+Most boards expose a real post date, so the freshness filter uses that directly. But
 some jobs (e.g. a Greenhouse posting with a null ``first_published``) have no
-usable date. For those, we approximate "posted in the last 24h" with "first
-observed in the last 24h": the first time we see a dateless job we record the
+usable date. For those, we approximate "posted within the freshness window" with "first
+observed within the freshness window": the first time we see a dateless job we record the
 timestamp; on later runs we compare against it.
 
 The cache is a small JSON file under the data dir (gitignored). It is the only

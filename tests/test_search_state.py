@@ -185,3 +185,26 @@ def test_real_cli_scoring_failure_rolls_back_seen(tmp_path, monkeypatch):
     with search_database(tmp_path) as engine, database_session(engine) as session:
         assert len(SQLiteSeenCache(session)) == 0
         assert SearchRepository(session).latest()['jobs'] == {}
+
+
+@pytest.mark.parametrize("flags, expected", [
+    ([], timedelta(days=14)),
+    (["--days", "23"], timedelta(days=23)),
+    (["--days", "23", "--max-age-hours", "9"], timedelta(hours=9)),
+])
+def test_production_cli_effective_window(tmp_path, monkeypatch, flags, expected):
+    monkeypatch.setattr(cli, "load_settings", lambda: Settings(
+        data_dir=tmp_path, anthropic_api_key="synthetic"))
+    monkeypatch.setattr(cli, "load_profile", lambda _: SearchProfile(
+        keywords=["Engineer"], sources=[SourceRef(ats="greenhouse", board="token")]))
+    windows = []
+
+    def pipeline(*args, **kwargs):
+        windows.append(kwargs["fresh_window"])
+        return search.SearchOutcome(jobs=[], boards=[], counts=search.StageCounts(),
+                                    per_source={}, baseline_scan=True)
+
+    monkeypatch.setattr(cli.search, "run", pipeline)
+    args = cli._build_parser().parse_args(["search", *flags])
+    assert cli.cmd_search(Console(), args) == 0
+    assert windows == [expected]

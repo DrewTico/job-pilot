@@ -191,7 +191,7 @@
   <div class="sec-sub" id="gen-at">Jobs found by your last search, best matches first.</div>
   <div class="toolbar">
     <button class="primary" id="btn-search">Find new jobs</button>
-    <label>posted in the last <input id="days" type="number" min="1" max="90" value="7"> days</label>
+    <label>posted in the last <input id="days" type="number" min="1" max="90" value="14"> days</label>
     <span style="flex:1"></span>
     <label>Status <select id="jf-status"><option value="">all</option></select></label>
     <label>Source <select id="jf-source"><option value="">all</option></select></label>
@@ -520,7 +520,7 @@ async function runSearch() {
   log.style.display = "block";
   log.textContent = "Searching the job boards and scoring each role against your profile…";
   try {
-    const data = await post("/api/search", {days: Number($("#days").value) || 7});
+    const data = await post("/api/search", {days: Number($("#days").value) || 14});
     log.textContent = data.output || "";
     log.classList.toggle("err", !data.ok);
     JOBS = addressableJobs(data.jobs);

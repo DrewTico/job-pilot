@@ -38,3 +38,19 @@ def test_no_false_marker_hits(title):
 def test_untitled_defaults_to_mid():
     assert seniority_rank("") == LEVEL_NAMES["mid"]
     assert seniority_rank("Analytics Engineer") == LEVEL_NAMES["mid"]
+
+
+@pytest.mark.parametrize("title,expected", [
+    ("AI / ML Engineer Manager", "lead"),
+    ("Engineering Manager", "lead"),
+    ("Software Engineering Manager", "lead"),
+    ("Machine Learning Manager", "lead"),
+    ("Managerial Analytics Engineer", "mid"),
+    ("AI Engineer", "mid"),
+    ("Software Engineer", "mid"),
+    ("Senior Engineering Manager", "lead"),
+    ("Principal Engineering Manager", "principal"),
+    ("Associate Engineering Manager", "lead"),
+])
+def test_manager_markers(title, expected):
+    assert seniority_rank(title) == LEVEL_NAMES[expected]

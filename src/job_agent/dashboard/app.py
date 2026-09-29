@@ -24,7 +24,7 @@ _STATIC = Path(__file__).resolve().parent / "static"
 
 
 class SearchRequest(BaseModel):
-    days: int = Field(default=30, ge=1, le=90)
+    days: int = Field(default=14, ge=1, le=90)
 
 
 class JobRequest(BaseModel):

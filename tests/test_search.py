@@ -136,8 +136,8 @@ def test_leaked_foreign_locations_are_dropped_end_to_end(location, expected):
 
 
 def test_is_fresh_uses_posted_at():
-    assert is_fresh(make_job(posted_at=NOW - timedelta(hours=3)), NOW, SeenCache("/tmp/_a.json"))
-    assert not is_fresh(make_job(posted_at=NOW - timedelta(hours=30)), NOW, SeenCache("/tmp/_b.json"))
+    assert is_fresh(make_job(posted_at=NOW - timedelta(days=13)), NOW, SeenCache("/tmp/_a.json"))
+    assert not is_fresh(make_job(posted_at=NOW - timedelta(days=15)), NOW, SeenCache("/tmp/_b.json"))
 
 
 def test_recency_window_is_configurable():
@@ -152,8 +152,8 @@ def test_is_fresh_falls_back_to_seen_cache(tmp_path):
     job = make_job(id="42", posted_at=None, source="greenhouse")
     # First time we see a dateless job it's treated as fresh...
     assert is_fresh(job, NOW, cache) is True
-    # ...but if we first saw it two days ago, it's stale.
-    cache._first_seen["greenhouse:42"] = (NOW - timedelta(days=2)).isoformat()
+    # ...but if we first saw it 15 days ago, it's stale.
+    cache._first_seen["greenhouse:42"] = (NOW - timedelta(days=15)).isoformat()
     assert is_fresh(job, NOW, cache) is False
 
 
@@ -212,7 +212,7 @@ def test_run_pipeline_counts_and_dedup(tmp_path):
         make_job(id="3", title="Machine Learning Engineer", company="Gamma", location="London",
                  remote=False, country="GB", posted_at=NOW - timedelta(hours=1)),          # location drop
         make_job(id="4", title="Data Engineer", company="Delta", location="Remote",
-                 remote=True, country="US", posted_at=NOW - timedelta(hours=40)),          # freshness drop
+                 remote=True, country="US", posted_at=NOW - timedelta(days=15)),          # freshness drop
         make_job(id="5", title="Machine Learning Engineer", company="Beta", location="Remote",
                  remote=True, country="US", posted_at=NOW - timedelta(hours=1)),
         make_job(id="6", title="Machine Learning Engineer", company="Beta", location="Remote",
@@ -225,7 +225,10 @@ def test_run_pipeline_counts_and_dedup(tmp_path):
     assert out.counts.after_keyword == 5
     assert out.counts.after_fresh == 4
     assert out.counts.after_location == 3
+    assert out.counts.after_seniority == 3
     assert out.counts.after_dedup == 2
+    assert out.counts.after_eligibility == 2
+    assert out.counts.after_experience == 2
     assert {j.title for j in out.jobs} == {"Data Engineer", "Machine Learning Engineer"}
 
 
@@ -249,6 +252,7 @@ def test_run_pipeline_drops_over_level_and_over_experience(tmp_path):
     assert out.counts.after_location == 4
     assert out.counts.after_seniority == 3     # Staff dropped (title, before dedup)
     assert out.counts.after_dedup == 3
+    assert out.counts.after_eligibility == 3
     assert out.counts.after_experience == 2    # "10+ years" dropped (after enrich)
     assert {j.title for j in out.jobs} == {"Senior Data Engineer", "Machine Learning Engineer"}
 
@@ -258,3 +262,41 @@ def test_run_source_failure_is_a_warning_not_a_crash(tmp_path):
     out = run(profile(), seen_cache=SeenCache(tmp_path / "s.json"), now=NOW, source_factory=factory)
     assert out.jobs == []
     assert out.warnings and "fetch failed" in out.warnings[0]
+
+
+@pytest.mark.parametrize("window,expected", [(None, {"13"}), (timedelta(days=16), {"13", "15"})])
+def test_pipeline_freshness_window(tmp_path, window, expected):
+    jobs = [make_job(id=str(age), company=str(age), title="AI Engineer",
+                     posted_at=NOW - timedelta(days=age)) for age in (13, 15)]
+    kwargs = {} if window is None else {"fresh_window": window}
+    out = run(profile(keywords=["engineer"]), seen_cache=SeenCache(tmp_path / "s.json"),
+              now=NOW, source_factory=lambda ats, board: FakeSource(board, jobs), **kwargs)
+    assert {j.id for j in out.jobs} == expected
+
+
+def test_pipeline_managers_eligibility_and_enriched_experience(tmp_path):
+    titles = ["AI / ML Engineer Manager", "Engineering Manager", "Software Engineering Manager",
+              "Machine Learning Manager", "Managerial Analytics Engineer", "AI Engineer",
+              "Software Engineer", "Machine Learning Engineer", "AI Intern", "AI Research Intern",
+              "AI Applied Intern"]
+    jobs = [make_job(id=str(i), title=title, company=str(i), posted_at=NOW)
+            for i, title in enumerate(titles)]
+    enriched = []
+
+    class EnrichedSource(FakeSource):
+        def enrich(self, job):
+            enriched.append(job.id)
+            descriptions = {"8": "Active Secret clearance required. 10 years required.",
+                            "9": "Currently enrolled in a Master's or PhD program",
+                            "10": "10 years of experience required."}
+            return job.model_copy(update={"description": descriptions.get(job.id, "Bachelor's degree required")})
+
+    out = run(profile(keywords=["engineer", "machine learning", "ai"], max_seniority="mid",
+                      experience_years=0), seen_cache=SeenCache(tmp_path / "s.json"), now=NOW,
+              source_factory=lambda ats, board: EnrichedSource(board, jobs))
+    assert out.counts.model_dump() == dict(fetched=11, after_keyword=11, after_fresh=11,
+                                         after_location=11, after_seniority=7, after_dedup=7,
+                                         after_eligibility=5, after_experience=4)
+    assert enriched == [str(i) for i in range(4, 11)]
+    assert {j.id for j in out.jobs} == {"4", "5", "6", "7"}
+    assert out.boards == ["b"] * 4

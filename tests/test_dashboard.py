@@ -444,3 +444,46 @@ def test_preview_service_builds_a_tagged_plan_without_touching_the_page(tmp_path
     # READ-ONLY: the page saw navigation + the scan and nothing else.
     kinds = {k for k, *_ in page.calls}
     assert kinds == {"goto", "evaluate"}
+
+
+@pytest.mark.parametrize("payload, expected", [({}, 14), ({"days": 23}, 23)])
+def test_dashboard_effective_request_days(tmp_path, payload, expected):
+    calls = []
+
+    def searcher(days):
+        calls.append(days)
+        return {"ok": True, "exit_code": 0, "output": ""}
+
+    response = TestClient(create_app(data_dir=tmp_path, searcher=searcher)).post(
+        "/api/search", json=payload)
+    assert response.status_code == 200
+    assert calls == [expected]
+
+
+@pytest.mark.parametrize("options, expected", [({}, 14), ({"days": 23}, 23)])
+def test_dashboard_service_effective_window(tmp_path, monkeypatch, options, expected):
+    from datetime import timedelta
+    from job_agent import cli, search
+    from job_agent.config import Settings, SearchProfile
+
+    monkeypatch.setattr(cli, "load_settings", lambda: Settings(
+        data_dir=tmp_path, anthropic_api_key="synthetic"))
+    monkeypatch.setattr(cli, "load_profile", lambda _: SearchProfile(
+        keywords=["Engineer"], sources=[{"ats": "greenhouse", "board": "token"}]))
+    windows = []
+
+    def pipeline(*args, **kwargs):
+        windows.append(kwargs["fresh_window"])
+        return search.SearchOutcome(jobs=[], boards=[], counts=search.StageCounts(),
+                                    per_source={}, baseline_scan=True)
+
+    monkeypatch.setattr(cli.search, "run", pipeline)
+    assert service.run_search_cli("unused", **options)["ok"]
+    assert windows == [timedelta(days=expected)]
+
+
+def test_dashboard_frontend_default_days():
+    static = Path(__file__).parents[1] / "src/job_agent/dashboard/static/index.html"
+    html = static.read_text()
+    assert 'id="days" type="number" min="1" max="90" value="14"' in html
+    assert '.value) || 14' in html

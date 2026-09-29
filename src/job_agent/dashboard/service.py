@@ -98,7 +98,7 @@ def _run_cli(handler, ns: Namespace) -> dict:
     return {"ok": code == 0, "exit_code": code, "output": console.export_text()}
 
 
-def run_search_cli(profile_path: str | Path, days: int = 30, *, data_dir: Path | None = None) -> dict:
+def run_search_cli(profile_path: str | Path, days: int = 14, *, data_dir: Path | None = None) -> dict:
     """Run the real search+score pipeline via the CLI's own command function."""
     from job_agent.cli import cmd_search
 
