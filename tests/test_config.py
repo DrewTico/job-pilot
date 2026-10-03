@@ -50,7 +50,7 @@ def test_negative_experience_years_is_rejected():
 def test_task_and_threshold_defaults():
     from job_agent.config import Settings
     settings = Settings()
-    assert settings.scoring_model == settings.tailoring_model == 'claude-sonnet-5'
+    assert settings.scoring_model == settings.tailoring_model == 'claude-sonnet-5-5'
     assert settings.classification_model == 'claude-haiku-4-5-20251001'
     assert (settings.score_threshold, settings.max_packets_per_day) == (65, 8)
 
@@ -62,7 +62,7 @@ def test_environment_overrides_and_legacy_fallback(monkeypatch):
     for name in ['MODEL', 'SCORING_MODEL', 'CLASSIFICATION_MODEL', 'TAILORING_MODEL',
                  'SCORE_THRESHOLD', 'MAX_PACKETS_PER_DAY']:
         monkeypatch.delenv('JOB_AGENT_' + name, raising=False)
-    assert load_settings().scoring_model == 'claude-sonnet-5'
+    assert load_settings().scoring_model == 'claude-sonnet-5-5'
     monkeypatch.setenv('JOB_AGENT_MODEL', 'legacy')
     settings = load_settings()
     assert settings.model == settings.scoring_model == settings.classification_model == settings.tailoring_model == 'legacy'
@@ -83,3 +83,21 @@ def test_invalid_threshold_environment(monkeypatch, field, value):
     monkeypatch.setenv('JOB_AGENT_' + field.upper(), str(value))
     with pytest.raises(ValidationError):
         config.load_settings()
+
+
+def test_writing_and_decimal_budget(monkeypatch):
+    from decimal import Decimal
+    from job_agent.config import Settings, load_settings
+    import job_agent.config as config
+    monkeypatch.setattr(config, 'load_dotenv', lambda: None)
+    assert Settings().writing_model == 'claude-sonnet-5-5'
+    assert Settings().monthly_budget_usd == Decimal('40.00')
+    assert Settings(model='legacy').writing_model == 'legacy'
+    monkeypatch.setenv('JOB_AGENT_MODEL', 'legacy')
+    monkeypatch.setenv('JOB_AGENT_WRITING_MODEL', 'writer')
+    monkeypatch.setenv('JOB_AGENT_MONTHLY_BUDGET_USD', '12.34')
+    assert load_settings().writing_model == 'writer'
+    assert load_settings().monthly_budget_usd == Decimal('12.34')
+    for invalid in ('0', '-1', 'NaN', 'Infinity'):
+        with pytest.raises(ValidationError):
+            Settings(monthly_budget_usd=invalid)

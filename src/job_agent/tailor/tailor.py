@@ -214,11 +214,16 @@ def _default_generate(system: str, user: str, settings: Settings) -> str:
     """Real Sonnet call (imported lazily so demo/tests need no SDK/key)."""
     import anthropic
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    resp = client.messages.create(
+    from job_agent.llm import AnthropicExecutor, cached_system
+
+    client = AnthropicExecutor(
+        anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=0), settings,
+    )
+    resp = client.create(
+        task="tailoring", prompt_name="tailor_megaprompt", prompt_version="v1",
         model=settings.tailoring_model,
         max_tokens=8000,
-        system=system,
+        system=cached_system(system),
         messages=[{"role": "user", "content": user}],
     )
     if resp.stop_reason == "max_tokens":

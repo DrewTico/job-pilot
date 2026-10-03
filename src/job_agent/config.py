@@ -11,6 +11,7 @@ Two things live here:
 from __future__ import annotations
 
 import os
+from decimal import Decimal
 from pathlib import Path
 
 import yaml
@@ -83,9 +84,11 @@ class Settings(BaseModel):
 
     anthropic_api_key: str | None = None
     model: str = DEFAULT_MODEL
-    scoring_model: str = "claude-sonnet-5"
+    scoring_model: str = "claude-sonnet-5-5"
     classification_model: str = "claude-haiku-4-5-20251001"
-    tailoring_model: str = "claude-sonnet-5"
+    tailoring_model: str = "claude-sonnet-5-5"
+    writing_model: str = "claude-sonnet-5-5"
+    monthly_budget_usd: Decimal = Field(default=Decimal("40.00"), gt=0, allow_inf_nan=False)
     score_threshold: int = Field(default=65, ge=0, le=100, strict=True)
     max_packets_per_day: int = Field(default=8, ge=1, strict=True)
     data_dir: Path = Path("data")
@@ -97,7 +100,7 @@ class Settings(BaseModel):
         # still honored by callers migrating from Settings(model=...).
         if isinstance(values, dict) and values.get("model"):
             values = dict(values)
-            for task in ("scoring_model", "classification_model", "tailoring_model"):
+            for task in ("scoring_model", "classification_model", "tailoring_model", "writing_model"):
                 values.setdefault(task, values["model"])
         return values
 
@@ -111,12 +114,14 @@ def load_settings() -> Settings:
     }
     if os.environ.get("JOB_AGENT_MODEL"):
         values["model"] = os.environ["JOB_AGENT_MODEL"]
-    for field in ("scoring_model", "classification_model", "tailoring_model"):
+    for field in ("scoring_model", "classification_model", "tailoring_model", "writing_model"):
         if os.environ.get(f"JOB_AGENT_{field.upper()}"):
             values[field] = os.environ[f"JOB_AGENT_{field.upper()}"]
     for field in ("score_threshold", "max_packets_per_day"):
         if f"JOB_AGENT_{field.upper()}" in os.environ:
             values[field] = int(os.environ[f"JOB_AGENT_{field.upper()}"])
+    if "JOB_AGENT_MONTHLY_BUDGET_USD" in os.environ:
+        values["monthly_budget_usd"] = os.environ["JOB_AGENT_MONTHLY_BUDGET_USD"]
     return Settings(**values)
 
 

@@ -25,6 +25,7 @@ from typing import Any, Literal
 
 from job_agent.config import SearchProfile, Settings
 from job_agent.models import Job, ScoredJob
+from job_agent.llm import AnthropicExecutor, LLMBudgetExceeded, UnknownModelPricing, cached_system
 
 SCORE_PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompts" / "score_v1.txt"
 
@@ -89,6 +90,16 @@ def build_user_prompt(job: Job, profile: SearchProfile, *,
     return "INPUT DATA (JSON):\n" + json.dumps(data, ensure_ascii=False)
 
 
+def _cached_score_data(job, profile, company_facts):
+    data = json.loads(build_user_prompt(job, profile, company_facts=company_facts).split("\n", 1)[1])
+    candidate = data.pop("candidate_summary")
+    return [
+        {"type": "text", "text": "CANDIDATE CONTEXT (DATA):\n" + json.dumps(candidate),
+         "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "INPUT DATA (JSON):\n" + json.dumps(data, ensure_ascii=False)},
+    ]
+
+
 def _coerce(job: Job, data: dict[str, Any]) -> ScoredJob:
     assessment = ScoreAssessment.model_validate(data)
     values = assessment.model_dump()
@@ -99,32 +110,37 @@ def _coerce(job: Job, data: dict[str, Any]) -> ScoredJob:
 
 def _call_structured(client, model: str, job: Job, profile: SearchProfile, *, company_facts: tuple[CompanyFact, ...] = ()) -> str:
     """One call using structured outputs (output_config.format). Returns JSON text."""
-    resp = client.messages.create(
+    resp = client.create(
+        task="scoring", prompt_name="score", prompt_version="v1",
+        external_job_reference=f"{job.source}:{job.id}",
         model=model,
         max_tokens=512,
-        system=load_score_prompt(),
+        system=cached_system(load_score_prompt()),
         output_config={"format": {"type": "json_schema", "schema": SCORE_SCHEMA}},
-        messages=[{"role": "user", "content": build_user_prompt(job, profile, company_facts=company_facts)}],
+        messages=[{"role": "user", "content": _cached_score_data(job, profile, company_facts)}],
     )
     return next((b.text for b in resp.content if b.type == "text"), "")
 
 
 def _call_tool(client, model: str, job: Job, profile: SearchProfile, *, company_facts: tuple[CompanyFact, ...] = ()) -> str:
-    """Fallback: force a tool call whose input IS the JSON we want."""
-    resp = client.messages.create(
+    """Optional strict tool path; missing tool output follows the usual retry policy."""
+    resp = client.create(
+        task="scoring", prompt_name="score", prompt_version="v1",
+        external_job_reference=f"{job.source}:{job.id}",
         model=model,
         max_tokens=512,
-        system=load_score_prompt(),
+        system=cached_system(load_score_prompt() + "\nCall record_fit to return the fit assessment."),
         tools=[{
             "name": "record_fit",
             "description": "Record the fit assessment for this job.",
             "input_schema": SCORE_SCHEMA,
+            "strict": True,
         }],
-        tool_choice={"type": "tool", "name": "record_fit"},
-        messages=[{"role": "user", "content": build_user_prompt(job, profile, company_facts=company_facts)}],
+        tool_choice={"type": "auto"},
+        messages=[{"role": "user", "content": _cached_score_data(job, profile, company_facts)}],
     )
     for block in resp.content:
-        if block.type == "tool_use":
+        if block.type == "tool_use" and block.name == "record_fit":
             return json.dumps(block.input)
     return ""
 
@@ -137,13 +153,18 @@ def score_one(
     *,
     method: Method = "structured",
     company_facts: tuple[CompanyFact, ...] = (),
+    settings: Settings | None = None,
 ) -> ScoredJob:
     """Score a single job, retrying once on unparseable output before giving up."""
+    if not isinstance(client, AnthropicExecutor):
+        client = AnthropicExecutor(client, settings or Settings())
     call = _call_structured if method == "structured" else _call_tool
     for attempt in (1, 2):
         try:
             raw = call(client, model, job, profile, company_facts=company_facts)
             return _coerce(job, json.loads(raw))
+        except (LLMBudgetExceeded, UnknownModelPricing):
+            raise
         except Exception:
             if attempt == 2:
                 # Give up gracefully: keep the job, mark it unscored.
@@ -166,5 +187,6 @@ def score_jobs(
     Anthropic client, constructed lazily so importing this module needs no key)."""
     if client is None:
         import anthropic  # imported lazily so --demo / tests need no SDK key
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    return [score_one(client, settings.scoring_model, job, profile, method=method) for job in jobs]
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=0)
+    executor = AnthropicExecutor(client, settings)
+    return [score_one(executor, settings.scoring_model, job, profile, method=method) for job in jobs]

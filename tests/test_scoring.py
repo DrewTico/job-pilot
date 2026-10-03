@@ -205,12 +205,15 @@ def test_request_contract_and_scoring_model(method):
     request = client.messages.requests[0]
     assert request['model'] == 'scorer'
     stable_prompt = load_score_prompt()
+    if method == "tool":
+        stable_prompt += "\nCall record_fit to return the fit assessment."
     user = request['messages'][0]['content']
-    assert request['system'] == stable_prompt
-    assert stable_prompt not in user
+    assert request['system'] == [{'type': 'text', 'text': stable_prompt, 'cache_control': {'type': 'ephemeral'}}]
+    assert stable_prompt not in json.dumps(user)
+    assert user[0]['cache_control'] == {'type': 'ephemeral'}
+    assert json.loads(user[0]['text'].split('\n', 1)[1]) == PROFILE.candidate_summary
     assert json.dumps(request).count(json.dumps(stable_prompt)[1:-1]) == 1
-    data = json.loads(user.removeprefix('INPUT DATA (JSON):\n'))
-    assert data['candidate_summary'] == PROFILE.candidate_summary
+    data = json.loads(user[1]['text'].removeprefix('INPUT DATA (JSON):\n'))
     assert data['untrusted_job_posting'] == JOB.model_dump(mode='json')
     assert data['content_flags'] == []
     assert data['trusted_sourced_company_facts'] == []
@@ -244,3 +247,61 @@ def test_flags_are_local_after_retry(method):
     assert result.content_flags == ('prompt_injection_suspected',)
     assert 'content_flags' not in client.messages.requests[0].get(
         'output_config', {}).get('format', {}).get('schema', {}).get('properties', {})
+
+
+@pytest.fixture(autouse=True)
+def isolated_llm_accounting(monkeypatch, tmp_path):
+    from job_agent import llm
+    from job_agent.database import initialize_database
+    engine = initialize_database(tmp_path / 'accounting.sqlite')
+    original = llm.AnthropicExecutor.__init__
+    def init(self, client, settings, **kwargs):
+        kwargs.setdefault('engine', engine)
+        original(self, client, settings, **kwargs)
+    monkeypatch.setattr(llm.AnthropicExecutor, '__init__', init)
+    for model in ('m', 'scorer', 'legacy', 'tailorer'):
+        monkeypatch.setitem(llm.PRICING, model, llm.PRICING['claude-sonnet-5-5'])
+    yield
+    engine.dispose()
+
+
+@pytest.mark.parametrize('method', ['structured', 'tool'])
+@pytest.mark.parametrize('cache_usage', [{}, {'cache_creation_input_tokens': 0, 'cache_read_input_tokens': 0}])
+def test_sonnet_requests_and_short_uncached_prefix(method, cache_usage):
+    from job_agent.scoring import SCORE_SCHEMA, load_score_prompt
+    from job_agent.database import LLMCall
+    from job_agent.llm import AnthropicExecutor
+    from sqlmodel import Session, select
+    response = text_response(VALID) if method == 'structured' else tool_response(json.loads(VALID))
+    response.usage = SimpleNamespace(input_tokens=100, output_tokens=20, **cache_usage)
+    client = FakeClient([response])
+    executor = AnthropicExecutor(client, Settings())
+    result = score_one(executor, 'claude-sonnet-5-5', JOB, PROFILE, method=method)
+    assert result.verdict == 'strong'
+    request = client.messages.requests[0]
+    assert request.get('tool_choice', {}).get('type') not in ('tool', 'any')
+    assert json.dumps(request).count(json.dumps(load_score_prompt())[1:-1]) == 1
+    if method == 'tool':
+        from anthropic.types import ToolParam
+        assert 'strict' in ToolParam.__annotations__
+        assert request['tool_choice'] == {'type': 'auto'}
+        assert request['tools'][0]['strict'] is True
+        assert request['tools'][0]['input_schema'] == SCORE_SCHEMA
+        assert 'Call record_fit' in request['system'][0]['text']
+    else:
+        assert 'tool_choice' not in request
+        assert request['output_config']['format']['schema'] == SCORE_SCHEMA
+    with Session(executor.engine) as session:
+        row = session.exec(select(LLMCall)).one()
+        assert row.cache_creation_input_tokens == row.cache_read_input_tokens == 0
+        assert row.estimated_cost_usd == '0.0004'
+
+
+@pytest.mark.parametrize('recover', [False, True])
+def test_sonnet_missing_tool_retries_then_recovers_or_unscored(recover):
+    second = tool_response(json.loads(VALID)) if recover else text_response(VALID)
+    client = FakeClient([text_response(VALID), second])
+    result = score_one(client, 'claude-sonnet-5-5', JOB, PROFILE, method='tool')
+    assert result.verdict == ('strong' if recover else 'unscored')
+    assert client.messages.calls == 2
+    assert all(r['tool_choice'] == {'type': 'auto'} for r in client.messages.requests)

@@ -12,11 +12,11 @@ from pathlib import Path
 from typing import Iterator
 from uuid import uuid4
 
-from sqlalchemy import JSON, Column, DateTime, Engine, UniqueConstraint, event
+from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Engine, UniqueConstraint, event
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -110,11 +110,44 @@ class ApplicationEvent(SQLModel, table=True):
     payload: dict = Field(sa_column=Column(JSON, nullable=False))
 
 
+class LLMCall(SQLModel, table=True):
+    """Operational accounting only; never persist prompt or provider error bodies."""
+    __tablename__ = "llm_calls"
+    __table_args__ = (
+        CheckConstraint("request_kind IN ('standard', 'batch')"),
+        CheckConstraint("status IN ('reserved', 'succeeded', 'failed')"),
+        CheckConstraint("input_tokens >= 0 AND output_tokens >= 0 AND "
+                        "cache_creation_input_tokens >= 0 AND cache_read_input_tokens >= 0"),
+    )
+    id: str = Field(default_factory=lambda: str(uuid4()), primary_key=True)
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime, index=True)
+    task: str
+    model: str
+    prompt_name: str
+    prompt_version: str
+    request_kind: str = "standard"
+    status: str = "reserved"
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_creation_input_tokens: int = 0
+    cache_read_input_tokens: int = 0
+    # Decimal strings preserve exact micro-dollar arithmetic in SQLite.
+    estimated_cost_usd: str = "0"
+    reserved_cost_usd: str = "0"
+    latency_ms: int = 0
+    error_type: str | None = None
+    error_message: str | None = None
+    provider_request_id: str | None = None
+    canonical_job_id: str | None = None
+    external_job_reference: str | None = None
+    operational_metadata: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v3.
+    """Explicitly create/open a file and initialize schema v4.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Versions 1 and 2 are upgraded transactionally.
+    silently adopted. Versions 1, 2 and 3 are upgraded transactionally.
     Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
@@ -131,7 +164,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, 2, SCHEMA_VERSION):
+            if version not in (0, 1, 2, 3, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -143,7 +176,7 @@ def initialize_database(path: str | Path) -> Engine:
                 SQLModel.metadata.create_all(
                     connection, tables=[CanonicalJob.__table__, JobIdentity.__table__,
                                         SearchRun.__table__, SearchResult.__table__,
-                                        ApplicationEvent.__table__]
+                                        ApplicationEvent.__table__, LLMCall.__table__]
                 )
                 connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             if version == 1:
@@ -177,6 +210,9 @@ def initialize_database(path: str | Path) -> Engine:
                 ):
                     connection.exec_driver_sql(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
                 ApplicationEvent.__table__.create(connection)
+                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            if version in (1, 2, 3):
+                LLMCall.__table__.create(connection, checkfirst=True)
                 connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             # Enforce append-only history even for direct SQL/ORM callers.
             for operation in ("UPDATE", "DELETE"):

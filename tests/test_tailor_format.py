@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import job_agent.tailor as tailor_pkg
 from job_agent.tailor.career_facts import load_career_facts
 from job_agent.tailor.render_pdf import CANONICAL_HEADINGS
@@ -115,7 +117,23 @@ def test_default_generate_uses_task_model_without_network(monkeypatch):
     for settings, expected in [
         (Settings(model='legacy', tailoring_model='tailorer'), 'tailorer'),
         (Settings(model='legacy'), 'legacy'),
-        (Settings(), 'claude-sonnet-5'),
+        (Settings(), 'claude-sonnet-5-5'),
     ]:
         assert _default_generate('system', 'user', settings) == 'synthetic output'
         assert requests[-1]['model'] == expected
+
+
+@pytest.fixture(autouse=True)
+def isolated_llm_accounting(monkeypatch, tmp_path):
+    from job_agent import llm
+    from job_agent.database import initialize_database
+    engine = initialize_database(tmp_path / 'accounting.sqlite')
+    original = llm.AnthropicExecutor.__init__
+    def init(self, client, settings, **kwargs):
+        kwargs.setdefault('engine', engine)
+        original(self, client, settings, **kwargs)
+    monkeypatch.setattr(llm.AnthropicExecutor, '__init__', init)
+    for model in ('m', 'scorer', 'legacy', 'tailorer'):
+        monkeypatch.setitem(llm.PRICING, model, llm.PRICING['claude-sonnet-5-5'])
+    yield
+    engine.dispose()

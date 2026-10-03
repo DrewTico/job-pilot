@@ -229,7 +229,7 @@ def test_upgrade_v2_preserves_all_rows(tmp_path):
     engine = initialize_database(path)
     engine.dispose()
     with sqlite3.connect(path) as connection:
-        assert connection.execute('PRAGMA user_version').fetchone() == (3,)
+        assert connection.execute('PRAGMA user_version').fetchone() == (4,)
         assert connection.execute('PRAGMA foreign_key_check').fetchall() == []
         for table, expected in before.items():
             after = connection.execute(f'SELECT * FROM {table}').fetchall()

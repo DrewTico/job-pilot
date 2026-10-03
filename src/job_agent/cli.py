@@ -169,13 +169,23 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
         return 2
     console.print(f"[bold cyan]job-agent search[/bold cyan] — scoring with {settings.scoring_model}\n")
     with search_database(settings.data_dir) as engine, database_session(engine) as session:
-        cache = SQLiteSeenCache(session)
+        cache = SQLiteSeenCache(session, defer_writes=True)
         outcome = search.run(profile, seen_cache=cache, fresh_window=window)
-        _print_pipeline_summary(console, outcome, args.max_age_hours)
-        scored = []
-        if outcome.jobs:
-            console.print(f"[dim]Scoring {len(outcome.jobs)} job(s) with the LLM…[/dim]")
-            scored = score_jobs(outcome.jobs, settings, profile, method=args.method)
+        observations, inserted = cache.observations, cache.inserted
+        # Buffer observations until the completed search can commit atomically.
+        # Never hold a SQLite write transaction across a provider request.
+    _print_pipeline_summary(console, outcome, args.max_age_hours)
+    scored = []
+    if outcome.jobs:
+        console.print(f"[dim]Scoring {len(outcome.jobs)} job(s) with the LLM…[/dim]")
+        scored = score_jobs(outcome.jobs, settings, profile, method=args.method)
+    with search_database(settings.data_dir) as engine, database_session(engine) as session:
+        cache = SQLiteSeenCache(session)
+        for (source, external_id), (first, last) in observations.items():
+            cache.first_seen(source, external_id, first)
+            if last != first:
+                cache.observe(source, external_id, last)
+        cache.inserted = inserted
         SearchRepository(session).record_search(
             scored, outcome.boards, cache=cache, baseline=outcome.baseline_scan,
             sources_queried=len(outcome.per_source))

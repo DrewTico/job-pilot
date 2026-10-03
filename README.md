@@ -159,9 +159,9 @@ only ranks roles that already fit your level and years.
 
 ### Scoring
 
-Scoring uses `settings.scoring_model` (default `claude-sonnet-5`), configurable
+Scoring uses `settings.scoring_model` (default `claude-sonnet-5-5`), configurable
 via `JOB_AGENT_SCORING_MODEL`. Tailoring uses `JOB_AGENT_TAILORING_MODEL`
-(default `claude-sonnet-5`); the classification setting is
+(default `claude-sonnet-5-5`); the classification setting is
 `JOB_AGENT_CLASSIFICATION_MODEL` (default `claude-haiku-4-5-20251001`).
 An explicitly supplied `JOB_AGENT_MODEL` is the legacy fallback for task settings;
 explicit task overrides win. The model returns strict
@@ -223,7 +223,7 @@ and wording, but it cannot fabricate.
   and its text **extracted back out** and asserted selectable with sections in
   order. A PDF that fails extraction is a failed build.
 
-Tailoring uses **`claude-sonnet-4-6`** for quality; scoring stays on Haiku.
+Scoring, tailoring, and screening writing default to **`claude-sonnet-5-5`**.
 
 ## Assisted apply (Slice 4)
 
@@ -255,7 +255,7 @@ just the docs:
 - **Screening questions: grounded drafts, never unreviewed.** Unfilled questions
   are routed (`screening.py`): *factual* → answer bank/career facts only (blank +
   flagged if absent, no LLM); *consent/EEO* → always pauses; *free-text* ("why
-  us?", "describe a project") → a Haiku draft grounded ONLY in your career facts +
+  us?", "describe a project") → a Sonnet 5.5 draft grounded ONLY in your career facts +
   answer bank + this JD, run through a no-fabrication gate (unknown employers,
   unbanked metrics, "I've used their product" claims → regenerate once, else
   `[GATE-FLAGGED]`). Drafts appear at the review tagged `[AI-DRAFT]` /
@@ -414,6 +414,57 @@ and the unscored fallback).
 - ✅ Scan metadata + new-job tracking — per-survivor first-seen records, a
   scan-summary header, NEW badges, and a newest-first sort (baseline-safe:
   the first scan after an empty cache badges nothing).
+
+## LLM accounting and budget
+
+Screening answers use `JOB_AGENT_WRITING_MODEL` (Sonnet 5.5), not the
+classification model. Explicit task overrides win over `JOB_AGENT_MODEL`;
+otherwise the task defaults above apply. Classification remains deterministic;
+no classification LLM feature was added.
+
+`JOB_AGENT_SCORE_THRESHOLD=65`, `JOB_AGENT_MAX_PACKETS_PER_DAY=8`, and
+`JOB_AGENT_MONTHLY_BUDGET_USD=40.00` are the defaults. All Anthropic attempts
+use independent transactions in `data/job_pilot.sqlite3` (schema v4). The `llm_calls`
+table stores usage, costs, latency and safe operational identifiers, never
+prompt bodies or provider error details. SDK automatic retries are disabled.
+Malformed scoring responses still count as paid attempts; each retry must pass
+admission again. Unknown model pricing blocks before network execution.
+
+Standard prices per 1M tokens:
+
+| Model | Input | Output | 5-minute cache write | Cache read |
+| --- | --- | --- | --- | --- |
+| Sonnet 5.5 (`claude-sonnet-5-5`) | $2.00 | $10.00 | $2.50 | $0.20 |
+| Haiku 4.5 (`claude-haiku-4-5-20251001`) | $1.00 | $5.00 | $1.25 | $0.10 |
+
+Batch cost accounting applies the 50% batch modifier to every represented
+billed category: ordinary input, output, cache creation/write, and cache reads.
+Batch submission is not implemented. Unknown/custom model pricing fails closed;
+an override requires a verified pricing-registry key before any paid request.
+
+Monthly accounting uses UTC calendar months and Decimal arithmetic. At 80%
+committed exposure (recorded spend + outstanding reservations), the budget
+service exposes a warning; at 100% committed exposure admission pauses.
+Admission also reserves a conservative text-input bound and maximum output,
+so requests can be rejected below 100% when remaining funds are insufficient.
+Concurrent reservations count against the cap. Immediately before admission,
+the same `BEGIN IMMEDIATE` transaction reconciles standard synchronous
+reservations at least one hour old. It marks them failed, charges the higher of
+the reservation or existing estimated cost, clears the reservation, and preserves
+operational metadata with a reconciliation marker. This deliberately overcounts
+when actual usage is unknown; even a late completion cannot lower this charge.
+Fresh standard and all batch reservations remain outstanding. Reconciliation
+is retained even if admission is denied; reservations are never silently deleted.
+Provider failures without usage record zero tokens, not invented spend.
+
+Scoring caches stable system instructions once and repeated candidate data in
+a user text block before separate untrusted posting data. Tailoring and writing
+cache only stable system instructions. Cache usage comes from actual responses;
+short prompts may not meet provider cache minimums. This slice is validated
+with fake clients only, not with paid API calls.
+
+Next slice: 11 PM ET batch scoring, immediate scoring for postings younger than
+48 hours, and reconciliation of batch results and their usage/reservations.
 
 ## License
 

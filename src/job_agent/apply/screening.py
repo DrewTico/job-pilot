@@ -318,16 +318,21 @@ def make_drafter(generate: Callable[[str], str], facts: CareerFacts, bank: Answe
 
 
 def make_llm_generate(settings) -> Callable[[str], str]:
-    """The real prompt->text callable (same Haiku model/client style as scoring)."""
+    """The real prompt->text callable (task-specific writing model with durable cost accounting)."""
     import anthropic  # lazy, like scoring: importing this module needs no key
 
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    from job_agent.llm import AnthropicExecutor, cached_system
+
+    client = AnthropicExecutor(
+        anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=0), settings,
+    )
 
     def generate(prompt: str) -> str:
-        resp = client.messages.create(
-            model=settings.model,
+        resp = client.create(
+            task="writing", prompt_name="screening", prompt_version="v1",
+            model=settings.writing_model,
             max_tokens=700,
-            system=DRAFT_SYSTEM,
+            system=cached_system(DRAFT_SYSTEM),
             messages=[{"role": "user", "content": prompt}],
         )
         return "".join(b.text for b in resp.content if b.type == "text")

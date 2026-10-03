@@ -47,16 +47,28 @@ def search_database(data_dir):
 
 class SQLiteSeenCache:
     """Session-owned observations, committed with the completed search run."""
-    def __init__(self, session):
+    def __init__(self, session, *, defer_writes=False):
         self.session = session
         self.repo = JobRepository(session)
         self.inserted = set()
+        self.defer_writes = defer_writes
+        self.observations = {}
 
     def __len__(self):
-        return self.session.exec(select(func.count()).select_from(JobIdentity)).one()
+        persisted = self.session.exec(select(func.count()).select_from(JobIdentity)).one()
+        return persisted + (len(self.inserted) if self.defer_writes else 0)
 
     def first_seen(self, source, external_id, now):
         identity = self.repo.get_identity(source, external_id)
+        if self.defer_writes:
+            key = (source, external_id)
+            newly = identity is None and key not in self.observations
+            first = (identity.first_seen.replace(tzinfo=timezone.utc) if identity else now)
+            first = self.observations.get(key, (first, now))[0]
+            self.observations[key] = (min(first, now), now)
+            if newly:
+                self.inserted.add(key)
+            return self.observations[key][0], newly
         newly = identity is None
         if newly:
             observed = _utc(now)

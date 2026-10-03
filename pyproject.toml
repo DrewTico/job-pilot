@@ -14,7 +14,7 @@ keywords = ["jobs", "ats", "greenhouse", "lever", "ashby", "smartrecruiters", "l
 
 dependencies = [
     "httpx>=0.27",
-    "anthropic>=0.40",
+    "anthropic>=1.11,<2",
     "pydantic>=2.7",
     "sqlmodel>=0.0.22",
     "pyyaml>=6.0",
