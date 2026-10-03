@@ -85,7 +85,7 @@ def budget_state(session, budget, now):
     start, end = month_bounds(now)
     rows = session.exec(select(LLMCall).where(LLMCall.created_at >= start, LLMCall.created_at < end)).all()
     return BudgetState(sum((Decimal(r.estimated_cost_usd) for r in rows), Decimal(0)),
-                       sum((Decimal(r.reserved_cost_usd) for r in rows if r.status == "reserved"), Decimal(0)), budget)
+                       sum((Decimal(r.reserved_cost_usd) for r in session.exec(select(LLMCall).where(LLMCall.status == "reserved"))), Decimal(0)), budget)
 
 
 def cached_system(text):
@@ -114,6 +114,14 @@ def reconcile_stale_standard_reservations(session, now):
     return len(rows)
 
 
+def reservation_cost(request, request_kind="standard"):
+    model = request["model"]
+    calculate_cost(model, {}, request_kind)
+    bound = len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + 4096
+    p = PRICING[model]
+    return (bound * max(p.input, p.cache_write) + request["max_tokens"] * p.output) / Decimal(1000000) * (Decimal(".5") if request_kind == "batch" else Decimal(1))
+
+
 class AnthropicExecutor:
     def __init__(self, client, settings: Settings, *, engine=None, clock=None):
         self.client = client
@@ -135,9 +143,7 @@ class AnthropicExecutor:
         # Upper bound for text-only requests: each UTF-8 byte can be a token.
         # Include schemas and framing allowance; reserve worst-case cache writes.
         # This is admission sizing, never reported as actual token usage.
-        input_bound = len(json.dumps(request, ensure_ascii=False).encode("utf-8")) + 4096
-        p = PRICING[model]
-        reserve = (input_bound * max(p.input, p.cache_write) + request["max_tokens"] * p.output) / Decimal(1000000)
+        reserve = reservation_cost(request)
         now = self.clock()
         row = LLMCall(created_at=now.astimezone(timezone.utc).replace(tzinfo=None), task=task,
                       model=model, prompt_name=prompt_name, prompt_version=prompt_version,

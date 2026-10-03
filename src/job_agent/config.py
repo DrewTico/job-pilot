@@ -91,6 +91,8 @@ class Settings(BaseModel):
     monthly_budget_usd: Decimal = Field(default=Decimal("40.00"), gt=0, allow_inf_nan=False)
     score_threshold: int = Field(default=65, ge=0, le=100, strict=True)
     max_packets_per_day: int = Field(default=8, ge=1, strict=True)
+    immediate_scoring_max_age_hours: float = Field(default=48, ge=0, allow_inf_nan=False)
+    max_batch_items: int = Field(default=100, ge=1, le=100000)
     data_dir: Path = Path("data")
 
     @model_validator(mode="before")
@@ -117,11 +119,13 @@ def load_settings() -> Settings:
     for field in ("scoring_model", "classification_model", "tailoring_model", "writing_model"):
         if os.environ.get(f"JOB_AGENT_{field.upper()}"):
             values[field] = os.environ[f"JOB_AGENT_{field.upper()}"]
-    for field in ("score_threshold", "max_packets_per_day"):
+    for field in ("score_threshold", "max_packets_per_day", "max_batch_items"):
         if f"JOB_AGENT_{field.upper()}" in os.environ:
             values[field] = int(os.environ[f"JOB_AGENT_{field.upper()}"])
     if "JOB_AGENT_MONTHLY_BUDGET_USD" in os.environ:
         values["monthly_budget_usd"] = os.environ["JOB_AGENT_MONTHLY_BUDGET_USD"]
+    if "JOB_AGENT_IMMEDIATE_SCORING_MAX_AGE_HOURS" in os.environ:
+        values["immediate_scoring_max_age_hours"] = os.environ["JOB_AGENT_IMMEDIATE_SCORING_MAX_AGE_HOURS"]
     return Settings(**values)
 
 

@@ -108,41 +108,47 @@ def _coerce(job: Job, data: dict[str, Any]) -> ScoredJob:
     return ScoredJob(job=job, **values)
 
 
-def _call_structured(client, model: str, job: Job, profile: SearchProfile, *, company_facts: tuple[CompanyFact, ...] = ()) -> str:
-    """One call using structured outputs (output_config.format). Returns JSON text."""
-    resp = client.create(
-        task="scoring", prompt_name="score", prompt_version="v1",
-        external_job_reference=f"{job.source}:{job.id}",
-        model=model,
-        max_tokens=512,
-        system=cached_system(load_score_prompt()),
-        output_config={"format": {"type": "json_schema", "schema": SCORE_SCHEMA}},
-        messages=[{"role": "user", "content": _cached_score_data(job, profile, company_facts)}],
-    )
-    return next((b.text for b in resp.content if b.type == "text"), "")
+def build_score_request(model, job, profile, *, company_facts=(), method="structured"):
+    request = dict(model=model, max_tokens=512,
+                   system=cached_system(load_score_prompt()),
+                   messages=[{"role": "user", "content": _cached_score_data(job, profile, company_facts)}])
+    if method == "structured":
+        request["output_config"] = {"format": {"type": "json_schema", "schema": SCORE_SCHEMA}}
+    elif method == "tool":
+        request["system"] = cached_system(load_score_prompt() + "\nCall record_fit to return the fit assessment.")
+        request["tools"] = [{"name": "record_fit", "description": "Record the fit assessment for this job.",
+                             "input_schema": SCORE_SCHEMA, "strict": True}]
+        request["tool_choice"] = {"type": "auto"}
+    else:
+        raise ValueError("Unknown scoring method")
+    return request
 
 
-def _call_tool(client, model: str, job: Job, profile: SearchProfile, *, company_facts: tuple[CompanyFact, ...] = ()) -> str:
-    """Optional strict tool path; missing tool output follows the usual retry policy."""
-    resp = client.create(
-        task="scoring", prompt_name="score", prompt_version="v1",
-        external_job_reference=f"{job.source}:{job.id}",
-        model=model,
-        max_tokens=512,
-        system=cached_system(load_score_prompt() + "\nCall record_fit to return the fit assessment."),
-        tools=[{
-            "name": "record_fit",
-            "description": "Record the fit assessment for this job.",
-            "input_schema": SCORE_SCHEMA,
-            "strict": True,
-        }],
-        tool_choice={"type": "auto"},
-        messages=[{"role": "user", "content": _cached_score_data(job, profile, company_facts)}],
-    )
-    for block in resp.content:
+def parse_score_message(job, response):
+    for block in response.content:
         if block.type == "tool_use" and block.name == "record_fit":
-            return json.dumps(block.input)
-    return ""
+            return _coerce(job, block.input)
+        if block.type == "text":
+            return _coerce(job, json.loads(block.text))
+    raise ValueError("Missing score output")
+
+
+def _score_call(client, model, job, profile, company_facts, method):
+    response = client.create(task="scoring", prompt_name="score", prompt_version="v1",
+                             external_job_reference=f"{job.source}:{job.id}",
+                             **build_score_request(model, job, profile, company_facts=company_facts, method=method))
+    if method == "tool":
+        return next((json.dumps(b.input) for b in response.content
+                     if b.type == "tool_use" and b.name == "record_fit"), "")
+    return next((b.text for b in response.content if b.type == "text"), "")
+
+
+def _call_structured(client, model, job, profile, *, company_facts=()):
+    return _score_call(client, model, job, profile, company_facts, "structured")
+
+
+def _call_tool(client, model, job, profile, *, company_facts=()):
+    return _score_call(client, model, job, profile, company_facts, "tool")
 
 
 def score_one(
@@ -154,19 +160,20 @@ def score_one(
     method: Method = "structured",
     company_facts: tuple[CompanyFact, ...] = (),
     settings: Settings | None = None,
+    max_attempts: int = 2,
 ) -> ScoredJob:
     """Score a single job, retrying once on unparseable output before giving up."""
     if not isinstance(client, AnthropicExecutor):
         client = AnthropicExecutor(client, settings or Settings())
     call = _call_structured if method == "structured" else _call_tool
-    for attempt in (1, 2):
+    for attempt in range(1, max_attempts + 1):
         try:
             raw = call(client, model, job, profile, company_facts=company_facts)
             return _coerce(job, json.loads(raw))
         except (LLMBudgetExceeded, UnknownModelPricing):
             raise
         except Exception:
-            if attempt == 2:
+            if attempt == max_attempts:
                 # Give up gracefully: keep the job, mark it unscored.
                 return ScoredJob(job=job, verdict="unscored",
                                  reasons=("LLM output could not be parsed",),
@@ -182,6 +189,7 @@ def score_jobs(
     *,
     method: Method = "structured",
     client=None,
+    max_attempts: int = 2,
 ) -> list[ScoredJob]:
     """Score every job. ``client`` is injectable for tests (defaults to the real
     Anthropic client, constructed lazily so importing this module needs no key)."""
@@ -189,4 +197,4 @@ def score_jobs(
         import anthropic  # imported lazily so --demo / tests need no SDK key
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key, max_retries=0)
     executor = AnthropicExecutor(client, settings)
-    return [score_one(executor, settings.scoring_model, job, profile, method=method) for job in jobs]
+    return [score_one(executor, settings.scoring_model, job, profile, method=method, max_attempts=max_attempts) for job in jobs]

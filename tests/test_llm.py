@@ -162,7 +162,6 @@ def test_malformed_attempt_counted_retry_budget_checked(engine):
     from job_agent.scoring import score_one
     from test_scoring import JOB, PROFILE, VALID
     first = response(output_tokens=100000)  # deliberately consumes $1 in fake usage
-    first.content[0].text = 'malformed'
     second = response(output_tokens=1)
     second.content[0].text = VALID
     executor = AnthropicExecutor(Fake(first, second), Settings(monthly_budget_usd='1'), engine=engine, clock=lambda: NOW)
@@ -202,7 +201,8 @@ def test_v3_upgrade_preserves_all_tables(tmp_path):
     engine = initialize_database(path)
     engine.dispose()
     with sqlite3.connect(path) as connection:
-        assert connection.execute('PRAGMA user_version').fetchone() == (4,)
+        from job_agent.database import SCHEMA_VERSION
+        assert connection.execute('PRAGMA user_version').fetchone() == (SCHEMA_VERSION,)
         for table in tables:
             assert connection.execute(f'SELECT * FROM {table}').fetchall() == before[table]
         assert connection.execute('SELECT * FROM llm_calls').fetchall() == []
@@ -262,10 +262,12 @@ def test_cli_paid_log_survives_budget_failure_without_partial_search(tmp_path, m
     monkeypatch.setattr(cli, 'load_profile', lambda _: PROFILE)
     def pipeline(*args, seen_cache, **kwargs):
         seen_cache.observe(JOB.source, JOB.id, NOW)
-        return search.SearchOutcome(jobs=[JOB], boards=['token'], counts=search.StageCounts(),
+        return search.SearchOutcome(jobs=[
+            JOB.model_copy(update={"posted_at": datetime.now(timezone.utc)}),
+            JOB.model_copy(update={"id": "budget-blocked", "posted_at": datetime.now(timezone.utc)})
+        ], boards=['token', 'token'], counts=search.StageCounts(),
                                     per_source={}, baseline_scan=True)
     first = response(output_tokens=4000000)  # simulate exhaustion on a returned attempt
-    first.content[0].text = 'malformed'
     fake = Fake(first)
     monkeypatch.setattr(cli.search, 'run', pipeline)
     monkeypatch.setattr(cli, 'score_jobs', lambda jobs, settings, profile, **kwargs:

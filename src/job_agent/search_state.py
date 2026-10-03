@@ -93,7 +93,7 @@ class SearchRepository:
         self.session = session
         self.jobs = JobRepository(session)
 
-    def record_search(self, scored, boards, *, cache, baseline, sources_queried=None):
+    def record_search(self, scored, boards, *, cache, baseline, sources_queried=None, deferred_profile=None, scoring_model=None):
         if len(scored) != len(boards):
             raise ValueError('Each search result requires a board token')
         now = datetime.now(timezone.utc)
@@ -122,6 +122,9 @@ class SearchRepository:
                                        seen_at=identity.last_seen.replace(tzinfo=timezone.utc))
             record = job.model_dump(mode='json')
             record.update(item.model_dump(mode='json', exclude={'job'}))
+            if deferred_profile is not None:
+                from job_agent.batch import scoring_fingerprint
+                record["scoring_fingerprint"] = scoring_fingerprint(job, deferred_profile, scoring_model)
             record.update(canonical_id=identity.job_id, board=board, token=board,
                           first_seen=identity.first_seen.replace(tzinfo=timezone.utc).isoformat(),
                           first_seen_this_scan=not baseline and (job.source, job.id) in cache.inserted)
@@ -140,6 +143,23 @@ class SearchRepository:
         self.session.flush()
         self.session.add_all(results)
         self.session.flush()
+        if deferred_profile is not None:
+            from job_agent.batch import enqueue
+            for result, item in zip(results, scored):
+                if item.score is None and item.verdict == "unscored" and item.reasons == ("Scoring pending",):
+                    enqueue(self.session, result, item.job, deferred_profile, scoring_model)
+                else:
+                    from job_agent.database import ScoringWorkItem
+                    work = self.session.exec(select(ScoringWorkItem).where(
+                        ScoringWorkItem.fingerprint == result.payload["scoring_fingerprint"])).first()
+                    if work:
+                        if work.search_result_id is None:
+                            work.search_result_id = result.id
+                            work.canonical_job_id = result.payload["canonical_id"]
+                            self.session.add(work)
+                        result.payload = {**result.payload, **(work.result if work.state == "succeeded" else {}),
+                                          "scoring_work_id": work.id, "scoring_status": work.state}
+                        self.session.add(result)
         return run_id
 
     def latest(self):
@@ -154,6 +174,11 @@ class SearchRepository:
             identity = self.session.get(JobIdentity, result.identity_id) if result.identity_id else None
             if identity:
                 record['canonical_id'] = identity.job_id
+            if record.get('scoring_work_id'):
+                from job_agent.database import ScoringWorkItem
+                work = self.session.get(ScoringWorkItem, record['scoring_work_id'])
+                if work and record.get('scoring_fingerprint') == work.fingerprint:
+                    record['scoring_status'] = work.state
             records[result.legacy_key] = record
         return {**run.payload, 'jobs': records}
 

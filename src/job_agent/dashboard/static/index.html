@@ -464,7 +464,7 @@ function renderJobs() {
     return `
     <tr>
       <td class="num">${j.score ?? "—"}</td>
-      <td>${pill(j.verdict || "unscored")}${appliedPill}${newPill}</td>
+      <td>${pill(j.scoring_status && j.verdict === "unscored" ? "scoring " + j.scoring_status : j.verdict || "unscored")}${appliedPill}${newPill}</td>
       <td data-job-id="${esc(j.id)}">${j.url
         ? `<a class="tt" href="${esc(j.url)}" target="_blank" rel="noreferrer" title="${esc(j.title)}">${esc(j.title)}</a>`
         : `<span class="tt" title="${esc(j.title)}">${esc(j.title)}</span>`}</td>

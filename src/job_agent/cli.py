@@ -26,7 +26,7 @@ from job_agent import search
 from job_agent.config import load_profile, load_settings
 from job_agent.demo_data import DemoSource, demo_profile, score_demo
 from job_agent.models import Job, ScoredJob
-from job_agent.scoring import score_jobs
+from job_agent.scoring import score_jobs, detect_content_flags
 from job_agent.search import SearchOutcome
 from job_agent.seen_cache import SeenCache
 from job_agent.store import resolve_apply_url
@@ -65,7 +65,7 @@ from job_agent.tailor.verify import (
     verify_pdf,
 )
 
-SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover"}
+SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch"}
 DEMO_DIR = Path(__file__).resolve().parent / "tailor" / "demo"
 
 _VERDICT_STYLE = {"strong": "bold green", "possible": "yellow", "skip": "dim", "unscored": "red"}
@@ -175,10 +175,21 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
         # Buffer observations until the completed search can commit atomically.
         # Never hold a SQLite write transaction across a provider request.
     _print_pipeline_summary(console, outcome, args.max_age_hours)
-    scored = []
-    if outcome.jobs:
-        console.print(f"[dim]Scoring {len(outcome.jobs)} job(s) with the LLM…[/dim]")
-        scored = score_jobs(outcome.jobs, settings, profile, method=args.method)
+    from job_agent.batch import plan_search_scoring, score_claimed_standard
+    from job_agent.models import ScoredJob
+    with search_database(settings.data_dir) as engine, database_session(engine) as session:
+        immediate, reused = plan_search_scoring(session, outcome.jobs, profile, settings, datetime.now(timezone.utc))
+    immediate_scores = []
+    for job in immediate:
+        with search_database(settings.data_dir) as engine:
+            result = score_claimed_standard(
+                engine, job, profile, settings.scoring_model,
+                lambda: score_jobs([job], settings, profile, method=args.method, max_attempts=1)[0])
+        immediate_scores.append(result)
+    by_key = {**reused, **{(s.job.source, s.job.id): s for s in immediate_scores}}
+    scored = [by_key.get((j.source, j.id), ScoredJob(job=j, reasons=("Scoring pending",),
+              content_flags=detect_content_flags(j)))
+              for j in outcome.jobs]
     with search_database(settings.data_dir) as engine, database_session(engine) as session:
         cache = SQLiteSeenCache(session)
         for (source, external_id), (first, last) in observations.items():
@@ -188,7 +199,14 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
         cache.inserted = inserted
         SearchRepository(session).record_search(
             scored, outcome.boards, cache=cache, baseline=outcome.baseline_scan,
-            sources_queried=len(outcome.per_source))
+            sources_queried=len(outcome.per_source), deferred_profile=profile, scoring_model=settings.scoring_model)
+        saved_records = SearchRepository(session).latest()["jobs"].values()
+        pending_count = sum(r.get("scoring_status") == "pending" for r in saved_records)
+        recovery_count = sum(r.get("scoring_status") == "standard_in_progress" for r in saved_records)
+    if recovery_count:
+        console.print(f"[yellow]{recovery_count} job(s) have outstanding standard scoring claims; recovery required.[/yellow]")
+    if pending_count:
+        console.print(f"[dim]{pending_count} job(s) queued for batch scoring.[/dim]")
     saved = database_path(settings.data_dir)
     # Hide roles with an in-flight application (everything is still SAVED above;
     # this is a render-level filter — --include-applied overrides it). getattr:
@@ -630,6 +648,10 @@ def _build_parser() -> argparse.ArgumentParser:
                                      description="Discover, score, and tailor to jobs.")
     sub = parser.add_subparsers(dest="command")
 
+    b = sub.add_parser("batch", help="Manual durable scoring batches (provider calls except pending).")
+    b.add_argument("action", choices=["pending", "submit", "status", "reconcile"])
+    b.add_argument("--data-dir", default=None)
+    b.add_argument("--profile", default="data/search_profile.yaml")
     s = sub.add_parser("search", help="Discover fresh jobs and score their fit.")
     s.add_argument("--demo", action="store_true", help="Bundled mock jobs (no key/network).")
     s.add_argument("--profile", default="search_profile.yaml")
@@ -685,6 +707,18 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def cmd_batch(console, args, *, client=None):
+    from job_agent.batch import BatchService
+    settings = load_settings()
+    if args.data_dir:
+        settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+    profile = load_profile(args.profile) if args.action == "submit" else None
+    with search_database(settings.data_dir) as engine:
+        service = BatchService(engine, settings, profile, client=client)
+        console.print(getattr(service, args.action)())
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # Back-compat: no subcommand (or a leading flag) means `search`.
@@ -694,7 +728,7 @@ def main(argv: list[str] | None = None) -> int:
     console = Console()
     dispatch = {"tailor": cmd_tailor, "apply": cmd_apply,
                 "applications": cmd_applications, "dashboard": cmd_dashboard,
-                "discover": cmd_discover}
+                "discover": cmd_discover, "batch": cmd_batch}
     handler = dispatch.get(args.command, cmd_search)
     try:
         return handler(console, args)

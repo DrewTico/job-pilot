@@ -174,7 +174,7 @@ def test_real_cli_scoring_failure_rolls_back_seen(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, 'load_profile', lambda _: SearchProfile(keywords=['Engineer'], sources=[SourceRef(ats='greenhouse', board='token')]))
     def pipeline(*args, seen_cache, **kwargs):
         seen_cache.observe('greenhouse', '1', NOW)
-        return search.SearchOutcome(jobs=[job()], boards=['token'], counts=search.StageCounts(), per_source={}, baseline_scan=True)
+        return search.SearchOutcome(jobs=[job(posted_at=datetime.now(timezone.utc))], boards=['token'], counts=search.StageCounts(), per_source={}, baseline_scan=True)
     def fail(*args, **kwargs):
         raise RuntimeError('synthetic scoring failure')
     monkeypatch.setattr(cli.search, 'run', pipeline)

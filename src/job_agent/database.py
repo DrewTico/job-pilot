@@ -16,7 +16,7 @@ from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Engine, UniqueCo
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -143,11 +143,49 @@ class LLMCall(SQLModel, table=True):
     operational_metadata: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
 
 
+class LLMBatch(SQLModel, table=True):
+    __tablename__ = "llm_batches"
+    id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
+    provider_id: str | None = Field(default=None, unique=True)
+    status: str = "submitting"
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    updated_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    provider_created_at: datetime | None = Field(default=None, sa_type=DateTime)
+    expires_at: datetime | None = Field(default=None, sa_type=DateTime)
+    request_count: int = 0
+
+
+class ScoringWorkItem(SQLModel, table=True):
+    __tablename__ = "scoring_work_items"
+    __table_args__ = (CheckConstraint("state IN ('pending','submitted','succeeded','retryable','failed','submission_unknown','standard_in_progress')"),)
+    id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
+    fingerprint: str = Field(unique=True)
+    source: str
+    external_id: str
+    canonical_job_id: str | None = Field(default=None, foreign_key="jobs.id")
+    search_result_id: int | None = Field(default=None, foreign_key="search_results.id", index=True)
+    model: str
+    prompt_name: str = "score"
+    prompt_version: str = "v1"
+    candidate_hash: str
+    reservation_cost_usd: str = "0"
+    state: str = Field(default="pending", index=True)
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    updated_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    priority_at: datetime = Field(sa_type=DateTime)
+    attempt_count: int = 0
+    batch_id: str | None = Field(default=None, foreign_key="llm_batches.id", index=True)
+    custom_id: str | None = Field(default=None, unique=True)
+    llm_call_id: str | None = Field(default=None, foreign_key="llm_calls.id")
+    failure: str | None = None
+    result: dict | None = Field(default=None, sa_column=Column(JSON))
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v4.
+    """Explicitly create/open a file and initialize schema v5.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Versions 1, 2 and 3 are upgraded transactionally.
+    silently adopted. Versions 1 through 4 are upgraded transactionally.
     Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
@@ -164,7 +202,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, 2, 3, SCHEMA_VERSION):
+            if version not in (0, 1, 2, 3, 4, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -214,6 +252,26 @@ def initialize_database(path: str | Path) -> Engine:
             if version in (1, 2, 3):
                 LLMCall.__table__.create(connection, checkfirst=True)
                 connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
+            SQLModel.metadata.create_all(connection, tables=[LLMBatch.__table__, ScoringWorkItem.__table__])
+            # Upgrade the initial v5 work table without changing the schema version.
+            # No table references work items, so rebuilding preserves all foreign keys.
+            columns = connection.exec_driver_sql("PRAGMA table_info(scoring_work_items)").all()
+            work_ddl = connection.exec_driver_sql(
+                "SELECT sql FROM sqlite_master WHERE name='scoring_work_items'"
+            ).scalar_one()
+            if (any(row[1] == "search_result_id" and row[3] for row in columns)
+                    or "standard_in_progress" not in work_ddl):
+                from sqlalchemy.schema import CreateTable, CreateIndex
+                ddl = str(CreateTable(ScoringWorkItem.__table__).compile(connection))
+                connection.exec_driver_sql(ddl.replace("CREATE TABLE scoring_work_items", "CREATE TABLE scoring_work_items_nullable", 1))
+                names = ", ".join(column.name for column in ScoringWorkItem.__table__.columns)
+                connection.exec_driver_sql(f"INSERT INTO scoring_work_items_nullable ({names}) SELECT {names} FROM scoring_work_items")
+                connection.exec_driver_sql("DROP TABLE scoring_work_items")
+                connection.exec_driver_sql("ALTER TABLE scoring_work_items_nullable RENAME TO scoring_work_items")
+                for index in ScoringWorkItem.__table__.indexes:
+                    connection.execute(CreateIndex(index))
+
+            connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             # Enforce append-only history even for direct SQL/ORM callers.
             for operation in ("UPDATE", "DELETE"):
                 connection.exec_driver_sql(

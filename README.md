@@ -424,7 +424,7 @@ no classification LLM feature was added.
 
 `JOB_AGENT_SCORE_THRESHOLD=65`, `JOB_AGENT_MAX_PACKETS_PER_DAY=8`, and
 `JOB_AGENT_MONTHLY_BUDGET_USD=40.00` are the defaults. All Anthropic attempts
-use independent transactions in `data/job_pilot.sqlite3` (schema v4). The `llm_calls`
+use independent transactions in `data/job_pilot.sqlite3` (schema v5). The `llm_calls`
 table stores usage, costs, latency and safe operational identifiers, never
 prompt bodies or provider error details. SDK automatic retries are disabled.
 Malformed scoring responses still count as paid attempts; each retry must pass
@@ -439,7 +439,7 @@ Standard prices per 1M tokens:
 
 Batch cost accounting applies the 50% batch modifier to every represented
 billed category: ordinary input, output, cache creation/write, and cache reads.
-Batch submission is not implemented. Unknown/custom model pricing fails closed;
+Manual Message Batches submission and reconciliation are implemented. Unknown/custom model pricing fails closed;
 an override requires a verified pricing-registry key before any paid request.
 
 Monthly accounting uses UTC calendar months and Decimal arithmetic. At 80%
@@ -463,8 +463,54 @@ cache only stable system instructions. Cache usage comes from actual responses;
 short prompts may not meet provider cache minimums. This slice is validated
 with fake clients only, not with paid API calls.
 
-Next slice: 11 PM ET batch scoring, immediate scoring for postings younger than
-48 hours, and reconciliation of batch results and their usage/reservations.
+Production search scores postings younger than 48 hours immediately; exactly
+48 hours and older are queued. Future dates are fresh. Missing dates defer unless
+an identity persisted before this scan proves first observation under 48 hours.
+`JOB_AGENT_IMMEDIATE_SCORING_MAX_AGE_HOURS=48` overrides the boundary.
+
+Schema v5 adds `scoring_work_items` and `llm_batches`. Work states are pending,
+submitted, succeeded, retryable, failed, and submission_unknown. A unique SHA-256
+fingerprint includes public job data, model, prompt name/version and prompt hash,
+candidate summary hash, and supplied company facts. Private candidate content is
+not stored in either new table. Completed identical scores are reused. Changed
+inputs block old pending work from submission rather than rebuilding it with
+new private context. A new search creates work for the changed input.
+
+Manual commands (only `pending` is entirely local):
+
+```bash
+python -m job_agent batch pending
+python -m job_agent batch submit --profile data/search_profile.yaml
+python -m job_agent batch status
+python -m job_agent batch reconcile
+```
+
+All commands accept `--data-dir`. Submit selects newest postings first, then FIFO
+with stable ID tie breaks, up to `JOB_AGENT_MAX_BATCH_ITEMS=100` and a conservative
+20 MiB request payload cap. Packet limits do not constrain scoring. An atomic
+reservation admits the largest affordable priority prefix at the 50% batch rate;
+no fitting items means no provider request. All outstanding reservations,
+including prior-month batches, count toward committed exposure. No token-count
+request is made. Custom IDs use `sw_<work UUID hex>_<attempt>`.
+
+Creation exceptions retain reservations and mark submission_unknown. A crash
+between reservation and recording the provider ID likewise needs manual recovery;
+never automatically resubmit these items. Operators must independently establish
+whether the provider accepted the batch before recovering its ID or releasing
+reservations. This slice has no automatic retry or recovery command.
+
+Status performs one idempotent retrieve per known batch. Reconcile streams results
+only for ended batches and matches custom IDs rather than order. Paid successes
+use returned usage including cache fields, even if output validation fails.
+Malformed output becomes retryable without an automatic paid retry. Errored,
+canceled, and expired items clear reservations with zero billed cost; invalid
+requests become failed, while other errors, cancellations and expiry become
+retryable. Unknown result types or missing paid usage retain reservations.
+Repeated reconciliation does not duplicate charges or scores. Scores propagate
+only to still-unscored search results with the exact same fingerprint.
+
+Next slice: 11 PM ET orchestration. No scheduler, packet selection, or live
+Anthropic compatibility test is included here.
 
 ## License
 
