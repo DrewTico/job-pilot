@@ -15,12 +15,11 @@ from pathlib import Path
 
 import yaml
 from dotenv import load_dotenv
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 
 from job_agent.seniority import LEVEL_NAMES
 
-# A low-cost, current Haiku-class model. Confirmed against the Anthropic docs
-# rather than assumed. Overridable via the JOB_AGENT_MODEL env var.
+# Retained for legacy callers; task-specific defaults are defined in Settings.
 DEFAULT_MODEL = "claude-haiku-4-5"
 
 SourceName = str  # validated against the known set below
@@ -84,17 +83,41 @@ class Settings(BaseModel):
 
     anthropic_api_key: str | None = None
     model: str = DEFAULT_MODEL
+    scoring_model: str = "claude-sonnet-5"
+    classification_model: str = "claude-haiku-4-5-20251001"
+    tailoring_model: str = "claude-sonnet-5"
+    score_threshold: int = Field(default=65, ge=0, le=100, strict=True)
+    max_packets_per_day: int = Field(default=8, ge=1, strict=True)
     data_dir: Path = Path("data")
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_model_fallback(cls, values):
+        # Explicit task settings win; an explicitly supplied legacy model is
+        # still honored by callers migrating from Settings(model=...).
+        if isinstance(values, dict) and values.get("model"):
+            values = dict(values)
+            for task in ("scoring_model", "classification_model", "tailoring_model"):
+                values.setdefault(task, values["model"])
+        return values
 
 
 def load_settings() -> Settings:
     """Read ``.env`` (if present) and the environment into :class:`Settings`."""
     load_dotenv()  # loads .env from CWD if it exists; no-op otherwise
-    return Settings(
-        anthropic_api_key=os.environ.get("ANTHROPIC_API_KEY") or None,
-        model=os.environ.get("JOB_AGENT_MODEL") or DEFAULT_MODEL,
-        data_dir=Path(os.environ.get("JOB_AGENT_DATA_DIR", "data")),
-    )
+    values = {
+        "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY") or None,
+        "data_dir": Path(os.environ.get("JOB_AGENT_DATA_DIR", "data")),
+    }
+    if os.environ.get("JOB_AGENT_MODEL"):
+        values["model"] = os.environ["JOB_AGENT_MODEL"]
+    for field in ("scoring_model", "classification_model", "tailoring_model"):
+        if os.environ.get(f"JOB_AGENT_{field.upper()}"):
+            values[field] = os.environ[f"JOB_AGENT_{field.upper()}"]
+    for field in ("score_threshold", "max_packets_per_day"):
+        if f"JOB_AGENT_{field.upper()}" in os.environ:
+            values[field] = int(os.environ[f"JOB_AGENT_{field.upper()}"])
+    return Settings(**values)
 
 
 def load_profile(path: str | Path) -> SearchProfile:

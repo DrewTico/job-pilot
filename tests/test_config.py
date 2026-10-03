@@ -45,3 +45,41 @@ def test_max_seniority_rejects_unknown_level():
 def test_negative_experience_years_is_rejected():
     with pytest.raises(ValidationError):
         _profile(experience_years=-2)
+
+
+def test_task_and_threshold_defaults():
+    from job_agent.config import Settings
+    settings = Settings()
+    assert settings.scoring_model == settings.tailoring_model == 'claude-sonnet-5'
+    assert settings.classification_model == 'claude-haiku-4-5-20251001'
+    assert (settings.score_threshold, settings.max_packets_per_day) == (65, 8)
+
+
+def test_environment_overrides_and_legacy_fallback(monkeypatch):
+    from job_agent.config import load_settings, Settings
+    import job_agent.config as config
+    monkeypatch.setattr(config, 'load_dotenv', lambda: None)
+    for name in ['MODEL', 'SCORING_MODEL', 'CLASSIFICATION_MODEL', 'TAILORING_MODEL',
+                 'SCORE_THRESHOLD', 'MAX_PACKETS_PER_DAY']:
+        monkeypatch.delenv('JOB_AGENT_' + name, raising=False)
+    assert load_settings().scoring_model == 'claude-sonnet-5'
+    monkeypatch.setenv('JOB_AGENT_MODEL', 'legacy')
+    settings = load_settings()
+    assert settings.model == settings.scoring_model == settings.classification_model == settings.tailoring_model == 'legacy'
+    for name, value in [('SCORING_MODEL', 'score'), ('CLASSIFICATION_MODEL', 'classify'),
+                        ('TAILORING_MODEL', 'tailor'), ('SCORE_THRESHOLD', '72'), ('MAX_PACKETS_PER_DAY', '3')]:
+        monkeypatch.setenv('JOB_AGENT_' + name, value)
+    settings = load_settings()
+    assert (settings.scoring_model, settings.classification_model, settings.tailoring_model) == ('score', 'classify', 'tailor')
+    assert (settings.score_threshold, settings.max_packets_per_day) == (72, 3)
+    assert Settings(model='old').scoring_model == 'old'
+
+
+@pytest.mark.parametrize('field,value', [('score_threshold', -1), ('score_threshold', 101),
+                                         ('max_packets_per_day', 0)])
+def test_invalid_threshold_environment(monkeypatch, field, value):
+    import job_agent.config as config
+    monkeypatch.setattr(config, 'load_dotenv', lambda: None)
+    monkeypatch.setenv('JOB_AGENT_' + field.upper(), str(value))
+    with pytest.raises(ValidationError):
+        config.load_settings()

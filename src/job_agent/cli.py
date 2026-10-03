@@ -47,7 +47,6 @@ from job_agent.tailor.render_pdf import (
     trim_to_caps,
 )
 from job_agent.tailor.tailor import (
-    TAILOR_MODEL,
     TailorResult,
     load_megaprompt,
     reorder_skills,
@@ -168,7 +167,7 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
     except (FileNotFoundError, ValueError) as exc:
         console.print(f"[red]{exc}[/red]")
         return 2
-    console.print(f"[bold cyan]job-agent search[/bold cyan] — scoring with {settings.model}\n")
+    console.print(f"[bold cyan]job-agent search[/bold cyan] — scoring with {settings.scoring_model}\n")
     with search_database(settings.data_dir) as engine, database_session(engine) as session:
         cache = SQLiteSeenCache(session)
         outcome = search.run(profile, seen_cache=cache, fresh_window=window)
@@ -343,7 +342,7 @@ def cmd_tailor(console: Console, args: argparse.Namespace) -> int:
         if not jd:
             console.print("[yellow]warning:[/yellow] could not fetch a JD; tailoring on title only.")
 
-    console.print(f"[bold cyan]job-agent tailor[/bold cyan] — tailoring with {TAILOR_MODEL}\n")
+    console.print(f"[bold cyan]job-agent tailor[/bold cyan] — tailoring with {settings.tailoring_model}\n")
     filename = _resume_filename(facts.name.split()[0], job.title, job.company)
 
     # Tailor, then gate. Format issues, unsupported scope qualifiers, and an

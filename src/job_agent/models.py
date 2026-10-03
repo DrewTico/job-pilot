@@ -62,6 +62,9 @@ class ScoredJob(BaseModel):
     verdict: Verdict = "unscored"
     reasons: tuple[str, ...] = ()
     missing_requirements: tuple[str, ...] = ()
+    matched_requirements: tuple[str, ...] = ()
+    target_tier: Literal["A", "B", "C", "other"] = "other"
+    content_flags: tuple[str, ...] = ()
 
     @property
     def sort_key(self) -> tuple[int, int]:

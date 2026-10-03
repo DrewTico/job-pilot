@@ -35,7 +35,8 @@ def save_search(scored: list[ScoredJob], boards: list[str], path: str | Path, *,
     for s, board in zip(scored, boards):
         job_id = str(s.job.id)
         rec = s.job.model_dump(mode="json")
-        rec.update(board=board, score=s.score, verdict=s.verdict, reasons=list(s.reasons),
+        rec.update(s.model_dump(mode="json", exclude={"job"}))
+        rec.update(board=board,
                    first_seen_this_scan=job_id in new_set)
         if first_seen and job_id in first_seen:
             rec["first_seen"] = first_seen[job_id]

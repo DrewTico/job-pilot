@@ -159,10 +159,14 @@ only ranks roles that already fit your level and years.
 
 ### Scoring
 
-Scoring uses a low-cost Haiku-class model (`claude-haiku-4-5`, confirmed against
-the Anthropic docs, overridable via `JOB_AGENT_MODEL`). The model returns strict
+Scoring uses `settings.scoring_model` (default `claude-sonnet-5`), configurable
+via `JOB_AGENT_SCORING_MODEL`. Tailoring uses `JOB_AGENT_TAILORING_MODEL`
+(default `claude-sonnet-5`); the classification setting is
+`JOB_AGENT_CLASSIFICATION_MODEL` (default `claude-haiku-4-5-20251001`).
+An explicitly supplied `JOB_AGENT_MODEL` is the legacy fallback for task settings;
+explicit task overrides win. The model returns strict
 JSON — `{score 0-100, verdict strong|possible|skip, reasons[],
-missing_requirements[]}` — via structured outputs (`output_config.format`).
+matched_requirements[], missing_requirements[], target_tier}` — via structured outputs (`output_config.format`).
 Output is parsed defensively: on malformed JSON it retries once, and if it still
 fails the job is kept but marked `unscored` rather than crashing the run.
 

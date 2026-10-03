@@ -18,9 +18,6 @@ from pydantic import BaseModel, ConfigDict
 from job_agent.config import Settings
 from job_agent.tailor.career_facts import CareerFacts
 
-# Tailoring quality model — Sonnet-class, confirmed from the Anthropic docs.
-TAILOR_MODEL = "claude-sonnet-4-6"
-
 MEGAPROMPT_PATH = Path(__file__).resolve().parents[3] / "prompts" / "tailor_megaprompt.txt"
 
 # Appended to the base mega prompt. This is authoritative and supersedes any
@@ -219,7 +216,7 @@ def _default_generate(system: str, user: str, settings: Settings) -> str:
 
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
     resp = client.messages.create(
-        model=TAILOR_MODEL,
+        model=settings.tailoring_model,
         max_tokens=8000,
         system=system,
         messages=[{"role": "user", "content": user}],

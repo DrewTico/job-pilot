@@ -226,3 +226,34 @@ def test_freehire_keyword_board_change_and_mobility_roundtrip(tmp_path, relocati
     assert Job.model_validate(after) == original
     with search_database(tmp_path) as engine, database_session(engine) as session:
         assert len(session.exec(select(JobIdentity)).all()) == 1
+
+
+@pytest.mark.parametrize('sequence', [list, tuple])
+def test_complete_assessment_roundtrip(tmp_path, sequence):
+    original = job(relocation='supported', visa_sponsorship=None)
+    assessment = ScoredJob(job=original, score=78, verdict='possible',
+        reasons=sequence(['reason']), matched_requirements=sequence(['Python']),
+        missing_requirements=sequence(['required skill unknown']), target_tier='A',
+        content_flags=sequence(['prompt_injection_suspected']))
+    scan(tmp_path, [original])
+    identity = load_job_record(tmp_path, '1')['canonical_id']
+    with search_database(tmp_path) as engine, database_session(engine) as session:
+        SearchRepository(session).record_search([assessment], ['token'],
+            cache=SQLiteSeenCache(session), baseline=False)
+    latest = latest_search(tmp_path)['jobs']['greenhouse:1']
+    loaded = load_job_record(tmp_path, 'canonical:' + identity)
+    assert latest == loaded
+    for field, value in assessment.model_dump(mode='json', exclude={'job'}).items():
+        assert loaded[field] == value
+    assert loaded['canonical_id'] == identity
+    assert loaded['relocation'] == 'supported'
+    assert loaded['visa_sponsorship'] is None
+
+
+def test_legacy_assessment_defaults(tmp_path):
+    payload = {**job().model_dump(mode='json'), 'score': 70, 'verdict': 'possible', 'reasons': ['old']}
+    (tmp_path / 'last_search.json').write_text(json.dumps({'generated_at': NOW.isoformat(), 'jobs': {'1': payload}}))
+    record = load_job_record(tmp_path, '1')
+    assessment = ScoredJob(job=Job.model_validate(record), **{k: record[k] for k in ('score', 'verdict', 'reasons')})
+    assert assessment.matched_requirements == assessment.missing_requirements == assessment.content_flags == ()
+    assert assessment.target_tier == 'other'

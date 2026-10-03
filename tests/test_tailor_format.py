@@ -95,3 +95,27 @@ def test_generate_is_injected_with_the_facts():
     assert "Acme Analytics" in captured["user"]       # facts reached the model
     assert "TARGET JOB DESCRIPTION" in captured["user"]
     assert result.notes.lower().startswith("notes")
+
+
+def test_default_generate_uses_task_model_without_network(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from job_agent.config import Settings
+    from job_agent.tailor.tailor import _default_generate
+
+    requests = []
+
+    def create(**kwargs):
+        requests.append(kwargs)
+        return SimpleNamespace(stop_reason='end_turn', content=[
+            SimpleNamespace(type='text', text='synthetic output')])
+
+    monkeypatch.setitem(sys.modules, 'anthropic', SimpleNamespace(
+        Anthropic=lambda **kwargs: SimpleNamespace(messages=SimpleNamespace(create=create))))
+    for settings, expected in [
+        (Settings(model='legacy', tailoring_model='tailorer'), 'tailorer'),
+        (Settings(model='legacy'), 'legacy'),
+        (Settings(), 'claude-sonnet-5'),
+    ]:
+        assert _default_generate('system', 'user', settings) == 'synthetic output'
+        assert requests[-1]['model'] == expected

@@ -109,8 +109,8 @@ class SearchRepository:
                                        posting_url=job.url, apply_url=job.apply_url,
                                        seen_at=identity.last_seen.replace(tzinfo=timezone.utc))
             record = job.model_dump(mode='json')
+            record.update(item.model_dump(mode='json', exclude={'job'}))
             record.update(canonical_id=identity.job_id, board=board, token=board,
-                          score=item.score, verdict=item.verdict, reasons=list(item.reasons),
                           first_seen=identity.first_seen.replace(tzinfo=timezone.utc).isoformat(),
                           first_seen_this_scan=not baseline and (job.source, job.id) in cache.inserted)
             key = f'{job.source}:{job.id}'
