@@ -65,7 +65,7 @@ from job_agent.tailor.verify import (
     verify_pdf,
 )
 
-SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch"}
+SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops"}
 DEMO_DIR = Path(__file__).resolve().parent / "tailor" / "demo"
 
 _VERDICT_STYLE = {"strong": "bold green", "possible": "yellow", "skip": "dim", "unscored": "red"}
@@ -648,6 +648,14 @@ def _build_parser() -> argparse.ArgumentParser:
                                      description="Discover, score, and tailor to jobs.")
     sub = parser.add_subparsers(dest="command")
 
+    sch = sub.add_parser("scheduler", help="Run local discovery and scoring schedules.")
+    sch.add_argument("--data-dir", default=None)
+    sch.add_argument("--profile", default="search_profile.yaml")
+    sch.add_argument("--once", choices=["morning", "midday", "batch", "maintenance"])
+    ops = sub.add_parser("ops", help="Read-only local operational status.")
+    ops.add_argument("action", choices=["status"])
+    ops.add_argument("--data-dir", default=None)
+
     b = sub.add_parser("batch", help="Manual durable scoring batches (provider calls except pending).")
     b.add_argument("action", choices=["pending", "submit", "status", "reconcile"])
     b.add_argument("--data-dir", default=None)
@@ -719,6 +727,37 @@ def cmd_batch(console, args, *, client=None):
     return 0
 
 
+def cmd_ops(console, args):
+    from job_agent.ops import local_status
+    settings = load_settings()
+    if args.data_dir:
+        settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+    try:
+        console.print(local_status(settings))
+    except Exception:
+        console.print("Local status unavailable; check database existence and schema.")
+        return 1
+    console.print("Operator review required for submission_unknown and standard_in_progress. No automatic recovery.")
+    return 0
+
+
+def cmd_scheduler(console, args):
+    import logging
+    from job_agent.scheduler import run_scheduler, SchedulerLocked
+    settings = load_settings()
+    if args.data_dir:
+        settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    try:
+        return run_scheduler(settings, args.profile, once=args.once)
+    except SchedulerLocked:
+        console.print("Another scheduler holds the data-directory lock; no operations ran.")
+        return 1
+    except Exception:
+        console.print("Scheduler failed to start; check data-directory lock, profile and local database.")
+        return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # Back-compat: no subcommand (or a leading flag) means `search`.
@@ -728,7 +767,8 @@ def main(argv: list[str] | None = None) -> int:
     console = Console()
     dispatch = {"tailor": cmd_tailor, "apply": cmd_apply,
                 "applications": cmd_applications, "dashboard": cmd_dashboard,
-                "discover": cmd_discover, "batch": cmd_batch}
+                "discover": cmd_discover, "batch": cmd_batch,
+                "scheduler": cmd_scheduler, "ops": cmd_ops}
     handler = dispatch.get(args.command, cmd_search)
     try:
         return handler(console, args)

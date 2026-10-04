@@ -515,3 +515,48 @@ Anthropic compatibility test is included here.
 ## License
 
 MIT
+
+### Local scheduler and operational status
+
+```bash
+job-agent scheduler --profile search_profile.yaml --data-dir data
+job-agent ops status --data-dir data
+# Optional explicit one-time operations, using the same services and lock:
+job-agent scheduler --once maintenance --data-dir data
+job-agent scheduler --once batch --profile search_profile.yaml --data-dir data
+```
+
+Keep the scheduler process running. APScheduler uses `America/New_York` with
+DST-aware timezone rules: discovery/search Monday-Friday at 06:30 and 13:00,
+batch submission daily at 23:00, and safe batch maintenance hourly at minute 10.
+Stop with Ctrl+C or SIGTERM. Startup logs identify the data directory, timezone
+and registered schedules; execution logs contain only operational summaries.
+
+Each job allows one instance, coalesces missed duplicates, and has a 15-minute
+misfire grace period. Both discovery schedules share an operation lock; batch
+submission and maintenance share another. Nightly batch submission waits for that
+lock; maintenance skips if it is held. A Linux/WSL local file lock prevents
+two scheduler processes for the same data directory. Do not delete
+`scheduler.lock` while a scheduler is running. This is local process protection,
+not a distributed lock. Fingerprint claims and database reservations remain the
+final duplicate-request safeguards.
+
+Discovery uses the CLI production search path and its existing filters and
+atomic persistence. Jobs younger than 48 hours use immediate standard scoring;
+older jobs queue for deferred scoring. Nightly submission first maintains known
+batches, then submits eligible pending work with the existing budget, priority,
+item-count and request-size limits. Maintenance only retrieves trusted existing
+batch statuses and reconciles ended results. It never creates a batch and skips
+unknown submissions. Fully reconciled batches are not polled again.
+
+`ops status` reads SQLite in read-only mode with zero provider/network calls.
+It reports scoring state counts, known batch progress, ended unreconciled batches,
+batches without trusted IDs, monthly spend, reserved exposure, budget, warning
+and paused flags. A database must already exist with the current schema.
+`submission_unknown` and `standard_in_progress` require separate operator review.
+Reservations and durable claims fail closed after ambiguous outcomes. Retryable
+and failed work is not automatically retried. No recovery mutation commands are
+provided; do not infer whether an unknown provider request was billed.
+
+This scheduler discovers and scores jobs only. It does not tailor resumes,
+submit applications, send outreach, or apply to jobs automatically.

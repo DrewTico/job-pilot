@@ -1,4 +1,4 @@
-"""Durable scoring and manually operated Message Batches. No scheduling or retries."""
+"""Durable scoring and Message Batches. No automatic retries."""
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import hashlib
@@ -338,6 +338,34 @@ class BatchService:
         for batch in batches:
             for entry in self.provider().results(batch.provider_id):
                 count += self._reconcile_item(batch.id, entry)
+        return dict(reconciled=count)
+
+    def maintain(self):
+        """Inspect only trusted, unresolved batches; never submit new work."""
+        with Session(self.engine) as session:
+            unresolved = {w.batch_id for w in session.exec(select(ScoringWorkItem).where(
+                ScoringWorkItem.state == "submitted"))}
+            unresolved.update(c.operational_metadata.get("batch_id") for c in
+                              session.exec(select(LLMCall).where(LLMCall.status == "reserved")))
+            batches = session.exec(select(LLMBatch).where(LLMBatch.provider_id != None,
+                LLMBatch.status.notin_(["submitting", "submission_unknown"]))).all()
+        count = 0
+        for batch in batches:
+            if batch.id not in unresolved:
+                continue
+            if batch.status != "ended":
+                response = self.provider().retrieve(batch.provider_id)
+                with Session(self.engine) as session:
+                    local = session.get(LLMBatch, batch.id)
+                    self._status(local, response)
+                    session.add(local)
+                    session.commit()
+                ended = response.processing_status == "ended"
+            else:
+                ended = True
+            if ended:
+                for entry in self.provider().results(batch.provider_id):
+                    count += self._reconcile_item(batch.id, entry)
         return dict(reconciled=count)
 
     def _reconcile_item(self, batch_id, entry):
