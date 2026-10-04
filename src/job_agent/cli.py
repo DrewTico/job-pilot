@@ -65,7 +65,7 @@ from job_agent.tailor.verify import (
     verify_pdf,
 )
 
-SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops"}
+SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops", "packets"}
 DEMO_DIR = Path(__file__).resolve().parent / "tailor" / "demo"
 
 _VERDICT_STYLE = {"strong": "bold green", "possible": "yellow", "skip": "dim", "unscored": "red"}
@@ -648,6 +648,13 @@ def _build_parser() -> argparse.ArgumentParser:
                                      description="Discover, score, and tailor to jobs.")
     sub = parser.add_subparsers(dest="command")
 
+    pk = sub.add_parser("packets", help="Build/list local review packets; no approvals or submission.")
+    pk.add_argument("action", choices=["build", "list"])
+    pk.add_argument("--data-dir", default=None)
+    pk.add_argument("--profile", default="search_profile.yaml")
+    pk.add_argument("--limit", type=int, default=None)
+    pk.add_argument("--dry-run", action="store_true")
+
     sch = sub.add_parser("scheduler", help="Run local discovery and scoring schedules.")
     sch.add_argument("--data-dir", default=None)
     sch.add_argument("--profile", default="search_profile.yaml")
@@ -715,6 +722,34 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def cmd_packets(console, args):
+    from job_agent.packets import PacketService
+    settings = load_settings()
+    if args.data_dir:
+        settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+    try:
+        with search_database(settings.data_dir) as engine:
+            if args.action == "list":
+                # Listing never loads private candidate inputs.
+                service = object.__new__(PacketService)
+                service.engine = engine
+                console.print(service.list())
+            else:
+                service = PacketService(engine, settings)
+                results = service.build(limit=args.limit, dry_run=args.dry_run)
+                console.print(results if args.dry_run else service.list())
+    except RuntimeError as exc:
+        if str(exc) == "packet_build_in_progress":
+            console.print("Packet build is in progress; no new provider request was made.")
+            return 2
+        console.print("Packet operation failed; check approved local inputs and database. Details omitted.")
+        return 1
+    except Exception:
+        console.print("Packet operation failed; check approved local inputs and database. Details omitted.")
+        return 1
+    return 0
+
+
 def cmd_batch(console, args, *, client=None):
     from job_agent.batch import BatchService
     settings = load_settings()
@@ -768,7 +803,7 @@ def main(argv: list[str] | None = None) -> int:
     dispatch = {"tailor": cmd_tailor, "apply": cmd_apply,
                 "applications": cmd_applications, "dashboard": cmd_dashboard,
                 "discover": cmd_discover, "batch": cmd_batch,
-                "scheduler": cmd_scheduler, "ops": cmd_ops}
+                "scheduler": cmd_scheduler, "ops": cmd_ops, "packets": cmd_packets}
     handler = dispatch.get(args.command, cmd_search)
     try:
         return handler(console, args)

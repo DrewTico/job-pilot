@@ -16,7 +16,7 @@ from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Engine, UniqueCo
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -181,11 +181,82 @@ class ScoringWorkItem(SQLModel, table=True):
     result: dict | None = Field(default=None, sa_column=Column(JSON))
 
 
+class CompanyFactRecord(SQLModel, table=True):
+    __tablename__ = "company_facts"
+    id: str = Field(primary_key=True)
+    job_key: str = Field(index=True)
+    company: str
+    text: str
+    source_url: str
+    source_title: str
+    category: str
+    retrieved_at: datetime = Field(sa_type=DateTime)
+
+
+class ApplicationPacket(SQLModel, table=True):
+    __tablename__ = "application_packets"
+    __table_args__ = (UniqueConstraint("job_key", "version"),
+        CheckConstraint("status IN ('building','packet_ready','generation_failed','research_incomplete','recovery_required')"),
+        CheckConstraint("cover_letter_acceptance IN ('yes','no','unknown')"),
+        CheckConstraint("verifier_status IN ('not_run','passed','failed')"),
+        CheckConstraint("lint_status IN ('not_run','passed','failed')"),
+        CheckConstraint("status != 'packet_ready' OR (verifier_status = 'passed' AND lint_status = 'passed' AND length(cover_letter) > 0 AND length(scoring_fingerprint) > 0 AND length(fingerprint) > 0)"),)
+    capacity_day: str | None = Field(default=None, index=True)
+    id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
+    job_key: str = Field(index=True)
+    search_result_id: int = Field(foreign_key="search_results.id")
+    canonical_job_id: str | None = Field(default=None, foreign_key="jobs.id")
+    fingerprint: str = Field(unique=True)
+    scoring_fingerprint: str
+    version: int
+    status: str
+    score: int
+    tier: str
+    company: str
+    title: str
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    updated_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    ready_at: datetime | None = Field(default=None, sa_type=DateTime)
+    cover_letter_acceptance: str = "unknown"
+    cover_letter: str = ""
+    writing_fingerprints: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    artifacts: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    screening_answers: dict = Field(default_factory=dict, sa_column=Column(JSON, nullable=False))
+    referral_candidates: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    referral_status: str = "not_implemented"
+    company_fact_ids: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    content_flags: list = Field(default_factory=list, sa_column=Column(JSON, nullable=False))
+    verifier_status: str = "not_run"
+    lint_status: str = "not_run"
+    failure_reason: str | None = None
+
+
+class WritingWorkItem(SQLModel, table=True):
+    __tablename__ = "writing_work_items"
+    __table_args__ = (CheckConstraint("state IN ('in_progress','succeeded','failed','recovery_required')"),
+                      UniqueConstraint("packet_id", "task"))
+    fingerprint: str = Field(primary_key=True)
+    packet_id: str | None = Field(default=None, foreign_key="application_packets.id")
+    model: str = ""
+    system_hash: str = ""
+    user_hash: str = ""
+    max_tokens: int = 0
+    prompt_name: str = ""
+    prompt_version: str = ""
+    failure_reason: str | None = None
+    updated_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    task: str
+    state: str = "in_progress"
+    output: str | None = None
+    output_hash: str | None = None
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v5.
+    """Explicitly create/open a file and initialize schema v6.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Versions 1 through 4 are upgraded transactionally.
+    silently adopted. Versions 1 through 5 are upgraded transactionally.
     Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
@@ -202,7 +273,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, 2, 3, 4, SCHEMA_VERSION):
+            if version not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -271,6 +342,61 @@ def initialize_database(path: str | Path) -> Engine:
                 for index in ScoringWorkItem.__table__.indexes:
                     connection.execute(CreateIndex(index))
 
+            SQLModel.metadata.create_all(connection, tables=[CompanyFactRecord.__table__, ApplicationPacket.__table__, WritingWorkItem.__table__])
+            # Existing development v6 files predate packet hardening. Additive
+            # upgrade preserves every prior row and fails closed on legacy claims.
+            for table, additions in {
+                "application_packets": [("capacity_day", "VARCHAR"), ("writing_fingerprints", "JSON NOT NULL DEFAULT '{}'")],
+                "writing_work_items": [("packet_id", "VARCHAR REFERENCES application_packets(id)"),
+                    ("model", "VARCHAR NOT NULL DEFAULT ''"), ("system_hash", "VARCHAR NOT NULL DEFAULT ''"),
+                    ("user_hash", "VARCHAR NOT NULL DEFAULT ''"), ("max_tokens", "INTEGER NOT NULL DEFAULT 0"),
+                    ("output_hash", "VARCHAR"),
+                    ("prompt_name", "VARCHAR NOT NULL DEFAULT ''"),
+                    ("prompt_version", "VARCHAR NOT NULL DEFAULT ''"), ("failure_reason", "VARCHAR"),
+                    ("updated_at", "DATETIME")],
+            }.items():
+                existing_columns = {row[1] for row in connection.exec_driver_sql(f"PRAGMA table_info({table})")}
+                for name, declaration in additions:
+                    if name not in existing_columns:
+                        connection.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {declaration}")
+            connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_application_packets_capacity_day ON application_packets(capacity_day)")
+            connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS writing_packet_task ON writing_work_items(packet_id,task)")
+            # Only legacy reservations lacking a date are backfilled from their
+            # original claim timestamp, never moved to the migration/current day.
+            from zoneinfo import ZoneInfo
+            legacy = connection.exec_driver_sql(
+                "SELECT id,created_at FROM application_packets WHERE capacity_day IS NULL AND status != 'research_incomplete'"
+            ).all()
+            for packet_id, created in legacy:
+                claimed = datetime.fromisoformat(created).replace(tzinfo=timezone.utc)
+                day = claimed.astimezone(ZoneInfo("America/New_York")).date().isoformat()
+                connection.exec_driver_sql("UPDATE application_packets SET capacity_day=? WHERE id=?", (day, packet_id))
+            connection.exec_driver_sql(
+                "CREATE TRIGGER IF NOT EXISTS packet_capacity_day_immutable BEFORE UPDATE ON application_packets "
+                "WHEN OLD.capacity_day IS NOT NULL AND (NEW.capacity_day IS NULL OR NEW.capacity_day != OLD.capacity_day) "
+                "BEGIN SELECT RAISE(ABORT, 'capacity reservation is immutable'); END")
+            # SQLite cannot add CHECK constraints in place. Equivalent triggers
+            # protect upgraded v6 tables as well as fresh schema CHECK constraints.
+            enums = {"application_packets": {
+                "status": ("building", "packet_ready", "generation_failed", "research_incomplete", "recovery_required"),
+                "cover_letter_acceptance": ("yes", "no", "unknown"),
+                "verifier_status": ("not_run", "passed", "failed"), "lint_status": ("not_run", "passed", "failed")},
+                "writing_work_items": {"state": ("in_progress", "succeeded", "failed", "recovery_required")}}
+            for table, fields in enums.items():
+                for name, choices in fields.items():
+                    literals = ",".join("'" + choice + "'" for choice in choices)
+                    for operation in ("INSERT", "UPDATE"):
+                        connection.exec_driver_sql(
+                            f"CREATE TRIGGER IF NOT EXISTS {table}_{name}_{operation.lower()} "
+                            f"BEFORE {operation} ON {table} WHEN NEW.{name} IS NULL OR NEW.{name} NOT IN ({literals}) "
+                            "BEGIN SELECT RAISE(ABORT, 'invalid safety state'); END")
+            for operation in ("INSERT", "UPDATE"):
+                connection.exec_driver_sql(
+                    f"CREATE TRIGGER IF NOT EXISTS packet_ready_invariants_{operation.lower()} "
+                    f"BEFORE {operation} ON application_packets WHEN NEW.status='packet_ready' AND "
+                    "(NEW.verifier_status!='passed' OR NEW.lint_status!='passed' OR length(NEW.cover_letter)=0 "
+                    "OR length(NEW.scoring_fingerprint)=0 OR length(NEW.fingerprint)=0) "
+                    "BEGIN SELECT RAISE(ABORT, 'invalid ready packet'); END")
             connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             # Enforce append-only history even for direct SQL/ORM callers.
             for operation in ("UPDATE", "DELETE"):

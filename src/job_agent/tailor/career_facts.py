@@ -9,8 +9,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import hashlib
+import json
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 from job_agent.tailor.textnorm import norm as _norm
 
@@ -41,6 +43,9 @@ class Project(BaseModel):
 
 
 class CareerFacts(BaseModel):
+    _source_hash: str | None = PrivateAttr(default=None)
+    _raw_source_hash: str | None = PrivateAttr(default=None)
+
     model_config = ConfigDict(frozen=True)
 
     name: str
@@ -96,10 +101,17 @@ def load_career_facts(path: str | Path) -> CareerFacts:
             f"(job_agent.tailor.extract)."
         )
     try:
-        raw = yaml.safe_load(path.read_text()) or {}
+        source = path.read_text()
+        raw = yaml.safe_load(source) or {}
     except yaml.YAMLError as exc:
-        raise ValueError(f"Could not parse {path} as YAML: {exc}") from exc
+        raise ValueError("Invalid approved input YAML; source details omitted") from None
     try:
-        return CareerFacts.model_validate(raw)
+        result = CareerFacts.model_validate(raw)
+        result._raw_source_hash = hashlib.sha256(source.encode()).hexdigest()
+        # Source identity commits approved parsed values, not YAML formatting.
+        # Answer-bank explicitness is meaningful: defaults must stay distinguishable.
+        semantic = result.model_dump(mode="json", exclude_unset=False)
+        result._source_hash = hashlib.sha256(json.dumps(semantic, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        return result
     except ValidationError as exc:
-        raise ValueError(f"Invalid career facts {path}:\n{exc}") from exc
+        raise ValueError("Invalid career facts; source details omitted") from None

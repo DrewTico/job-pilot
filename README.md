@@ -560,3 +560,97 @@ provided; do not infer whether an unknown provider request was billed.
 
 This scheduler discovers and scores jobs only. It does not tailor resumes,
 submit applications, send outreach, or apply to jobs automatically.
+
+### Local application packets (M1)
+
+```bash
+job-agent packets build --data-dir data --dry-run
+job-agent packets build --data-dir data --limit 3
+job-agent packets list --data-dir data
+```
+
+Build selects successfully scored jobs at or above `settings.score_threshold`
+(default 65), highest score first with stable job-key ties. It excludes applied
+or submitted jobs. Selection is local and provisional: exact reuse is checked
+only after the configured researcher returns its actual facts. Build walks ranked
+candidates past reused packets. Every paid build reserves its original
+America/New_York `capacity_day` against `max_packets_per_day` (default 8),
+including failed or unresolved builds for that day. Prior-day reservations never
+consume later days. Linux builds use a nonblocking local lock and SQLite claims;
+active contention is reported explicitly. Interrupted paid claims require operator
+review and are never automatically re-paid. `--limit` bounds returned attempts.
+`--profile` is accepted for command consistency; packet generation uses existing
+scoring snapshots and approved facts, without changing discovery filters.
+Dry-run reads local inputs and reports selection without LLM or research-provider
+calls. Listing reads only packet metadata and does not print private answers.
+
+Research is behind `CompanyResearcher.research(job)`. M1 supplies only a local
+fixture implementation: `data/company_research.json` maps company names to lists
+of objects with `text`, public `source_url`, `source_title` (optional), timezone-aware
+`retrieved_at`, `company`, and optional `category`. No live web provider is wired.
+Exactly three usable sourced facts are required. Duplicate normalized URLs or
+texts and suspected instruction-injection snippets are excluded. Incomplete or
+invalid research produces `research_incomplete`, never fabricated facts.
+
+Packets contain a tailored resume PDF/DOCX with packet-relative artifact names,
+SHA-256 hashes and byte sizes, a cover letter of at most 200 words, deterministic cover-letter acceptance
+(`yes`/`no` only from explicit stored metadata, otherwise `unknown`), saved screening
+answers, company-fact references, and an empty referral list with `not_implemented`
+status. People research is deferred. There is no LinkedIn automation or outreach.
+
+`facts.yaml` is the sole candidate ledger, loaded through the existing typed loader.
+M1 writing fails closed: substantive resume lines and cover-letter candidate lines
+must use approved facts verbatim; tailoring selects and reorders those lines.
+Every employer's role, company, duration, description, bullets and metrics must
+belong to one approved employer record. Project headers and bullets likewise
+remain bound to one approved project. Skills keep exact categories and values;
+summary, education and certifications remain extractive.
+Existing resume format, employer/date/no-drift and PDF gates remain active. This
+conservative restriction may fail otherwise valid paraphrases, requiring manual
+review. Unsupported skills, tools, projects, numbers, degree/title changes,
+unauthorized GitHub links and GPA fail verification. GPA is omitted unless explicit
+stored metadata requires it, and then must be exactly 3.18. The writing lint blocks
+em/en dashes and the existing banned phrases. Cover-letter company assertions must
+be exact supplied source facts, and the opening must name the company.
+
+`answer_bank.yaml` uses the existing typed loader. Only explicitly saved values
+are copied, including work authorization, salary, relocation, start date and
+saved demographics. Default demographic declines are not synthesized. Required
+screening keys have exactly one exact saved answer or a `manual_needed` entry.
+An exact prepared-answer match copies its full text without rewriting. Explicit
+false and explicitly saved permitted empty demographic values remain saved;
+unsaved defaults never become answers. No model fills those gaps.
+
+Schema v6 transactionally adds `company_facts`, `application_packets` and
+`writing_work_items` while preserving scoring and application history. Fingerprints
+commit validated semantic facts/answer-bank source hashes, scoring fingerprint, the explicit
+sanitized writing context, semantic company facts, prompt contents and versions,
+policy/verifier versions, task models, GitHub readiness, GPA requirements,
+cover-letter acceptance and the required screening-question set. Search-run and
+DB IDs, observed bookkeeping, packet/work states, and research retrieval times
+are excluded. Raw file hashes remain provenance; YAML formatting, comments and
+dictionary ordering do not cause another paid generation. Company facts normalize company and text and compare canonical
+public URLs, including ordered queries and removal of common tracking parameters;
+human-visible validated source URLs are retained. Style memory is not used. Private source text is not stored in fingerprint metadata. Changed
+inputs create preserved packet versions in separate packet-ID directories.
+Identical successful writing responses are durably checkpointed before downstream
+validation/rendering, so assembly retries reuse them. Unknown or failed writing
+claims need review rather than automatic spend. Writing claims also record packet,
+model, prompt version, updated time and sanitized recovery reason, with allowed
+state constraints and one claim per packet/task. All production calls use
+`AnthropicExecutor`, task-specific models and `llm_calls` accounting, pricing and
+monthly budget gates; no database write transaction spans provider I/O.
+
+This command builds local review artifacts only. It creates no approval and has
+no email, application, calendar, form, or submission operation. Approval mutation
+and submission remain later slices.
+
+Artifacts render into fresh `packets/.staging/` directories. Regular-file, size,
+ZIP, PDF, truth and content-equivalence checks precede a durable manifest
+checkpoint and Linux atomic no-replace publication to the generated packet-ID
+directory. Files and directories are fsynced. A crash after publication can
+finalize from the checked manifest and succeeded writing outputs without another
+provider request. Unexpected final files or unverifiable integrity require review;
+partial staging directories never count as ready packets. Ops status reports
+packet building/recovery/failure and writing unknown/recovery counts without IO to
+providers. See [the hardening evidence and limits](PACKET_HARDENING_REPORT.md).

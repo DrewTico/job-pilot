@@ -32,6 +32,7 @@ def ashby_page():
     with sync_api.sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
+        page.route("**/*", lambda route: route.abort())  # Offline: block fixture iframe/resource requests.
         page.set_content(FIXTURE.read_text())
         yield page
         browser.close()

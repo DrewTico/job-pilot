@@ -89,6 +89,7 @@ class Settings(BaseModel):
     tailoring_model: str = "claude-sonnet-5-5"
     writing_model: str = "claude-sonnet-5-5"
     monthly_budget_usd: Decimal = Field(default=Decimal("40.00"), gt=0, allow_inf_nan=False)
+    github_ready: bool = False
     score_threshold: int = Field(default=65, ge=0, le=100, strict=True)
     max_packets_per_day: int = Field(default=8, ge=1, strict=True)
     immediate_scoring_max_age_hours: float = Field(default=48, ge=0, allow_inf_nan=False)
@@ -114,6 +115,7 @@ def load_settings() -> Settings:
         "anthropic_api_key": os.environ.get("ANTHROPIC_API_KEY") or None,
         "data_dir": Path(os.environ.get("JOB_AGENT_DATA_DIR", "data")),
     }
+    values["github_ready"] = os.environ.get("JOB_AGENT_GITHUB_READY", "false").lower() == "true"
     if os.environ.get("JOB_AGENT_MODEL"):
         values["model"] = os.environ["JOB_AGENT_MODEL"]
     for field in ("scoring_model", "classification_model", "tailoring_model", "writing_model"):
