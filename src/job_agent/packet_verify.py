@@ -66,6 +66,23 @@ def verify_text(text, facts, *, github_ready=False, gpa_required=False):
     return sorted(set(problems))
 
 
+def company_opening_references_candidate(text, name):
+    """Block explicit candidate attribution from borrowing company authority.
+
+    This is a conservative lexical boundary, not a universal semantic subject
+    classifier. Candidate grounding and all other packet checks remain required.
+    Company first-person plural (we/our/ours/us) is deliberately permitted.
+    """
+    probe = unicodedata.normalize("NFKC", text).casefold()
+    if re.search(r"\b(?:candidate|applicant|job\s+seeker|jobseeker|i|me|my|mine|you|your|yours)\b", probe):
+        return True
+    normalized_name = unicodedata.normalize("NFKC", name).casefold().strip()
+    if normalized_name:
+        name_pattern = r"\s+".join(re.escape(part) for part in normalized_name.split())
+        return bool(re.search(r"(?<!\w)" + name_pattern + r"(?!\w)", probe))
+    return False
+
+
 class CoverLetterDraft(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     company_opening: str
@@ -75,7 +92,7 @@ class CoverLetterDraft(BaseModel):
     def verified_text(self, facts, company_facts, *, github_ready, gpa_required):
         if self.company_opening not in [f.text for f in company_facts]:
             raise ValueError("unsourced_company_claim")
-        if re.search(r"\b(?:I|my|me)\b", self.company_opening, re.I) or facts.name.casefold() in self.company_opening.casefold():
+        if company_opening_references_candidate(self.company_opening, facts.name):
             raise ValueError("company_fact_cannot_authorize_candidate_claim")
         if company_facts[0].company.casefold() not in self.company_opening.casefold():
             raise ValueError("opening_not_company_specific")

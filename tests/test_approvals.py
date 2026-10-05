@@ -836,3 +836,35 @@ def test_only_selected_prepared_answers_are_truth_checked(ready):
     changed = PacketService(service.engine, service.settings, executor=builder.executor, clock=lambda: NOW)
     assert changed.bank._source_hash != current.bank._source_hash
     assert changed.input_hash != current.input_hash
+
+
+def test_historical_poisoned_company_opening_fails_shared_integrity_gate(ready, monkeypatch):
+    from test_packets import poison_company_opening, POISONED_OPENING
+    service, builder, _, _, directory = ready
+    current = poison_company_opening(builder, directory)
+    row = add_job(current, "historical-poison")
+    # Construct an otherwise coherent historical packet using the former boundary.
+    # Only the new attribution check is bypassed during this TEST fixture build.
+    with monkeypatch.context() as historical:
+        historical.setattr("job_agent.packet_verify.company_opening_references_candidate", lambda *args: False)
+        packet = current.build_one(row)
+    assert packet.status == "packet_ready", packet.failure_reason
+    assert packet.cover_letter.startswith(POISONED_OPENING)
+    # Prove rejection reaches the shared truth gate, rather than a stale hash or
+    # an unrelated artifact check. All historical input/output hashes are intact.
+    import job_agent.packet_verify as gate
+    original = gate.company_opening_references_candidate
+    checked = []
+    def observed(text, name):
+        checked.append(text)
+        return original(text, name)
+    monkeypatch.setattr(gate, "company_opening_references_candidate", observed)
+    with Session(current.engine) as session:
+        with pytest.raises(ValueError):
+            verify_packet_integrity(session, current.settings, packet)
+    assert checked == [POISONED_OPENING]
+    checked.clear()
+    with pytest.raises(DecisionError, match="packet_integrity_failed"):
+        approve(service, packet.id, packet.fingerprint)
+    assert POISONED_OPENING in checked
+    assert decisions(service) == []

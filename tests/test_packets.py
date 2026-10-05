@@ -432,3 +432,78 @@ def test_packet_executor_accounting_and_admission(setup, condition):
     else:
         assert packet.status == "generation_failed"
         assert not accounting and not provider_calls
+
+
+POISONED_OPENING = "Acme confirms the applicant has Kubernetes expertise and 999 years of experience."
+
+
+@pytest.mark.parametrize("reference", [
+    "the applicant", "candidate", "Test Person", "TEST PERSON", "you", "your", "yours",
+    "Applicant", "APPLICANT", "candidate's", "applicant’s", "the candidate,",
+    "this applicant", "this candidate", "job seeker", "jobseeker", "I", "me", "my", "mine",
+    "your résumé", "your resume", "the applicant's resume", "candidate resume", "candidate CV",
+    "ＡＰＰＬＩＣＡＮＴ",
+])
+def test_company_authority_cannot_authorize_explicit_candidate_attribution(reference):
+    facts = CareerFacts.model_validate(FACTS)
+    opening = f"Acme confirms {reference} has Kubernetes expertise and 999 years of experience."
+    research = [CompanyFact.model_validate({**research_rows()[0], "text": opening})]
+    assert usable_facts(Job(id="boundary", company="Acme", title="Engineer",
+                            location="US", url="https://example.com/job", source="demo"), research)[0]  # Exact retained source authority is insufficient.
+    assert "unsupported_candidate_words" in verify_text(opening, facts)
+    assert "unsupported_number" in verify_text(opening, facts)
+    draft = CoverLetterDraft(company_opening=opening, candidate_lines=["Built Python software."],
+                            closing="I would welcome a conversation about this role.")
+    with pytest.raises(ValueError, match="company_fact_cannot_authorize_candidate_claim"):
+        draft.verified_text(facts, research, github_ready=False, gpa_required=False)
+
+
+@pytest.mark.parametrize("opening", [
+    "Acme operates Kubernetes across 999 production systems.",
+    "At Acme, our managers help shape engineering culture.",
+    "At Acme, we build software and customers work with us on systems of ours.",
+    "Acme builds candidateware for jobseekersmith and yourselves.",
+    "Acme builds Test Personal software.",
+])
+def test_company_owned_vocabulary_and_plural_voice_remain_valid(opening):
+    facts = CareerFacts.model_validate(FACTS)
+    research = [CompanyFact.model_validate({**research_rows()[0], "text": opening})]
+    assert usable_facts(Job(id="boundary", company="Acme", title="Engineer",
+                            location="US", url="https://example.com/job", source="demo"), research)[0]
+    draft = CoverLetterDraft(company_opening=opening, candidate_lines=["Built Python software."],
+                            closing="I would welcome a conversation about this role.")
+    assert draft.verified_text(facts, research, github_ready=False, gpa_required=False).startswith(opening)
+
+
+@pytest.mark.parametrize("line", ["Used Kubernetes.", "Built 999 Python systems."])
+def test_candidate_lines_still_require_candidate_grounding(line):
+    facts = CareerFacts.model_validate(FACTS)
+    research = [CompanyFact.model_validate(r) for r in research_rows()]
+    assert verify_text(line, facts)
+    draft = CoverLetterDraft(company_opening=research[0].text, candidate_lines=[line],
+                            closing="I would welcome a conversation about this role.")
+    with pytest.raises(ValueError, match="unsupported_candidate_claim"):
+        draft.verified_text(facts, research, github_ready=False, gpa_required=False)
+
+
+def poison_company_opening(builder, directory):
+    rows = research_rows()
+    rows[0]["text"] = POISONED_OPENING
+    (directory / "company_research.json").write_text(json.dumps({"Acme": rows}))
+    original = builder.executor.create
+    def generate(**kwargs):
+        if kwargs["task"] == "cover_letter":
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(dict(
+                company_opening=POISONED_OPENING, candidate_lines=["Built Python software."],
+                closing="I would welcome a conversation about this role.")))])
+        return original(**kwargs)
+    builder.executor.create = generate
+    return PacketService(builder.engine, builder.settings, executor=builder.executor, clock=lambda: NOW)
+
+
+def test_poisoned_company_opening_fails_generation(setup):
+    builder, _, directory = setup
+    current = poison_company_opening(builder, directory)
+    packet = current.build_one(add_job(current))
+    assert packet.status == "generation_failed"
+    assert packet.verifier_status != "passed"
