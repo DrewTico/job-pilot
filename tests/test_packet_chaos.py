@@ -376,21 +376,21 @@ def test_real_v5_migration_all_tables(tmp_path):
         session.add(ScoringWorkItem(fingerprint="score",source="demo",external_id="1",canonical_job_id="job",search_result_id=row.id,model="fake",candidate_hash="hash",priority_at=NOW,state="succeeded",batch_id="batch",llm_call_id="call",result={"score":80}))
     old = ("jobs","job_identities","search_runs","search_results","application_events","llm_calls","llm_batches","scoring_work_items")
     with engine.begin() as conn:
-        # A genuine v5 file has none of the packet tables.
-        for name in ("writing_work_items","application_packets","company_facts"):
+        # A genuine v5 file has neither packet tables nor the v7 research cache.
+        for name in ("writing_work_items","application_packets","company_facts","company_research_cache"):
             conn.exec_driver_sql(f"DROP TABLE {name}")
         conn.exec_driver_sql("PRAGMA user_version=5")
         before = {name: conn.exec_driver_sql(f"SELECT * FROM {name}").all() for name in old}
-        indexes = conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items') ORDER BY name").all()
+        indexes = conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache') ORDER BY name").all()
     engine.dispose()
     engine = initialize_database(path)
     with engine.connect() as conn:
         for name in old:
             assert conn.exec_driver_sql(f"SELECT * FROM {name}").all() == before[name]
-        assert conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items') ORDER BY name").all() == indexes
+        assert conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache') ORDER BY name").all() == indexes
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 6
-        for name in ("writing_work_items","application_packets","company_facts"):
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 7
+        for name in ("writing_work_items","application_packets","company_facts","company_research_cache"):
             assert conn.exec_driver_sql(f"SELECT count(*) FROM {name}").scalar_one() == 0
     for statement in ("UPDATE application_events SET notes='changed'", "DELETE FROM application_events"):
         with pytest.raises(IntegrityError):

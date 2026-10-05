@@ -16,7 +16,7 @@ from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Engine, UniqueCo
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -193,6 +193,21 @@ class CompanyFactRecord(SQLModel, table=True):
     retrieved_at: datetime = Field(sa_type=DateTime)
 
 
+class CompanyResearchCache(SQLModel, table=True):
+    """Only three selected public facts; no provider bodies or credentials."""
+    __tablename__ = "company_research_cache"
+    __table_args__ = (CheckConstraint("provider = 'tavily'"),)
+    fingerprint: str = Field(primary_key=True)
+    provider: str = "tavily"
+    researcher_version: str
+    company: str
+    title_context: str
+    facts: list = Field(sa_column=Column(JSON, nullable=False))
+    created_at: datetime = Field(sa_type=DateTime)
+    refreshed_at: datetime = Field(sa_type=DateTime)
+    expires_at: datetime = Field(sa_type=DateTime, index=True)
+
+
 class ApplicationPacket(SQLModel, table=True):
     __tablename__ = "application_packets"
     __table_args__ = (UniqueConstraint("job_key", "version"),
@@ -253,10 +268,10 @@ class WritingWorkItem(SQLModel, table=True):
 
 
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v6.
+    """Explicitly create/open a file and initialize schema v7.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Versions 1 through 5 are upgraded transactionally.
+    silently adopted. Versions 1 through 6 are upgraded transactionally.
     Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
@@ -273,7 +288,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, 2, 3, 4, 5, SCHEMA_VERSION):
+            if version not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -397,6 +412,7 @@ def initialize_database(path: str | Path) -> Engine:
                     "(NEW.verifier_status!='passed' OR NEW.lint_status!='passed' OR length(NEW.cover_letter)=0 "
                     "OR length(NEW.scoring_fingerprint)=0 OR length(NEW.fingerprint)=0) "
                     "BEGIN SELECT RAISE(ABORT, 'invalid ready packet'); END")
+            CompanyResearchCache.__table__.create(connection, checkfirst=True)
             connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             # Enforce append-only history even for direct SQL/ORM callers.
             for operation in ("UPDATE", "DELETE"):

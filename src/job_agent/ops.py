@@ -37,7 +37,15 @@ def status(engine, settings, *, now=None):
             writing = session.execute(text("SELECT state FROM writing_work_items")).all()
             writing_counts = {state: sum(w[0] == state for w in writing) for state in
                               ("in_progress", "recovery_required", "failed", "succeeded")}
-        return dict(packets=packet_counts, writing=writing_counts, scoring=counts,
+        research_cache = {}
+        if inspect(engine).has_table("company_research_cache"):
+            from job_agent.database import _utc
+            total, fresh = session.execute(text(
+                "SELECT count(*),coalesce(sum(expires_at > :now),0) FROM company_research_cache"
+            ), {"now": _utc(now or datetime.now(timezone.utc)).isoformat(sep=" ")}).one()
+            research_cache = dict(research_cache_entries=total, research_cache_fresh=fresh,
+                                  research_cache_expired=total-fresh)
+        return dict(packets=packet_counts, writing=writing_counts, scoring=counts, **research_cache,
                     provider_batches_in_progress=sum(b.provider_id is not None and b.status != "ended" for b in batches),
                     provider_batches_ended_unreconciled=sum(b.provider_id is not None and b.status == "ended" and b.id in unresolved for b in batches),
                     batches_without_trusted_provider_id=sum(b.provider_id is None for b in batches),

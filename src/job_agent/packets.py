@@ -20,6 +20,7 @@ from job_agent.database import (ApplicationPacket, CompanyFactRecord, WritingWor
     SearchResult, ScoringWorkItem, CanonicalJob, JobIdentity, ApplicationEvent, database_session, _utc)
 from job_agent.models import Job
 from job_agent.research import FixtureCompanyResearcher, usable_facts, semantic_fact, semantic_fact_id, packet_content_flags
+from job_agent.tavily_research import TavilyCompanyResearcher, select_facts
 from job_agent.tailor.career_facts import load_career_facts
 from job_agent.apply.answer_bank import load_answer_bank
 from job_agent.tailor.tailor import tailor_resume, load_megaprompt, POLICY_ADDENDUM
@@ -108,9 +109,16 @@ class PacketService:
     def __init__(self, engine, settings, *, researcher=None, executor=None, clock=None,
                  cover_prompt=None, tailor_prompt=None):
         self.engine, self.settings = engine, settings
-        self.researcher = researcher if researcher is not None else FixtureCompanyResearcher(settings.data_dir / "company_research.json")
         self.executor = executor
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        if researcher is not None:
+            self.researcher = researcher
+        elif settings.company_research_provider == "fixture":
+            self.researcher = FixtureCompanyResearcher(settings.data_dir / "company_research.json")
+        elif settings.company_research_provider == "tavily":
+            self.researcher = TavilyCompanyResearcher(engine, settings, clock=self.clock)
+        else:
+            raise ValueError("invalid_company_research_provider")
         self.cover_prompt = cover_prompt if cover_prompt is not None else COVER_PROMPT.read_text()
         self.tailor_prompt = tailor_prompt if tailor_prompt is not None else load_megaprompt()
         self.facts = load_career_facts(settings.data_dir / "facts.yaml")
@@ -328,6 +336,10 @@ class PacketService:
             raise ValueError("invalid_packet_job; source_details_omitted") from None
         try:
             facts, flags = usable_facts(job, self.researcher.research(job))
+            if isinstance(self.researcher, TavilyCompanyResearcher):
+                # Retain production cover-first order after the existing gate's
+                # canonical sorting. Fixture/custom ordering stays unchanged.
+                facts = select_facts(job, facts)
         except Exception:
             facts, flags = (), ("research_invalid_or_unavailable",)
         ctx = self._context(row, facts)

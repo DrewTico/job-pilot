@@ -584,13 +584,109 @@ scoring snapshots and approved facts, without changing discovery filters.
 Dry-run reads local inputs and reports selection without LLM or research-provider
 calls. Listing reads only packet metadata and does not print private answers.
 
-Research is behind `CompanyResearcher.research(job)`. M1 supplies only a local
-fixture implementation: `data/company_research.json` maps company names to lists
+Research is behind `CompanyResearcher.research(job)`. The default provider is
+`fixture`: `data/company_research.json` maps company names to lists
 of objects with `text`, public `source_url`, `source_title` (optional), timezone-aware
-`retrieved_at`, `company`, and optional `category`. No live web provider is wired.
+`retrieved_at`, `company`, and optional `category`.
 Exactly three usable sourced facts are required. Duplicate normalized URLs or
 texts and suspected instruction-injection snippets are excluded. Incomplete or
 invalid research produces `research_incomplete`, never fabricated facts.
+
+Production company research is explicitly opt-in:
+
+```bash
+export JOB_AGENT_COMPANY_RESEARCH_PROVIDER=tavily
+# Set TAVILY_API_KEY in your local environment/.env; never commit it.
+export JOB_AGENT_COMPANY_RESEARCH_CACHE_DAYS=7
+```
+
+`TAVILY_API_KEY` is required and must be nonblank. A key alone never enables
+Tavily. Unknown provider names fail configuration validation. Missing credentials
+or provider failures never switch to fixtures. Explicitly injected researchers,
+including falsey objects, remain authoritative.
+
+Only public company name, public job title, and code-owned static search words
+are transmitted. Candidate name, contact details, GPA, resume, projects,
+employment history, facts.yaml, answer-bank values, private prompts, matched or
+missing requirements, and the full job description are never sent to Tavily.
+Public company/title fields undergo NFC normalization, control/quote replacement
+and whitespace collapse; blank values or values over 160 normalized characters
+fail closed. They are quoted data, never interpreted as instructions.
+
+Query A is `"<company>" "<job title>" engineering product technology`.
+Only when a valid response leaves fewer than three safe unique facts with a
+company-named opening does Query B run:
+`"<company>" company product mission engineering recent`.
+An uncached valid-context operation makes one or at most two Tavily Search calls.
+Missing keys/invalid context can fail locally without a call. Provider/transport
+errors stop that operation immediately; there are no automatic retries, including
+timeouts, ambiguous transmission, authentication errors, rate limits, server
+errors, malformed JSON or malformed structural schemas. An operator-triggered
+later build may attempt fresh research.
+
+Requests use only `POST https://api.tavily.com/search`, bearer authentication,
+advanced/general search, eight results, raw text, no generated answer and no images.
+Redirects, environment proxies and HTTP retries are disabled. Job Pilot never
+fetches returned source URLs. Each connect/read/write/pool phase has a 12-second
+timeout; a 12-second elapsed guard is checked as response chunks arrive and at
+completion. This is not a hard wall-clock interrupt of an already-blocked IO
+phase. Response bodies stream into a buffer capped at 2,000,000 bytes; compressed
+responses are rejected. Each query processes at most eight results. Per-result
+limits are 200,000 raw-content characters, 300 title characters and 2,048 URL
+characters. Oversized bodies fail the request; unsuitable oversized results are
+discarded without storing their content.
+
+Extraction is deterministic and uses no Anthropic, other LLM, or Tavily answer.
+Facts are complete contiguous source statements after NFC, entity/HTML and
+limited Markdown cleanup and whitespace collapse. Paragraph/line boundaries
+remain boundaries. Sentences must end in a period, contain a declarative predicate,
+have 8–45 words and at most 500 characters. Noise, navigation, boilerplate,
+calls to action, malformed text and suspected directives are rejected. There is
+no paraphrase, clause joining, inferred subject, or replacement of "we" with the
+company. Each retained result must name the company in its title or selected
+statement; unrelated source statements cannot acquire a company attribution
+merely from search relevance. Exactly three unique validated facts are required. At least one must
+naturally name the company and satisfy the existing opening-name comparison;
+production facts are ordered with that fact first. The cover verifier is unchanged.
+
+Existing public-URL validation and canonical URL/text deduplication remain active.
+Private/local/reserved addresses, credentials and unsafe schemes are rejected.
+Known wildcard/loopback alias domains and obvious private/reserved IPv4 labels
+embedded in public-looking hostnames are also rejected without DNS lookups.
+Social sources (including LinkedIn, Facebook, Instagram, X/Twitter, Reddit,
+TikTok), Glassdoor, Indeed, known additional job boards/ATS copies, and obvious
+job/career URL paths are excluded, including subdomains. Selection prefers a
+company-name host match, recognized public news sources, product/docs pages,
+then engineering/blog pages; host matching is a preference, not proof of ownership.
+Both result titles and extracted statements pass packet injection checks and
+additional conservative directive/noise checks. Provider content cannot generate
+queries, invoke tools or change configuration, candidate facts or approval state.
+
+SQLite schema v7 additively introduces `company_research_cache`. Its SHA-256 key
+commits to provider, researcher/query/extraction/source-policy version, normalized
+company and meaningful title context. Keys, timestamps, packet IDs and random
+values do not enter that identity. The cache stores only three selected public
+facts and operational metadata, never raw webpages, full responses or API keys.
+The default TTL is seven days; `JOB_AGENT_COMPANY_RESEARCH_CACHE_DAYS` accepts
+1–30. Fresh valid entries survive restart and return exact cached facts with their
+original URLs and retrieval provenance, making zero requests. Expired entries
+require refresh. A failed refresh preserves the old row but never serves it;
+incomplete/unsafe results never replace successful cache data. Corrupt fresh cache
+entries fail closed. Retrieval-time-only or canonical-URL-equivalent changes keep
+fact IDs and packet fingerprints stable and do not repeat paid writing. Meaningful
+fact changes can create a new packet version.
+
+Research failure produces `research_incomplete`: no Anthropic writing, no packet
+capacity reservation, no resume/cover generation and no published artifacts.
+Selection, dry-run, packet list, ops and scheduler status remain offline; startup
+and migration never research. Ops reports only aggregate cache entry/fresh/expired
+counts, never source text, URLs or secrets. There is no people research, LinkedIn
+research, approval creation, application submission, email or outreach in this slice.
+Provider truth, publisher attribution and unknown domain credibility remain trust
+boundaries: source pages are not independently fetched or corroborated, and strict
+extraction can fail on legitimate prose. URL checks are lexical and perform no DNS
+lookups; they cannot establish public DNS resolution or publisher ownership.
+See [the research validation report](COMPANY_RESEARCH_REPORT.md).
 
 Packets contain a tailored resume PDF/DOCX with packet-relative artifact names,
 SHA-256 hashes and byte sizes, a cover letter of at most 200 words, deterministic cover-letter acceptance
@@ -637,7 +733,7 @@ Identical successful writing responses are durably checkpointed before downstrea
 validation/rendering, so assembly retries reuse them. Unknown or failed writing
 claims need review rather than automatic spend. Writing claims also record packet,
 model, prompt version, updated time and sanitized recovery reason, with allowed
-state constraints and one claim per packet/task. All production calls use
+state constraints and one claim per packet/task. All production writing calls use
 `AnthropicExecutor`, task-specific models and `llm_calls` accounting, pricing and
 monthly budget gates; no database write transaction spans provider I/O.
 

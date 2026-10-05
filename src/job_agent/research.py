@@ -1,4 +1,4 @@
-"""Public research boundary. No network implementation is enabled in M1."""
+"""Public research contract; fixture default, explicit Tavily opt-in in packets."""
 from datetime import datetime
 from typing import Literal, Protocol
 from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode

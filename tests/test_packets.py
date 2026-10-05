@@ -237,7 +237,7 @@ def test_migration_preserves_scoring(setup):
         assert len(s.exec(select(SearchResult)).all()) == 1
         assert len(s.exec(select(ScoringWorkItem)).all()) == 1
     with upgraded.connect() as conn:
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SCHEMA_VERSION == 6
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SCHEMA_VERSION == 7
     upgraded.dispose()
 
 
