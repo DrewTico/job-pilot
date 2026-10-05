@@ -378,20 +378,20 @@ def test_real_v5_migration_all_tables(tmp_path):
     old = ("jobs","job_identities","search_runs","search_results","application_events","llm_calls","llm_batches","scoring_work_items")
     with engine.begin() as conn:
         # A genuine v5 file has neither packet tables nor the v7 research cache.
-        for name in ("packet_decisions","writing_work_items","application_packets","company_facts","company_research_cache"):
+        for name in ("packet_revision_work","packet_decisions","writing_work_items","application_packets","company_facts","company_research_cache","style_memory_snapshots"):
             conn.exec_driver_sql(f"DROP TABLE {name}")
         conn.exec_driver_sql("PRAGMA user_version=5")
         before = {name: conn.exec_driver_sql(f"SELECT * FROM {name}").all() for name in old}
-        indexes = conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache','packet_decisions') ORDER BY name").all()
+        indexes = conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache','packet_decisions','style_memory_snapshots','packet_revision_work') ORDER BY name").all()
     engine.dispose()
     engine = initialize_database(path)
     with engine.connect() as conn:
         for name in old:
             assert conn.exec_driver_sql(f"SELECT * FROM {name}").all() == before[name]
-        assert conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache','packet_decisions') ORDER BY name").all() == indexes
+        assert conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache','packet_decisions','style_memory_snapshots','packet_revision_work') ORDER BY name").all() == indexes
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 8
-        for name in ("packet_decisions","writing_work_items","application_packets","company_facts","company_research_cache"):
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 9
+        for name in ("packet_decisions","writing_work_items","application_packets","company_facts","company_research_cache","style_memory_snapshots","packet_revision_work"):
             assert conn.exec_driver_sql(f"SELECT count(*) FROM {name}").scalar_one() == 0
     for statement in ("UPDATE application_events SET notes='changed'", "DELETE FROM application_events"):
         with pytest.raises(IntegrityError):
@@ -753,6 +753,15 @@ def test_private_inputs_and_provider_errors_do_not_leak_cli(setup,monkeypatch,ca
 
 def test_legacy_v6_additive_packet_upgrade(setup):
     service,_,directory = setup
+    import sqlite3
+    from sqlalchemy import create_engine
+    from test_packets import trusted_v8_modules
+    path = directory / "genuine-v6.sqlite"
+    with sqlite3.connect(path) as connection:
+        connection.executescript((Path(__file__).parent / "fixtures/schema_v8.sql").read_text())
+    _, historical_packets, _ = trusted_v8_modules()
+    service = historical_packets.PacketService(create_engine("sqlite:///" + str(path)),
+        service.settings, executor=service.executor, clock=lambda: NOW)
     packet = service.build_one(add_job(service))
     with service.engine.begin() as conn:
         conn.exec_driver_sql("UPDATE application_packets SET created_at=? WHERE id=?",(NOW.replace(tzinfo=None).isoformat(),packet.id))
@@ -769,7 +778,7 @@ def test_legacy_v6_additive_packet_upgrade(setup):
     assert status(service.engine,service.settings,now=NOW)["packets"]["packet_ready_today"] is None
     with service.engine.begin() as conn:
         conn.exec_driver_sql("PRAGMA user_version=6")
-    upgraded = initialize_database(directory / "test.sqlite")
+    upgraded = initialize_database(path)
     with upgraded.connect() as conn:
         assert conn.exec_driver_sql("SELECT " + ",".join(old_columns) + " FROM application_packets").all() == before
         assert conn.exec_driver_sql("SELECT fingerprint,task,state,output,created_at FROM writing_work_items ORDER BY fingerprint").all() == writing

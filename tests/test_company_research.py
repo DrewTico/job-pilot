@@ -652,7 +652,9 @@ def test_populated_genuine_v6_migration_preserves_all_state(setup):
     @event.listens_for(old_engine, "connect")
     def foreign_keys(connection, _):
         connection.execute("PRAGMA foreign_keys=ON")
-    old_service = PacketService(old_engine, service.settings, executor=service.executor, clock=lambda: NOW)
+    from test_packets import trusted_v8_modules
+    _, historical_packets, _ = trusted_v8_modules()
+    old_service = historical_packets.PacketService(old_engine, service.settings, executor=service.executor, clock=lambda: NOW)
     first_row = add_job(old_service)
     packet = old_service.build_one(first_row)
     assert packet.status == "packet_ready"
@@ -688,6 +690,7 @@ def test_populated_genuine_v6_migration_preserves_all_state(setup):
         "scoring_work_items", "llm_batches", "company_facts", "application_packets", "writing_work_items")
     with old_engine.connect() as connection:
         before = {name: connection.exec_driver_sql(f'SELECT * FROM {name} ORDER BY 1').all() for name in tables}
+        old_columns = {name: [row[1] for row in connection.exec_driver_sql(f'PRAGMA table_info({name})')] for name in tables}
         assert all(before.values())
         indexes_triggers = connection.exec_driver_sql(
             "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('index','trigger') ORDER BY type,name").all()
@@ -698,11 +701,11 @@ def test_populated_genuine_v6_migration_preserves_all_state(setup):
     try:
         with upgraded.connect() as connection:
             for name in tables:
-                assert connection.exec_driver_sql(f'SELECT * FROM {name} ORDER BY 1').all() == before[name]
+                assert connection.exec_driver_sql(f'SELECT {",".join(old_columns[name])} FROM {name} ORDER BY 1').all() == before[name]
             assert connection.exec_driver_sql(
-                "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name NOT IN ('company_research_cache','packet_decisions') ORDER BY type,name").all() == indexes_triggers
+                "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name NOT IN ('company_research_cache','packet_decisions','style_memory_snapshots','packet_revision_work') AND name NOT LIKE 'packet_writing_%' AND name NOT LIKE 'packet_revision_%' ORDER BY type,name").all() == indexes_triggers
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-            assert connection.exec_driver_sql("PRAGMA user_version").scalar_one() == 8
+            assert connection.exec_driver_sql("PRAGMA user_version").scalar_one() == 9
             assert connection.exec_driver_sql("SELECT count(*) FROM company_research_cache").scalar_one() == 0
             assert connection.exec_driver_sql("SELECT fingerprint FROM application_packets WHERE id=?", (packet.id,)).scalar_one() == packet.fingerprint
         for statement in ("UPDATE application_events SET notes='changed'", "DELETE FROM application_events",

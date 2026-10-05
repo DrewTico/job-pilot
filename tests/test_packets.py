@@ -20,6 +20,47 @@ from job_agent.tailor.career_facts import CareerFacts
 from job_agent.apply.answer_bank import AnswerBank
 
 NOW = datetime(2026, 10, 3, 16, tzinfo=timezone.utc)
+
+
+def trusted_v8_modules():
+    """Execute the unchanged checkpoint with an isolated ORM registry.
+
+    Legacy migration fixtures must be populated with their actual old mappings,
+    not today's columns. Only SQLModel registry isolation and module references
+    are adapted; historical field definitions and builder/verifier code are exact.
+    """
+    import subprocess
+    from types import ModuleType
+    from sqlalchemy.orm import registry
+    from sqlmodel import SQLModel
+    import job_agent.database
+    import job_agent.packets
+    import job_agent.approvals
+
+    class HistoricalSQLModel(SQLModel, registry=registry()):
+        pass
+
+    def source(filename):
+        return subprocess.check_output(["git", "show", "0f0ec1b:src/job_agent/" + filename], text=True)
+
+    database = ModuleType("trusted_v8_database")
+    database.SQLModel = HistoricalSQLModel
+    code = source("database.py").replace(
+        "from sqlmodel import Field, Session, SQLModel, create_engine, select",
+        "from sqlmodel import Field, Session, create_engine, select")
+    exec(compile(code, job_agent.database.__file__, "exec"), database.__dict__)
+    packets = ModuleType("trusted_v8_packets")
+    packets.__file__ = job_agent.packets.__file__
+    exec(compile(source("packets.py"), packets.__file__, "exec"), packets.__dict__)
+    for name in ("ApplicationPacket", "CompanyFactRecord", "WritingWorkItem", "SearchResult",
+                 "ScoringWorkItem", "CanonicalJob", "JobIdentity", "ApplicationEvent"):
+        packets.__dict__[name] = getattr(database, name)
+    approvals = ModuleType("trusted_v8_approvals")
+    approvals.__file__ = job_agent.approvals.__file__
+    exec(compile(source("approvals.py"), approvals.__file__, "exec"), approvals.__dict__)
+    approvals.ApplicationPacket, approvals.PacketDecision = database.ApplicationPacket, database.PacketDecision
+    approvals.verify_packet_integrity = packets.verify_packet_integrity
+    return database, packets, approvals
 FACTS = dict(name="Test Person", role="Engineer", email="test@example.com", phone="555",
     education=["Bachelor of Arts in Computer Science"], gpa="3.18",
     skills_inventory={"Languages": ["Python"]}, projects=[{"header": "Approved Project", "real_bullets": ["Built Python software."]}],
@@ -236,7 +277,7 @@ def test_migration_preserves_scoring(setup):
         assert len(s.exec(select(SearchResult)).all()) == 1
         assert len(s.exec(select(ScoringWorkItem)).all()) == 1
     with upgraded.connect() as conn:
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SCHEMA_VERSION == 8
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SCHEMA_VERSION == 9
     upgraded.dispose()
 
 

@@ -173,7 +173,7 @@ def test_v4_upgrade(setup):
     path=engine.url.database
     reopened=initialize_database(path)
     with reopened.connect() as conn:
-        assert conn.exec_driver_sql('PRAGMA user_version').scalar()==8
+        assert conn.exec_driver_sql('PRAGMA user_version').scalar()==9
         assert not conn.exec_driver_sql('PRAGMA foreign_key_check').all()
         assert conn.exec_driver_sql('SELECT count(*) FROM search_results').scalar()==1
     reopened.dispose()
@@ -346,7 +346,7 @@ def test_v4_all_data_survives_upgrade(tmp_path):
     engine=initialize_database(path)
     with engine.connect() as conn:
         assert {t:conn.exec_driver_sql(f'SELECT * FROM {t}').all() for t in tables}==before
-        assert conn.exec_driver_sql('PRAGMA user_version').scalar()==8
+        assert conn.exec_driver_sql('PRAGMA user_version').scalar()==9
         assert not conn.exec_driver_sql('PRAGMA foreign_key_check').all()
         assert conn.exec_driver_sql('SELECT count(*) FROM scoring_work_items').scalar()==0
     engine.dispose()
@@ -586,7 +586,7 @@ def test_initial_v5_work_table_nullable_upgrade_preserves_data(setup, original_r
     with upgraded.connect() as connection:
         assert connection.exec_driver_sql('SELECT * FROM scoring_work_items').all() == before
         assert not connection.exec_driver_sql('PRAGMA foreign_key_check').all()
-        assert connection.exec_driver_sql('PRAGMA user_version').scalar() == 8
+        assert connection.exec_driver_sql('PRAGMA user_version').scalar() == 9
         column = next(r for r in connection.exec_driver_sql('PRAGMA table_info(scoring_work_items)') if r[1] == 'search_result_id')
         assert column[3] == 0
         ddl = connection.exec_driver_sql("SELECT sql FROM sqlite_master WHERE name='scoring_work_items'").scalar_one()

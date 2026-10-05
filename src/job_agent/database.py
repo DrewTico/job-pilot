@@ -16,7 +16,9 @@ from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Engine, UniqueCo
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
+LEGACY_WRITING_PROMPT_VERSION = "v4-semantic-writing-cache"
+STYLE_WRITING_PROMPT_VERSION = "v5-style-memory-snapshot"
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -208,6 +210,20 @@ class CompanyResearchCache(SQLModel, table=True):
     expires_at: datetime = Field(sa_type=DateTime, index=True)
 
 
+class StyleMemorySnapshot(SQLModel, table=True):
+    """Private immutable exact canonical content, never just a digest."""
+    __tablename__ = "style_memory_snapshots"
+    __table_args__ = (
+        CheckConstraint("typeof(hash) = 'text' AND length(hash) = 64 AND length(CAST(hash AS BLOB)) = 64 AND hash NOT GLOB '*[^0-9a-f]*'"),
+        CheckConstraint("typeof(canonical_content) = 'text' AND length(CAST(canonical_content AS BLOB)) <= 65536"),
+        CheckConstraint("canonicalization_version = 'style-nfc-lf-v1'"),
+    )
+    hash: str = Field(primary_key=True)
+    canonical_content: str
+    canonicalization_version: str = "style-nfc-lf-v1"
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+
+
 class ApplicationPacket(SQLModel, table=True):
     __tablename__ = "application_packets"
     __table_args__ = (UniqueConstraint("job_key", "version"),
@@ -215,8 +231,14 @@ class ApplicationPacket(SQLModel, table=True):
         CheckConstraint("cover_letter_acceptance IN ('yes','no','unknown')"),
         CheckConstraint("verifier_status IN ('not_run','passed','failed')"),
         CheckConstraint("lint_status IN ('not_run','passed','failed')"),
+        CheckConstraint("(writing_prompt_version = 'v4-semantic-writing-cache' AND style_memory_hash IS NULL) OR (writing_prompt_version = 'v5-style-memory-snapshot' AND style_memory_hash IS NOT NULL)"),
         CheckConstraint("status != 'packet_ready' OR (verifier_status = 'passed' AND lint_status = 'passed' AND length(cover_letter) > 0 AND length(scoring_fingerprint) > 0 AND length(fingerprint) > 0)"),)
     capacity_day: str | None = Field(default=None, index=True)
+    # Default retains compatibility with trusted historical construction. New
+    # style-aware builders must explicitly bind v5 and a non-NULL snapshot.
+    writing_prompt_version: str = LEGACY_WRITING_PROMPT_VERSION
+    style_memory_hash: str | None = Field(default=None, foreign_key="style_memory_snapshots.hash")
+    revision_decision_id: str | None = Field(default=None, foreign_key="packet_decisions.id")
     id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
     job_key: str = Field(index=True)
     search_result_id: int = Field(foreign_key="search_results.id")
@@ -293,11 +315,152 @@ class PacketDecision(SQLModel, table=True):
     evidence_json: str
 
 
+class PacketRevisionWork(SQLModel, table=True):
+    """Durable revision identity; operational state remains mutable."""
+    __tablename__ = "packet_revision_work"
+    __table_args__ = (
+        CheckConstraint("state IN ('pending','style_prepared','style_persisted','building','succeeded','blocked','recovery_required')"),
+        CheckConstraint("state != 'pending' OR (base_style_hash IS NULL AND target_style_hash IS NULL AND successor_packet_id IS NULL)"),
+        CheckConstraint("(base_style_hash IS NULL) = (target_style_hash IS NULL)"),
+        CheckConstraint("state NOT IN ('style_prepared','style_persisted','building','succeeded') OR (base_style_hash IS NOT NULL AND target_style_hash IS NOT NULL)"),
+        CheckConstraint("state NOT IN ('building','succeeded') OR successor_packet_id IS NOT NULL"),
+        CheckConstraint("state NOT IN ('style_prepared','style_persisted') OR successor_packet_id IS NULL"),
+        CheckConstraint("successor_packet_id IS NULL OR target_style_hash IS NOT NULL"),
+        CheckConstraint("failure_code IS NULL OR (length(failure_code) BETWEEN 1 AND 80 AND length(CAST(failure_code AS BLOB)) = length(failure_code) AND failure_code NOT GLOB '*[^a-z0-9_]*')"),
+        CheckConstraint("state NOT IN ('pending','style_prepared','style_persisted','building','succeeded') OR failure_code IS NULL"),
+        UniqueConstraint("successor_packet_id"),
+    )
+    decision_id: str = Field(primary_key=True, foreign_key="packet_decisions.id")
+    state: str = "pending"
+    base_style_hash: str | None = Field(default=None, foreign_key="style_memory_snapshots.hash")
+    target_style_hash: str | None = Field(default=None, foreign_key="style_memory_snapshots.hash")
+    successor_packet_id: str | None = Field(default=None, foreign_key="application_packets.id")
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    updated_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    failure_code: str | None = None
+
+
+def _migration_boundary(name):
+    """No-op deterministic migration fault seam; no IO or retries."""
+
+
+def _install_style_revision_schema(connection, *, original_version):
+    """Add v9 bindings/tables and persistent guards without rebuilding packets."""
+    StyleMemorySnapshot.__table__.create(connection, checkfirst=True)
+    additions = (
+        ("writing_prompt_version", "VARCHAR NOT NULL DEFAULT 'v4-semantic-writing-cache'"),
+        ("style_memory_hash", "VARCHAR REFERENCES style_memory_snapshots(hash)"),
+        ("revision_decision_id", "VARCHAR REFERENCES packet_decisions(id)"),
+    )
+    columns = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(application_packets)")}
+    for name, declaration in additions:
+        if name not in columns:
+            connection.exec_driver_sql(f"ALTER TABLE application_packets ADD COLUMN {name} {declaration}")
+    # One explicit index works identically for additive and fresh schemas. SQLite
+    # UNIQUE permits multiple NULL values, but only one successor per decision.
+    connection.exec_driver_sql("CREATE UNIQUE INDEX IF NOT EXISTS packet_revision_decision_unique ON application_packets(revision_decision_id)")
+    PacketRevisionWork.__table__.create(connection, checkfirst=True)
+    for operation in ("UPDATE", "DELETE"):
+        connection.exec_driver_sql(
+            f"CREATE TRIGGER IF NOT EXISTS style_memory_snapshots_no_{operation.lower()} "
+            f"BEFORE {operation} ON style_memory_snapshots BEGIN "
+            "SELECT RAISE(ABORT, 'style snapshots are immutable'); END")
+    # REPLACE's implicit DELETE need not run DELETE triggers under SQLite's
+    # default recursive_triggers setting. Reject existing identities at INSERT
+    # too, rather than changing connection-wide semantics or old decision guards.
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS style_memory_snapshots_no_replace BEFORE INSERT ON style_memory_snapshots "
+        "WHEN EXISTS (SELECT 1 FROM style_memory_snapshots WHERE hash=NEW.hash) "
+        "BEGIN SELECT RAISE(ABORT, 'style snapshots are immutable'); END")
+    pairing = (
+        "NEW.writing_prompt_version IS NULL OR NOT ("
+        "(NEW.writing_prompt_version='v4-semantic-writing-cache' AND NEW.style_memory_hash IS NULL) OR "
+        "(NEW.writing_prompt_version='v5-style-memory-snapshot' AND NEW.style_memory_hash IS NOT NULL))"
+    )
+    revision_packet = (
+        "NEW.revision_decision_id IS NOT NULL AND (NEW.writing_prompt_version!='v5-style-memory-snapshot' OR "
+        "NOT EXISTS (SELECT 1 FROM packet_decisions d JOIN application_packets p ON p.id=d.packet_id "
+        "WHERE d.id=NEW.revision_decision_id AND d.decision='revise' AND d.actor='Andrew' "
+        "AND d.evidence_version=1 AND d.packet_fingerprint=p.fingerprint AND p.job_key=NEW.job_key "
+        "AND p.canonical_job_id IS NEW.canonical_job_id AND p.version<NEW.version AND p.id!=NEW.id))"
+    )
+    revision_work = (
+        "NOT EXISTS (SELECT 1 FROM packet_decisions d JOIN application_packets p ON p.id=d.packet_id "
+        "WHERE d.id=NEW.decision_id AND d.decision='revise' AND d.actor='Andrew' "
+        "AND d.evidence_version=1 AND d.packet_fingerprint=p.fingerprint) OR "
+        "(NEW.successor_packet_id IS NOT NULL AND NOT EXISTS ("
+        "SELECT 1 FROM application_packets successor JOIN packet_decisions d ON d.id=NEW.decision_id "
+        "JOIN application_packets source ON source.id=d.packet_id WHERE successor.id=NEW.successor_packet_id "
+        "AND successor.revision_decision_id=NEW.decision_id AND successor.style_memory_hash=NEW.target_style_hash "
+        "AND successor.writing_prompt_version='v5-style-memory-snapshot' "
+        "AND successor.job_key=source.job_key AND successor.canonical_job_id IS source.canonical_job_id "
+        "AND successor.version>source.version AND successor.id!=source.id)) OR "
+        "(NEW.state='succeeded' AND NOT EXISTS (SELECT 1 FROM application_packets p "
+        "WHERE p.id=NEW.successor_packet_id AND p.status='packet_ready' AND p.ready_at IS NOT NULL))"
+    )
+    for operation in ("INSERT", "UPDATE"):
+        for prefix, table, invalid in (
+            ("packet_writing_binding", "application_packets", pairing),
+            ("packet_revision_binding", "application_packets", revision_packet),
+            ("revision_work_binding", "packet_revision_work", revision_work),
+        ):
+            connection.exec_driver_sql(
+                f"CREATE TRIGGER IF NOT EXISTS {prefix}_{operation.lower()} BEFORE {operation} ON {table} "
+                f"WHEN {invalid} BEGIN SELECT RAISE(ABORT, 'invalid style revision binding'); END")
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS packet_writing_identity_immutable BEFORE UPDATE ON application_packets "
+        "WHEN NEW.writing_prompt_version IS NOT OLD.writing_prompt_version OR "
+        "NEW.style_memory_hash IS NOT OLD.style_memory_hash OR NEW.revision_decision_id IS NOT OLD.revision_decision_id "
+        "BEGIN SELECT RAISE(ABORT, 'packet writing binding is immutable'); END")
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS revision_work_identity_immutable BEFORE UPDATE ON packet_revision_work "
+        "WHEN NEW.decision_id IS NOT OLD.decision_id OR NEW.created_at IS NOT OLD.created_at OR "
+        "(OLD.base_style_hash IS NOT NULL AND NEW.base_style_hash IS NOT OLD.base_style_hash) OR "
+        "(OLD.target_style_hash IS NOT NULL AND NEW.target_style_hash IS NOT OLD.target_style_hash) OR "
+        "(OLD.successor_packet_id IS NOT NULL AND NEW.successor_packet_id IS NOT OLD.successor_packet_id) "
+        "BEGIN SELECT RAISE(ABORT, 'revision identity is immutable'); END")
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS revision_work_no_delete BEFORE DELETE ON packet_revision_work "
+        "BEGIN SELECT RAISE(ABORT, 'revision work cannot be deleted'); END")
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS revision_work_no_replace BEFORE INSERT ON packet_revision_work "
+        "WHEN EXISTS (SELECT 1 FROM packet_revision_work WHERE decision_id=NEW.decision_id) "
+        "BEGIN SELECT RAISE(ABORT, 'revision identity is immutable'); END")
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS packet_revision_no_replace BEFORE INSERT ON application_packets "
+        "WHEN EXISTS (SELECT 1 FROM application_packets WHERE id=NEW.id AND revision_decision_id IS NOT NULL) OR "
+        "(NEW.revision_decision_id IS NOT NULL AND EXISTS (SELECT 1 FROM application_packets "
+        "WHERE revision_decision_id=NEW.revision_decision_id)) "
+        "BEGIN SELECT RAISE(ABORT, 'revision successor is immutable'); END")
+    connection.exec_driver_sql(
+        "CREATE TRIGGER IF NOT EXISTS revision_work_transition BEFORE UPDATE ON packet_revision_work "
+        "WHEN NEW.state!=OLD.state AND NOT ("
+        "(OLD.state='pending' AND NEW.state IN ('style_prepared','blocked','recovery_required')) OR "
+        "(OLD.state='style_prepared' AND NEW.state IN ('style_persisted','blocked','recovery_required')) OR "
+        "(OLD.state='style_persisted' AND NEW.state IN ('building','blocked','recovery_required')) OR "
+        "(OLD.state='building' AND NEW.state IN ('succeeded','blocked','recovery_required')) OR "
+        "(OLD.state='recovery_required' AND NEW.state IN ('style_prepared','style_persisted','building','succeeded','blocked'))) "
+        "BEGIN SELECT RAISE(ABORT, 'invalid revision transition'); END")
+    # Validate adopted bindings too, even if opening a development/tampered file
+    # with preexisting columns. Never silently repair or recompute identities.
+    invalid = connection.exec_driver_sql(
+        "SELECT 1 FROM application_packets WHERE writing_prompt_version IS NULL OR NOT ("
+        "(writing_prompt_version='v4-semantic-writing-cache' AND style_memory_hash IS NULL) OR "
+        "(writing_prompt_version='v5-style-memory-snapshot' AND style_memory_hash IS NOT NULL)) LIMIT 1").first()
+    if invalid or connection.exec_driver_sql("PRAGMA foreign_key_check").first():
+        raise ValueError("invalid_style_revision_schema")
+    if original_version < 9 and connection.exec_driver_sql(
+            "SELECT 1 FROM application_packets WHERE writing_prompt_version!='v4-semantic-writing-cache' "
+            "OR style_memory_hash IS NOT NULL OR revision_decision_id IS NOT NULL LIMIT 1").first():
+        raise ValueError("invalid_legacy_writing_binding")
+    _migration_boundary("after_v9_schema_before_version")
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v8.
+    """Explicitly create/open a file and initialize schema v9.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Versions 1 through 7 are upgraded transactionally.
+    silently adopted. Versions 1 through 8 are upgraded transactionally.
     Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
@@ -314,7 +477,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -328,7 +491,6 @@ def initialize_database(path: str | Path) -> Engine:
                                         SearchRun.__table__, SearchResult.__table__,
                                         ApplicationEvent.__table__, LLMCall.__table__]
                 )
-                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             if version == 1:
                 # Rebuild only the identity table to permit honest seen-only rows.
                 connection.exec_driver_sql(
@@ -349,7 +511,6 @@ def initialize_database(path: str | Path) -> Engine:
                 SQLModel.metadata.create_all(
                     connection, tables=[SearchRun.__table__, SearchResult.__table__]
                 )
-                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             if version in (1, 2):
                 for name, sql_type in (
                     ("application_status", "VARCHAR"),
@@ -360,10 +521,8 @@ def initialize_database(path: str | Path) -> Engine:
                 ):
                     connection.exec_driver_sql(f"ALTER TABLE jobs ADD COLUMN {name} {sql_type}")
                 ApplicationEvent.__table__.create(connection)
-                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             if version in (1, 2, 3):
                 LLMCall.__table__.create(connection, checkfirst=True)
-                connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             SQLModel.metadata.create_all(connection, tables=[LLMBatch.__table__, ScoringWorkItem.__table__])
             # Upgrade the initial v5 work table without changing the schema version.
             # No table references work items, so rebuilding preserves all foreign keys.
@@ -383,7 +542,7 @@ def initialize_database(path: str | Path) -> Engine:
                 for index in ScoringWorkItem.__table__.indexes:
                     connection.execute(CreateIndex(index))
 
-            SQLModel.metadata.create_all(connection, tables=[CompanyFactRecord.__table__, ApplicationPacket.__table__, WritingWorkItem.__table__])
+            SQLModel.metadata.create_all(connection, tables=[CompanyFactRecord.__table__, StyleMemorySnapshot.__table__, ApplicationPacket.__table__, WritingWorkItem.__table__])
             # Existing development v6 files predate packet hardening. Additive
             # upgrade preserves every prior row and fails closed on legacy claims.
             for table, additions in {
@@ -439,7 +598,6 @@ def initialize_database(path: str | Path) -> Engine:
                     "OR length(NEW.scoring_fingerprint)=0 OR length(NEW.fingerprint)=0) "
                     "BEGIN SELECT RAISE(ABORT, 'invalid ready packet'); END")
             CompanyResearchCache.__table__.create(connection, checkfirst=True)
-            connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             # Enforce append-only history even for direct SQL/ORM callers.
             for operation in ("UPDATE", "DELETE"):
                 connection.exec_driver_sql(
@@ -464,6 +622,8 @@ def initialize_database(path: str | Path) -> Engine:
                     f"CREATE TRIGGER IF NOT EXISTS packet_decisions_no_{operation.lower()} "
                     f"BEFORE {operation} ON packet_decisions BEGIN "
                     "SELECT RAISE(ABORT, 'packet_decisions is append-only'); END")
+            _install_style_revision_schema(connection, original_version=version)
+            connection.exec_driver_sql(f"PRAGMA user_version = {SCHEMA_VERSION}")
             connection.commit()
     except Exception:
         engine.dispose()

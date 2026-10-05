@@ -65,7 +65,7 @@ from job_agent.tailor.verify import (
     verify_pdf,
 )
 
-SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops", "packets"}
+SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops", "packets", "revision-process"}
 DEMO_DIR = Path(__file__).resolve().parent / "tailor" / "demo"
 
 _VERDICT_STYLE = {"strong": "bold green", "possible": "yellow", "skip": "dim", "unscored": "red"}
@@ -648,6 +648,10 @@ def _build_parser() -> argparse.ArgumentParser:
                                      description="Discover, score, and tailor to jobs.")
     sub = parser.add_subparsers(dest="command")
 
+    rev = sub.add_parser("revision-process", help="Process one immutable Revise decision; no approval or submission.")
+    rev.add_argument("--decision-id", required=True)
+    rev.add_argument("--data-dir", default=None)
+
     pk = sub.add_parser("packets", help="Build/list local review packets; no approvals or submission.")
     pk.add_argument("action", choices=["build", "list"])
     pk.add_argument("--data-dir", default=None)
@@ -720,6 +724,24 @@ def _build_parser() -> argparse.ArgumentParser:
     dc.add_argument("--profile", default="search_profile.yaml",
                     help="Used only to mark already-configured boards; never edited.")
     return parser
+
+
+def cmd_revision_process(console, args):
+    from job_agent.revisions import process_revision
+    from job_agent.packets import private_packet_logs
+    try:
+        settings = load_settings()
+        if args.data_dir:
+            settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+        with private_packet_logs(), search_database(settings.data_dir) as engine:
+            work = process_revision(engine, settings, args.decision_id)
+            console.print({"decision_id": work.decision_id, "state": work.state,
+                           "successor_packet_id": work.successor_packet_id,
+                           "failure_code": work.failure_code})
+            return 0 if work.state == "succeeded" else 2
+    except Exception:
+        console.print("Revision operation failed; details omitted.")
+        return 1
 
 
 def cmd_packets(console, args):
@@ -803,7 +825,8 @@ def main(argv: list[str] | None = None) -> int:
     dispatch = {"tailor": cmd_tailor, "apply": cmd_apply,
                 "applications": cmd_applications, "dashboard": cmd_dashboard,
                 "discover": cmd_discover, "batch": cmd_batch,
-                "scheduler": cmd_scheduler, "ops": cmd_ops, "packets": cmd_packets}
+                "scheduler": cmd_scheduler, "ops": cmd_ops, "packets": cmd_packets,
+                "revision-process": cmd_revision_process}
     handler = dispatch.get(args.command, cmd_search)
     try:
         return handler(console, args)

@@ -812,3 +812,174 @@ email, referral research or application-submission integration. Deterministic
 screening truth checks reuse the existing candidate verifier for prepared prose;
 structured booleans/enums remain structured answers. Defined deterministic rules
 are not universal natural-language truth proofs.
+
+### Run 2: private style-file layer
+
+The local `style_memory.py` backend now provides safe reads, canonicalization,
+feedback framing, locking, and atomic publication for `data/style_memory.md`.
+This is private local candidate preference DATA. It provides no authority over
+candidate facts, company facts, verification, policies, approvals, or actions.
+New ordinary packets now use v5-style-memory-snapshot with a bound immutable
+snapshot, including an empty snapshot when the style file is absent.
+A narrow local revision CLI is documented below. No new UI, API, authentication,
+Tailscale or submission path is added.
+
+`style-nfc-lf-v1` uses strict UTF-8, removes **all consecutive leading U+FEFF**
+characters (Andrew's approved amendment), converts CRLF and remaining CR to LF,
+and normalizes Unicode to NFC. It is idempotent. U+FEFF after the first non-BOM
+character, NUL, Markdown, spaces, tabs, blank lines, and terminal newline presence
+are preserved. Canonical content is limited to 65,536 UTF-8 bytes without
+truncation; raw input has an independent 131,072-byte bound before decoding.
+Reading an absent style file returns empty content without creating that file.
+
+Readers take a shared `data/style_memory.lock`; writers take an exclusive lock.
+The required acquisition order is packet build lock, then style lock, then short
+database transactions. Style files and locks must be private, regular, singly
+linked files owned by the current user. Symlink paths and special files fail
+closed. Writers fsync a private same-directory temporary file, recheck the current
+base hash, atomically replace the destination, and fsync its directory. They
+publish exact canonical bytes without adding a BOM. Cooperating readers see
+complete content; uncoordinated hostile local writers remain a trust boundary.
+
+Feedback framing uses sorted compact JSON metadata and the exact canonical
+feedback byte length. Separators are outside the counted body, so NUL and
+marker-like feedback are preserved. This helper does not itself authorize or
+deduplicate feedback. Schema v9 now retains immutable snapshots and revision work;
+the revision processor uses them for durable idempotency. The file recovery helper accepts retained
+base/target content: it publishes from the base, recognizes an already-published
+target, and rejects unknown third content without overwriting it. SQLite and file
+publication are separate resources; the durable revision state bridges their commits.
+Future Settings edits will use this writer plus immutable snapshot persistence.
+
+### Run 2: schema v9 and retained snapshots
+
+Schema v9 adds `style_memory_snapshots`, `packet_revision_work`, and the packet
+bindings `writing_prompt_version`, `style_memory_hash`, `revision_decision_id`.
+Migration from v8 is additive and transactional. All existing packets retain
+their exact fingerprints, decisions, evidence, writing work and artifacts, and
+receive v4/NULL/NULL bindings. No fake legacy style snapshot is created.
+
+Snapshots retain exact private canonical style content, its SHA-256 key,
+canonicalization version, and UTC creation metadata. Creation metadata is excluded
+from identity. Load helpers recheck exact canonical form and recompute the content
+hash on every load. Persistent guards reject UPDATE, DELETE and replacement of
+snapshot identities. The database intentionally stores this private preference
+content because hashes alone cannot reconstruct historical writing requests.
+
+Packet guards accept only v4 without style or v5 with an existing snapshot. Each
+Revise decision can bind at most one successor. Revision bindings require the
+immutable Revise record, matching predecessor fingerprint, same logical job and
+a higher version. Work guards preserve base/target/successor identities while
+allowing valid operational state transitions; succeeded transitions require a
+ready successor with ready_at present. Deleted/replaced work cannot silently
+discard durable idempotency evidence. These are storage invariants, not approval.
+
+Legacy v4-semantic-writing-cache packets reconstruct their exact original
+requests without any style section or mutable style-file read. New v5 packets
+include their exact bound snapshot in both writing SYSTEM messages, between an
+explicit untrusted STYLE DATA boundary and a fixed authoritative closing reminder.
+Facts, verifier/lint and GitHub/GPA/degree/title policies remain authoritative;
+company sources cannot authorize candidate claims, including exact candidate-name
+tokens. Prompt caching uses the existing cached_system mechanism without an extra
+style-analysis call or transport change.
+
+New packet semantic identity includes prompt version, canonicalization version
+and style hash. Writing identity retains the existing algorithm: style changes
+alter SYSTEM hashes, while canonical-equivalent content allows exact checkpoint
+reuse. Historical v5 verification loads and authenticates retained snapshot content
+and hash, never current style_memory.md. Later style edits alone do not invalidate
+historical packets. Current authoritative truth/policy checks still apply.
+The build lock precedes a shared style lock and a short snapshot/packet claim
+transaction; the style lock is released before provider work. Existing daily
+capacity, monthly budget, accounting and ambiguous-outcome rules remain active.
+The local revision CLI, version history and diffs are implemented below.
+Run 2 integration validation is complete: 2,348 offline tests passed, including
+the established approved Chromium/FastAPI split. The consolidated evidence,
+required safety answers and limitations are in
+[REVISION_STYLE_MEMORY_REPORT.md](REVISION_STYLE_MEMORY_REPORT.md).
+
+
+### Run 2: revision processing
+
+`RevisionProcessor(engine, settings).process_revision(decision_id)` accepts only
+an immutable Revise decision ID. It validates its Andrew/policy/source binding,
+preserves the original decision feedback unchanged, and appends one framed
+canonical feedback entry to private style memory. Durable work binds immutable
+base/target snapshots before publication. After a crash, base means publish the
+retained target, target means publication already happened, and unknown third
+content means `style_conflict` without overwrite or another append. Later edits
+cannot change an already-prepared target. There is no mutable DB current-style
+pointer and no atomicity claim across SQLite and the filesystem.
+
+The processor releases the style lock before generation and retains the packet
+build lock. It uses current facts/answer bank and locally validates predecessor
+job/scoring/company evidence against the retained successful cover request,
+preserving fact IDs/order independently of old candidate inputs. It never constructs a
+researcher, calls Tavily or reads cache expiry to refresh research. Damaged old
+artifacts do not prevent feedback persistence; insufficient local evidence blocks
+generation after feedback is saved.
+
+Each decision creates at most one immutable successor, using a distinct
+revision-v1 identity, same logical job, max allocated version plus one, its own
+ID/directory/fingerprint and the retained target snapshot. Once claimed, changed
+candidate inputs on restart fail closed instead of changing that successor.
+The predecessor and its decision/artifacts stay historical. **v1's Revise does
+not authorize v2:** v2 starts without a decision and needs independent approval.
+A new Revise on v2 may create v3.
+
+The narrow validated revision path uses no additional new-job daily slot. Normal
+new builds still enforce capacity. Monthly LLM budget, llm_calls/cache accounting,
+writing checkpoints, truth/lint and publication gates remain active. Exact
+succeeded checkpoints can finish locally even at exhausted budget; new generation
+is denied. Ambiguous provider outcomes enter recovery_required and are not blindly
+retried. Blocked/recovery_required work requires manual review; there is no new
+automatic reset or provider-retry command. Replayed success authenticates the
+surviving successor, and final completion reloads authoritative candidate inputs.
+The narrow CLI below exposes this operation. UI/API/authentication/Tailscale
+and submission remain deferred.
+
+
+### Run 2 local revision command and historical views
+
+Process an existing immutable Revise decision:
+
+```sh
+python -m job_agent revision-process --decision-id <immutable-revise-id> --data-dir data
+```
+
+The command accepts only the decision ID and optional data directory. It does
+not accept feedback, an arbitrary packet rewrite, capacity bypass, provider URL,
+apply or submit flags. It reports safe decision/successor IDs, state and sanitized
+failure code. Exit 0 means succeeded, 2 means work needs review, and 1 means a
+sanitized operation failure. Production writing may use the existing Anthropic
+executor when needed; there is no research refresh or submission capability.
+
+`packet_history.list_packet_versions(engine, packet_id=...)` also accepts exactly
+one `job_key=...` or `canonical_job_id=...` selector. It follows stored packet
+job/canonical relationships and retained JobIdentity aliases, sorts by version
+then stable packet ID, and exposes safe metadata only. Decision type and derived
+revision/recovery lineage are informational. Unknown predecessor links remain
+unlinked. Latest allocated and latest ready are separate: a failed newer packet
+does not hide an older ready packet. No feedback, prompts, snapshot contents,
+filesystem paths or secrets are returned.
+
+`diff_resume(engine, settings, left_packet_id, right_packet_id)` and `diff_cover(...)`
+compare two versions of the same logical job locally. Resume differences use
+strict UTF-8 `resume.face.txt` bytes after no-follow/regular-file/containment and
+exact manifest filename/hash/size checks, plus consistent PDF/DOCX rendering
+from that face. PDF selectable text is read only for consistency; **no OCR** is
+used and the diff source is the authenticated face. Reads are pinned to directory
+descriptors, files are bounded to 20 MB each, and DOCX expansion to 100 MB.
+Cover differences authenticate the successful bound writing checkpoint, request
+fingerprint, output hash, parsed draft and exact stored cover relationship;
+checkpoint/cover text is bounded to 1 MB. Neither helper loads current candidate
+truth, checks current eligibility, calls an LLM, or repairs missing content.
+
+Results contain an available deterministic unified diff or a sanitized
+unavailable/integrity_failed/invalid_request status. Labels contain packet/version
+identity only. Original line endings and terminal newline presence are preserved,
+with explicit missing-newline markers. Full content/diffs are not logged.
+These historical views **do not approve or authorize a packet**. Current
+authoritative truth, policy, URL, artifact and stale-view checks still apply to
+independent approval. Settings editing, Run 3 queue/UI/API, Run 4
+authentication/Tailscale/multi-device access and submission remain deferred.
