@@ -171,6 +171,7 @@ def test_crash_restart_matrix(setup, boundary):
     packet = restarted.build_one(row)
     unknown = boundary in ("after_writing_claim", "before_provider", "after_provider_output")
     assert packet.status == ("recovery_required" if unknown else "packet_ready"), packet.failure_reason
+    assert packet.version == 1
     if unknown or boundary in ("after_both_outputs", "during_staging_render", "after_staging_render", "after_verification", "after_atomic_rename", "after_ready_commit"):
         assert len(calls) == before
     assert len(calls) <= 2
@@ -1096,4 +1097,133 @@ def test_malformed_writing_not_repaid_across_packet_versions(setup):
     (directory / "answer_bank.yaml").write_text(yaml.safe_dump(bank))
     active = PacketService(service.engine,service.settings,executor=service.executor,clock=lambda:NOW)
     assert active.build_one(row).status == "generation_failed"
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("damage", ["directory", "missing", "pdf", "docx", "face", "manifest", "rendered", "symlink", "forged_pdf", "forged_docx", "forged_face"])
+def test_completed_version_immutable_recovery(setup, monkeypatch, damage):
+    import shutil
+    service, calls, directory = setup
+    service.settings.max_packets_per_day = 1
+    row = add_job(service)
+    first = service.build_one(row)
+    assert service.build_one(row).id == first.id
+    final = directory / "packets" / first.id
+    if damage == "directory": shutil.rmtree(final)
+    elif damage == "missing": (final / "resume.pdf").unlink()
+    elif damage in ("pdf", "docx", "face"):
+        with (final / {"pdf":"resume.pdf", "docx":"resume.docx", "face":"resume.face.txt"}[damage]).open("ab") as stream:
+            stream.write(b"corruption")
+    elif damage == "symlink":
+        target = directory / "hostile"
+        final.rename(target)
+        final.symlink_to(target, target_is_directory=True)
+    elif damage.startswith("forged_"):
+        from job_agent.tailor.render_pdf import render_pdf, render_docx
+        kind = damage.removeprefix("forged_")
+        if kind == "pdf":
+            # The fixture deliberately fakes this seam. Exercise real local PDF
+            # extraction for a valid container with a forged matching manifest.
+            from pdfminer.high_level import extract_text
+            monkeypatch.setattr("job_agent.tailor.verify.extract_pdf_text", lambda path: extract_text(str(path)))
+        changed = RESUME.replace("Company: Simpro", "Company: Bayard")
+        if kind == "face": (final / "resume.face.txt").write_text(changed)
+        else:
+            (render_pdf if kind == "pdf" else render_docx)(changed, final / ("resume." + kind))
+        with database_session(service.engine) as session:
+            stored = session.get(ApplicationPacket, first.id)
+            stored.artifacts = service._manifest(final)
+            session.add(stored)
+    elif damage == "manifest":
+        with database_session(service.engine) as session:
+            stored = session.get(ApplicationPacket, first.id)
+            stored.artifacts = {**stored.artifacts, "resume.pdf": {"sha256":"changed", "size":1}}
+            session.add(stored)
+    else:
+        original = service._verify_artifact_content
+        def reject(path, face):
+            if path == final: raise ValueError("rendered_content_failed")
+            return original(path, face)
+        monkeypatch.setattr(service, "_verify_artifact_content", reject)
+    with Session(service.engine) as session:
+        before = session.get(ApplicationPacket, first.id).model_dump()
+    bytes_before = {p.name:p.read_bytes() for p in final.iterdir()} if final.exists() else {}
+    assert service.build_one(row).status == "recovery_required"
+    second = service.build_one(row)
+    assert second.status == "packet_ready", second.failure_reason
+    assert second.version == 2 and second.id != first.id
+    assert second.capacity_day is None
+    assert second.writing_fingerprints == first.writing_fingerprints
+    assert len(calls) == 2
+    assert service.build_one(row).id == second.id
+    with Session(service.engine) as session:
+        after = session.get(ApplicationPacket, first.id).model_dump()
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+    for field in ("fingerprint", "cover_letter", "artifacts", "writing_fingerprints", "ready_at", "capacity_day"):
+        assert after[field] == before[field]
+    assert ({p.name:p.read_bytes() for p in final.iterdir()} if final.exists() else {}) == bytes_before
+    assert (directory / "packets" / second.id).is_dir()
+    assert second.artifacts == service._manifest(directory / "packets" / second.id)
+
+
+@pytest.mark.parametrize("boundary", ["after_packet_claim", "after_writing_checkpoint", "after_verification", "after_atomic_rename"])
+def test_successor_crash_preserves_completed_predecessor(setup, boundary):
+    import shutil
+    service, calls, directory = setup
+    row = add_job(service)
+    first = service.build_one(row)
+    shutil.rmtree(directory / "packets" / first.id)
+    assert service.build_one(row).status == "recovery_required"
+    # Cached writing returns before the writing-checkpoint boundary, so inject
+    # at the next boundary after both durable outputs have been reused.
+    seam = "after_both_outputs" if boundary == "after_writing_checkpoint" else boundary
+    def crash(name):
+        if name == seam: raise SystemExit("synthetic crash")
+    service._boundary = crash
+    with pytest.raises(SystemExit): service.build_one(row)
+    service._boundary = lambda name: None
+    second = service.build_one(row)
+    assert second.version == 2 and second.status == "packet_ready"
+    assert len(calls) == 2
+    assert not (directory / "packets" / first.id).exists()
+    with Session(service.engine) as session:
+        old = session.get(ApplicationPacket, first.id)
+        assert old.artifacts == first.artifacts and old.cover_letter == first.cover_letter
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+
+
+def test_concurrent_completed_recovery_serialized(setup):
+    import shutil
+    service, calls, directory = setup
+    row = add_job(service)
+    first = service.build_one(row)
+    shutil.rmtree(directory / "packets" / first.id)
+    assert service.build_one(row).status == "recovery_required"
+    def build():
+        try: return service.build_one(row).id
+        except RuntimeError as exc:
+            assert str(exc) == "packet_build_in_progress"
+            return None
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: build(), range(2)))
+    second = service.build_one(row)
+    assert second.version == 2 and second.status == "packet_ready"
+    assert all(result in (None, second.id) for result in results)
+    assert len(calls) == 2
+    with Session(service.engine) as session:
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+
+
+def test_completed_successor_unknown_writing_stays_closed(setup):
+    service, calls, _ = setup
+    row = add_job(service)
+    first = service.build_one(row)
+    with database_session(service.engine) as session:
+        work = session.get(WritingWorkItem, first.writing_fingerprints["tailor_resume"])
+        work.state = "recovery_required"
+        session.add(work)
+    assert service.build_one(row).status == "recovery_required"
+    second = service.build_one(row)
+    assert second.version == 2 and second.status == "recovery_required"
+    assert service.build_one(row).id == second.id
     assert len(calls) == 2

@@ -750,3 +750,20 @@ provider request. Unexpected final files or unverifiable integrity require revie
 partial staging directories never count as ready packets. Ops status reports
 packet building/recovery/failure and writing unknown/recovery counts without IO to
 providers. See [the hardening evidence and limits](PACKET_HARDENING_REPORT.md).
+
+An application packet version becomes immutable for completed deliverables after
+its first `packet_ready` transition. Valid ready packets reuse that exact version.
+Post-ready corruption is marked `recovery_required`; a subsequent build generates
+an independently identified successor version with its own artifact directory,
+manifest, cover and completed evidence. It never silently regenerates into the
+completed version. Successful semantic writing checkpoints may be reused across
+versions, and integrity recovery does not reserve another new-job daily packet
+slot. Normal paid-writing budget gates still apply.
+
+Pre-ready crash recovery may still complete the same version, including recovery
+from a durable writing or publication checkpoint. Publication retains its
+no-replace protection. External hostile filesystem mutation cannot be undone
+magically: deleted or corrupted original bytes are not retained for exact
+restoration. The historical database evidence and any surviving artifacts remain
+under the original version. Future approval records can therefore refer to one
+exact immutable completed packet version.

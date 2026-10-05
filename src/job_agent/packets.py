@@ -351,6 +351,13 @@ class PacketService:
                 s.commit()
                 raise ValueError("job_no_longer_eligible")
             existing = s.exec(select(ApplicationPacket).where(ApplicationPacket.fingerprint == fp)).first()
+            # A completed row is historical even after its lifecycle state changes.
+            # Follow deterministic successor identities without changing its fingerprint.
+            recovery_successor = False
+            while existing and existing.ready_at is not None and existing.status != "packet_ready":
+                recovery_successor = True
+                fp = digest({"recovery_of": existing.id, "packet_fingerprint": fp})
+                existing = s.exec(select(ApplicationPacket).where(ApplicationPacket.fingerprint == fp)).first()
             if existing and not re.fullmatch(r"[0-9a-f]{32}", existing.id):
                 raise ValueError("unsafe_packet_id")
             if existing and existing.status == "packet_ready":
@@ -360,6 +367,11 @@ class PacketService:
                     if self._manifest(self._packet_root() / existing.id) != existing.artifacts:
                         raise ValueError("artifact_integrity")
                     self._ready_invariants(existing)
+                    face = (self._packet_root() / existing.id / "resume.face.txt").read_text()
+                    if verify_resume_grounding(face, self.facts,
+                            gpa_required=self._packet_gpa_required(existing)):
+                        raise ValueError("rendered_provenance_failed")
+                    self._verify_artifact_content(self._packet_root() / existing.id, face)
                 except Exception:
                     existing.status = "recovery_required"
                     existing.failure_reason = "packet_integrity_requires_review"
@@ -378,10 +390,10 @@ class PacketService:
             if len(facts) == 3:
                 all_packets = s.exec(select(ApplicationPacket)).all()
                 used = sum(p.capacity_day == claim_day for p in all_packets if p.id != packet.id)
-                if packet.capacity_day is None and used >= self.settings.max_packets_per_day:
+                if not recovery_successor and packet.capacity_day is None and used >= self.settings.max_packets_per_day:
                     s.commit()
                     raise RuntimeError("daily_capacity_exhausted")
-            if len(facts) == 3 and packet.capacity_day is None:
+            if len(facts) == 3 and packet.capacity_day is None and not recovery_successor:
                 packet.capacity_day = claim_day
             ids = []
             for fact in facts:
