@@ -76,11 +76,12 @@ def company_opening_references_candidate(text, name):
     probe = unicodedata.normalize("NFKC", text).casefold()
     if re.search(r"\b(?:candidate|applicant|job\s+seeker|jobseeker|i|me|my|mine|you|your|yours)\b", probe):
         return True
-    normalized_name = unicodedata.normalize("NFKC", name).casefold().strip()
-    if normalized_name:
-        name_pattern = r"\s+".join(re.escape(part) for part in normalized_name.split())
-        return bool(re.search(r"(?<!\w)" + name_pattern + r"(?!\w)", probe))
-    return False
+    normalized_name = unicodedata.normalize("NFKC", name).casefold()
+    # Any exact nonempty name token is a candidate reference. Use the same
+    # Unicode tokenizer on both sides so substrings cannot borrow authority.
+    name_tokens = set(re.findall(r"\w+", normalized_name))
+    opening_tokens = set(re.findall(r"\w+", probe))
+    return bool(name_tokens & opening_tokens)
 
 
 class CoverLetterDraft(BaseModel):

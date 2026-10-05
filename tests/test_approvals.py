@@ -17,7 +17,7 @@ from job_agent.approvals import ApprovalService, DecisionError, REJECT_REASONS
 from job_agent.database import (ApplicationPacket, CompanyFactRecord, PacketDecision,
     SearchResult, WritingWorkItem, database_session, initialize_database)
 from job_agent.packets import PacketService, _local_verifier, digest, verify_packet_integrity
-from test_packets import setup, add_job, research_rows, FACTS, RESUME, NOW
+from test_packets import setup, add_job, research_rows, FACTS, RESUME, NOW, POISONED_OPENING, REORDERED_POISONED_OPENING, SINGLE_TOKEN_POISONED_OPENING
 
 
 @pytest.fixture
@@ -838,18 +838,47 @@ def test_only_selected_prepared_answers_are_truth_checked(ready):
     assert changed.input_hash != current.input_hash
 
 
-def test_historical_poisoned_company_opening_fails_shared_integrity_gate(ready, monkeypatch):
-    from test_packets import poison_company_opening, POISONED_OPENING
+@pytest.mark.parametrize("opening", [POISONED_OPENING, REORDERED_POISONED_OPENING, SINGLE_TOKEN_POISONED_OPENING])
+@pytest.mark.parametrize("historically_approved", [False, True])
+def test_historical_poisoned_company_opening_fails_shared_integrity_gate(ready, monkeypatch, opening, historically_approved):
+    from test_packets import poison_company_opening
     service, builder, _, _, directory = ready
-    current = poison_company_opening(builder, directory)
+    current = poison_company_opening(builder, directory, opening)
     row = add_job(current, "historical-poison")
     # Construct an otherwise coherent historical packet using the former boundary.
     # Only the new attribution check is bypassed during this TEST fixture build.
     with monkeypatch.context() as historical:
-        historical.setattr("job_agent.packet_verify.company_opening_references_candidate", lambda *args: False)
+        if opening == SINGLE_TOKEN_POISONED_OPENING:
+            # Reproduce the former all-token containment rule for this fixture.
+            import re
+            import unicodedata
+            def former_gate(text, name):
+                normalize = lambda value: unicodedata.normalize("NFKC", value).casefold()
+                name_tokens = set(re.findall(r"\w+", normalize(name)))
+                opening_tokens = set(re.findall(r"\w+", normalize(text)))
+                return bool(name_tokens) and name_tokens <= opening_tokens
+            historical.setattr("job_agent.packet_verify.company_opening_references_candidate", former_gate)
+        elif opening == REORDERED_POISONED_OPENING:
+            # Reproduce the actual former ordered-name boundary, including its
+            # explicit applicant/pronoun checks, only inside this fixture.
+            import re
+            import unicodedata
+            def former_gate(text, name):
+                probe = unicodedata.normalize("NFKC", text).casefold()
+                if re.search(r"\b(?:candidate|applicant|job\s+seeker|jobseeker|i|me|my|mine|you|your|yours)\b", probe):
+                    return True
+                normalized_name = unicodedata.normalize("NFKC", name).casefold().strip()
+                pattern = r"\s+".join(re.escape(part) for part in normalized_name.split())
+                return bool(normalized_name and re.search(r"(?<!\w)" + pattern + r"(?!\w)", probe))
+            historical.setattr("job_agent.packet_verify.company_opening_references_candidate", former_gate)
+        else:
+            historical.setattr("job_agent.packet_verify.company_opening_references_candidate", lambda *args: False)
         packet = current.build_one(row)
+        if historically_approved:
+            record = approve(service, packet.id, packet.fingerprint)
+            assert service.validate_approval_for_packet(packet.id, packet.fingerprint).decision_id == record.id
     assert packet.status == "packet_ready", packet.failure_reason
-    assert packet.cover_letter.startswith(POISONED_OPENING)
+    assert packet.cover_letter.startswith(opening)
     # Prove rejection reaches the shared truth gate, rather than a stale hash or
     # an unrelated artifact check. All historical input/output hashes are intact.
     import job_agent.packet_verify as gate
@@ -862,9 +891,14 @@ def test_historical_poisoned_company_opening_fails_shared_integrity_gate(ready, 
     with Session(current.engine) as session:
         with pytest.raises(ValueError):
             verify_packet_integrity(session, current.settings, packet)
-    assert checked == [POISONED_OPENING]
+    assert checked == [opening]
     checked.clear()
-    with pytest.raises(DecisionError, match="packet_integrity_failed"):
-        approve(service, packet.id, packet.fingerprint)
-    assert POISONED_OPENING in checked
-    assert decisions(service) == []
+    if historically_approved:
+        with pytest.raises(DecisionError, match="packet_integrity_failed"):
+            service.validate_approval_for_packet(packet.id, packet.fingerprint)
+        assert [decision.id for decision in decisions(service)] == [record.id]
+    else:
+        with pytest.raises(DecisionError, match="packet_integrity_failed"):
+            approve(service, packet.id, packet.fingerprint)
+        assert decisions(service) == []
+    assert opening in checked

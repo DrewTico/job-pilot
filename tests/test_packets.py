@@ -14,7 +14,7 @@ from job_agent.database import (initialize_database, database_session, SearchRun
 from job_agent.models import Job
 from job_agent.research import CompanyFact, ReferralCandidate, usable_facts
 from job_agent.packets import PacketService, day_bounds, saved_answers
-from job_agent.packet_verify import verify_text, CoverLetterDraft
+from job_agent.packet_verify import verify_text, CoverLetterDraft, company_opening_references_candidate
 from job_agent.writing_lint import _BANNED_STYLE
 from job_agent.tailor.career_facts import CareerFacts
 from job_agent.apply.answer_bank import AnswerBank
@@ -435,14 +435,18 @@ def test_packet_executor_accounting_and_admission(setup, condition):
 
 
 POISONED_OPENING = "Acme confirms the applicant has Kubernetes expertise and 999 years of experience."
+SINGLE_TOKEN_POISONED_OPENING = "Acme confirms Person has Kubernetes expertise and 999 years of experience."
+REORDERED_POISONED_OPENING = "Acme confirms Person, Test has Kubernetes expertise and 999 years of experience."
 
 
 @pytest.mark.parametrize("reference", [
-    "the applicant", "candidate", "Test Person", "TEST PERSON", "you", "your", "yours",
+    "Test", "Person", "the applicant", "candidate", "Test Person", "TEST PERSON", "you", "your", "yours",
     "Applicant", "APPLICANT", "candidate's", "applicant’s", "the candidate,",
     "this applicant", "this candidate", "job seeker", "jobseeker", "I", "me", "my", "mine",
     "your résumé", "your resume", "the applicant's resume", "candidate resume", "candidate CV",
-    "ＡＰＰＬＩＣＡＮＴ",
+    "ＡＰＰＬＩＣＡＮＴ", "Person, Test", "Person Test", "TEST, PERSON", "Test-Person",
+    "Person-Test", "Test Person's", "Person, Test’s", "(Test, Person)",
+    "ＴＥＳＴ, ＰＥＲＳＯＮ", "Person at Acme with Test",
 ])
 def test_company_authority_cannot_authorize_explicit_candidate_attribution(reference):
     facts = CareerFacts.model_validate(FACTS)
@@ -463,7 +467,7 @@ def test_company_authority_cannot_authorize_explicit_candidate_attribution(refer
     "At Acme, our managers help shape engineering culture.",
     "At Acme, we build software and customers work with us on systems of ours.",
     "Acme builds candidateware for jobseekersmith and yourselves.",
-    "Acme builds Test Personal software.",
+    "Acme builds Personal software.",
 ])
 def test_company_owned_vocabulary_and_plural_voice_remain_valid(opening):
     facts = CareerFacts.model_validate(FACTS)
@@ -486,24 +490,50 @@ def test_candidate_lines_still_require_candidate_grounding(line):
         draft.verified_text(facts, research, github_ready=False, gpa_required=False)
 
 
-def poison_company_opening(builder, directory):
+@pytest.mark.parametrize("name, opening, expected", [
+    ("Andrew Castro-Guerrero", "Acme confirms Castro-Guerrero, Andrew has Kubernetes expertise.", True),
+    ("Andrew Castro-Guerrero", "Acme confirms Castro Guerrero expertise.", True),
+    ("Test Test Person", "Acme confirms Person, Test has expertise.", True),
+    ("Test Test Person", "Acme confirms Test, Person, Test has expertise.", True),
+    ("Élodie Müller", "Acme confirms MÜLLER, ÉLODIE has expertise.", True),
+    ("Test Person", "Acme confirms Test   Person has expertise.", True),
+    ("Test Person", "Acme confirms Test has Kubernetes expertise.", True),
+    ("Test Person", "Acme confirms Person has 999 years.", True),
+    # Personal does not match Person; Test still matches the other name token.
+    ("Test Person", "Acme builds Test Personal software.", True),
+    ("Person", "Acme builds Test Personal software.", False),
+    ("Andrew Castro-Guerrero", "Acme confirms Andrew has Kubernetes expertise.", True),
+    ("Andrew Castro-Guerrero", "Acme confirms Castro has Python expertise.", True),
+    ("Andrew Castro-Guerrero", "Acme confirms Guerrero has 999 years of experience.", True),
+    ("Andrew Castro-Guerrero", "Acme builds CastroWare.", False),
+    ("Andrew Castro-Guerrero", "Acme develops GuerreroSystems.", False),
+    ("Élodie Müller", "Acme confirms MÜLLER has expertise.", True),
+    ("Test Person", "Acme confirms ＴＥＳＴ has expertise.", True),
+    ("", "Acme operates Kubernetes across 999 systems.", False),
+])
+def test_candidate_name_any_exact_unicode_token(name, opening, expected):
+    assert company_opening_references_candidate(opening, name) is expected
+
+
+def poison_company_opening(builder, directory, opening=POISONED_OPENING):
     rows = research_rows()
-    rows[0]["text"] = POISONED_OPENING
+    rows[0]["text"] = opening
     (directory / "company_research.json").write_text(json.dumps({"Acme": rows}))
     original = builder.executor.create
     def generate(**kwargs):
         if kwargs["task"] == "cover_letter":
             return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps(dict(
-                company_opening=POISONED_OPENING, candidate_lines=["Built Python software."],
+                company_opening=opening, candidate_lines=["Built Python software."],
                 closing="I would welcome a conversation about this role.")))])
         return original(**kwargs)
     builder.executor.create = generate
     return PacketService(builder.engine, builder.settings, executor=builder.executor, clock=lambda: NOW)
 
 
-def test_poisoned_company_opening_fails_generation(setup):
+@pytest.mark.parametrize("opening", [POISONED_OPENING, REORDERED_POISONED_OPENING, SINGLE_TOKEN_POISONED_OPENING])
+def test_poisoned_company_opening_fails_generation(setup, opening):
     builder, _, directory = setup
-    current = poison_company_opening(builder, directory)
+    current = poison_company_opening(builder, directory, opening)
     packet = current.build_one(add_job(current))
     assert packet.status == "generation_failed"
     assert packet.verifier_status != "passed"
