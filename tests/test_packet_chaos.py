@@ -378,20 +378,20 @@ def test_real_v5_migration_all_tables(tmp_path):
     old = ("jobs","job_identities","search_runs","search_results","application_events","llm_calls","llm_batches","scoring_work_items")
     with engine.begin() as conn:
         # A genuine v5 file has neither packet tables nor the v7 research cache.
-        for name in ("writing_work_items","application_packets","company_facts","company_research_cache"):
+        for name in ("packet_decisions","writing_work_items","application_packets","company_facts","company_research_cache"):
             conn.exec_driver_sql(f"DROP TABLE {name}")
         conn.exec_driver_sql("PRAGMA user_version=5")
         before = {name: conn.exec_driver_sql(f"SELECT * FROM {name}").all() for name in old}
-        indexes = conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache') ORDER BY name").all()
+        indexes = conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache','packet_decisions') ORDER BY name").all()
     engine.dispose()
     engine = initialize_database(path)
     with engine.connect() as conn:
         for name in old:
             assert conn.exec_driver_sql(f"SELECT * FROM {name}").all() == before[name]
-        assert conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache') ORDER BY name").all() == indexes
+        assert conn.exec_driver_sql("SELECT name,sql FROM sqlite_master WHERE type='index' AND tbl_name NOT IN ('company_facts','application_packets','writing_work_items','company_research_cache','packet_decisions') ORDER BY name").all() == indexes
         assert conn.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 7
-        for name in ("writing_work_items","application_packets","company_facts","company_research_cache"):
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == 8
+        for name in ("packet_decisions","writing_work_items","application_packets","company_facts","company_research_cache"):
             assert conn.exec_driver_sql(f"SELECT count(*) FROM {name}").scalar_one() == 0
     for statement in ("UPDATE application_events SET notes='changed'", "DELETE FROM application_events"):
         with pytest.raises(IntegrityError):
@@ -767,6 +767,8 @@ def test_legacy_v6_additive_packet_upgrade(setup):
         before = conn.exec_driver_sql("SELECT * FROM application_packets").all()
     from job_agent.ops import status
     assert status(service.engine,service.settings,now=NOW)["packets"]["packet_ready_today"] is None
+    with service.engine.begin() as conn:
+        conn.exec_driver_sql("PRAGMA user_version=6")
     upgraded = initialize_database(directory / "test.sqlite")
     with upgraded.connect() as conn:
         assert conn.exec_driver_sql("SELECT " + ",".join(old_columns) + " FROM application_packets").all() == before
@@ -822,7 +824,7 @@ def test_yaml_format_and_dictionary_order_reuse_writing_after_restart(setup):
     import yaml
     service,calls,directory = setup
     facts = {**FACTS,"skills_inventory":{"Languages":["Python"],"Databases":["SQL"]}}
-    bank = dict(authorized_us=True,requires_sponsorship=False,prepared_answers={"Exact?":"Saved answer."})
+    bank = dict(authorized_us=True,requires_sponsorship=False,prepared_answers={"Exact?":"Built Python software."})
     (directory / "facts.yaml").write_text(yaml.safe_dump(facts,sort_keys=False))
     (directory / "answer_bank.yaml").write_text(yaml.safe_dump(bank,sort_keys=False))
     active = PacketService(service.engine,service.settings,executor=service.executor,clock=lambda:NOW)

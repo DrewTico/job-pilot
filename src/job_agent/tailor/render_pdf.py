@@ -277,8 +277,9 @@ def render_pdf(resume_text: str, out_path: str | Path) -> Path:
     """Write the ATS-safe PDF (single column; skills in a two-column table).
     Returns the path."""
     _ensure_fonts()
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if not hasattr(out_path, "write"):
+        out_path = Path(out_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
     styles = _styles()
     flow = []
     skill_cats: list[tuple[str, str]] = []
@@ -318,7 +319,7 @@ def render_pdf(resume_text: str, out_path: str | Path) -> Path:
     flush_skills()   # skills were the last section on the face
 
     SimpleDocTemplate(
-        str(out_path), pagesize=letter,
+        out_path if hasattr(out_path, "write") else str(out_path), pagesize=letter,
         leftMargin=0.6 * inch, rightMargin=0.6 * inch,
         topMargin=0.5 * inch, bottomMargin=0.5 * inch, title="Resume",
     ).build(flow)
@@ -341,8 +342,9 @@ def render_docx(resume_text: str, out_path: str | Path) -> Path:
     from docx.oxml.ns import qn
     from docx.shared import Emu, Inches, Pt
 
-    out_path = Path(out_path)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if not hasattr(out_path, "write"):
+        out_path = Path(out_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
     doc = Document()
     normal = doc.styles["Normal"]
     normal.font.name = "Calibri"
@@ -442,7 +444,7 @@ def render_docx(resume_text: str, out_path: str | Path) -> Path:
             doc.add_paragraph(payload)
     flush_skills()   # skills were the last section on the face
 
-    doc.save(str(out_path))
+    doc.save(out_path if hasattr(out_path, "write") else str(out_path))
     return out_path
 
 

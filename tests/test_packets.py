@@ -79,7 +79,6 @@ def setup(tmp_path, monkeypatch):
         (directory / "resume.face.txt").write_text(checked.resume_text)
         return 0
     monkeypatch.setattr("job_agent.cli._write", render)
-    monkeypatch.setattr("job_agent.tailor.verify.extract_pdf_text", lambda p: "Built Python software.")
     service = PacketService(engine, Settings(data_dir=tmp_path), executor=Fake(), clock=lambda: NOW)
     yield service, calls, tmp_path
     engine.dispose()
@@ -237,7 +236,7 @@ def test_migration_preserves_scoring(setup):
         assert len(s.exec(select(SearchResult)).all()) == 1
         assert len(s.exec(select(ScoringWorkItem)).all()) == 1
     with upgraded.connect() as conn:
-        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SCHEMA_VERSION == 7
+        assert conn.exec_driver_sql("PRAGMA user_version").scalar_one() == SCHEMA_VERSION == 8
     upgraded.dispose()
 
 

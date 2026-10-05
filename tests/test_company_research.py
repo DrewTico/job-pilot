@@ -700,9 +700,9 @@ def test_populated_genuine_v6_migration_preserves_all_state(setup):
             for name in tables:
                 assert connection.exec_driver_sql(f'SELECT * FROM {name} ORDER BY 1').all() == before[name]
             assert connection.exec_driver_sql(
-                "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name!='company_research_cache' ORDER BY type,name").all() == indexes_triggers
+                "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name NOT IN ('company_research_cache','packet_decisions') ORDER BY type,name").all() == indexes_triggers
             assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
-            assert connection.exec_driver_sql("PRAGMA user_version").scalar_one() == 7
+            assert connection.exec_driver_sql("PRAGMA user_version").scalar_one() == 8
             assert connection.exec_driver_sql("SELECT count(*) FROM company_research_cache").scalar_one() == 0
             assert connection.exec_driver_sql("SELECT fingerprint FROM application_packets WHERE id=?", (packet.id,)).scalar_one() == packet.fingerprint
         for statement in ("UPDATE application_events SET notes='changed'", "DELETE FROM application_events",

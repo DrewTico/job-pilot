@@ -16,7 +16,7 @@ from sqlalchemy import JSON, CheckConstraint, Column, DateTime, Engine, UniqueCo
 from sqlalchemy.engine import URL
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 
 def _utc(value: datetime | None = None) -> datetime:
@@ -267,11 +267,37 @@ class WritingWorkItem(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
 
 
+class PacketDecision(SQLModel, table=True):
+    """One immutable user decision for one historical packet version."""
+    __tablename__ = "packet_decisions"
+    __table_args__ = (
+        UniqueConstraint("packet_id"),
+        CheckConstraint("decision IN ('approve','reject','revise')"),
+        CheckConstraint("actor = 'Andrew'"),
+        CheckConstraint("evidence_version = 1"),
+        CheckConstraint("length(packet_fingerprint) = 64 AND packet_fingerprint NOT GLOB '*[^0-9a-f]*'"),
+        CheckConstraint("length(detail) <= 4000"),
+        CheckConstraint("decision != 'approve' OR (reason_code = '' AND detail = '')"),
+        CheckConstraint("decision != 'revise' OR (reason_code = '' AND trim(detail, char(9)||char(10)||char(11)||char(12)||char(13)||char(28)||char(29)||char(30)||char(31)||char(32)||char(133)||char(160)||char(5760)||char(8192)||char(8193)||char(8194)||char(8195)||char(8196)||char(8197)||char(8198)||char(8199)||char(8200)||char(8201)||char(8202)||char(8232)||char(8233)||char(8239)||char(8287)||char(12288)) != '')"),
+        CheckConstraint("decision != 'reject' OR reason_code IN ('not_interested','bad_fit','company','location','pay','other')"),
+    )
+    id: str = Field(default_factory=lambda: uuid4().hex, primary_key=True)
+    packet_id: str = Field(foreign_key="application_packets.id")
+    packet_fingerprint: str
+    decision: str
+    actor: str = "Andrew"
+    reason_code: str = ""
+    detail: str = ""
+    created_at: datetime = Field(default_factory=_utc, sa_type=DateTime)
+    evidence_version: int = 1
+    evidence_json: str
+
+
 def initialize_database(path: str | Path) -> Engine:
-    """Explicitly create/open a file and initialize schema v7.
+    """Explicitly create/open a file and initialize schema v8.
 
     Unknown versions and nonempty unversioned databases are rejected, never
-    silently adopted. Versions 1 through 6 are upgraded transactionally.
+    silently adopted. Versions 1 through 7 are upgraded transactionally.
     Parent directories must already exist.
     """
     engine = create_engine(URL.create("sqlite", database=str(path)))
@@ -288,7 +314,7 @@ def initialize_database(path: str | Path) -> Engine:
             # transaction control. Serialize competing initializations.
             connection.exec_driver_sql("BEGIN IMMEDIATE")
             version = connection.exec_driver_sql("PRAGMA user_version").scalar_one()
-            if version not in (0, 1, 2, 3, 4, 5, 6, SCHEMA_VERSION):
+            if version not in (0, 1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION):
                 raise ValueError(f"Unsupported database schema version: {version}")
             if version == 0:
                 tables = connection.exec_driver_sql(
@@ -382,7 +408,7 @@ def initialize_database(path: str | Path) -> Engine:
             legacy = connection.exec_driver_sql(
                 "SELECT id,created_at FROM application_packets WHERE capacity_day IS NULL AND status != 'research_incomplete'"
             ).all()
-            for packet_id, created in legacy:
+            for packet_id, created in (legacy if version < 7 else ()):
                 claimed = datetime.fromisoformat(created).replace(tzinfo=timezone.utc)
                 day = claimed.astimezone(ZoneInfo("America/New_York")).date().isoformat()
                 connection.exec_driver_sql("UPDATE application_packets SET capacity_day=? WHERE id=?", (day, packet_id))
@@ -421,6 +447,23 @@ def initialize_database(path: str | Path) -> Engine:
                     f"BEFORE {operation} ON application_events BEGIN "
                     "SELECT RAISE(ABORT, 'application_events is append-only'); END"
                 )
+            PacketDecision.__table__.create(connection, checkfirst=True)
+            # SQLite length(TEXT) stops at embedded NUL. Count UTF-8 leading
+            # bytes for that exceptional case so the Unicode bound also holds
+            # for direct SQL, without excluding accepted original feedback.
+            connection.exec_driver_sql(
+                "CREATE TRIGGER IF NOT EXISTS packet_decisions_detail_length BEFORE INSERT ON packet_decisions "
+                "WHEN instr(NEW.detail,char(0)) > 0 BEGIN "
+                "WITH RECURSIVE counter(body,pos,n) AS ("
+                "SELECT hex(CAST(NEW.detail AS BLOB)),1,0 UNION ALL "
+                "SELECT body,pos+2,n+(substr(body,pos,1) NOT IN ('8','9','A','B')) FROM counter "
+                "WHERE pos<=length(body) AND n<=4000) "
+                "SELECT RAISE(ABORT,'decision detail exceeds 4000 characters') FROM counter WHERE n>4000; END")
+            for operation in ("UPDATE", "DELETE"):
+                connection.exec_driver_sql(
+                    f"CREATE TRIGGER IF NOT EXISTS packet_decisions_no_{operation.lower()} "
+                    f"BEFORE {operation} ON packet_decisions BEGIN "
+                    "SELECT RAISE(ABORT, 'packet_decisions is append-only'); END")
             connection.commit()
     except Exception:
         engine.dispose()

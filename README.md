@@ -738,8 +738,8 @@ state constraints and one claim per packet/task. All production writing calls us
 monthly budget gates; no database write transaction spans provider I/O.
 
 This command builds local review artifacts only. It creates no approval and has
-no email, application, calendar, form, or submission operation. Approval mutation
-and submission remain later slices.
+no email, application, calendar, form, or submission operation. The separate exact-packet decision backend is documented below; packet commands
+do not create decisions or submit applications.
 
 Artifacts render into fresh `packets/.staging/` directories. Regular-file, size,
 ZIP, PDF, truth and content-equivalence checks precede a durable manifest
@@ -767,3 +767,48 @@ magically: deleted or corrupted original bytes are not retained for exact
 restoration. The historical database evidence and any surviving artifacts remain
 under the original version. Future approval records can therefore refer to one
 exact immutable completed packet version.
+
+### Exact packet decisions (Run 1)
+
+Schema v8 adds the local `ApprovalService` backend for Approve, Reject and Revise
+requests. Approval means Andrew authorized **this exact completed packet row and
+version**. Completed versions remain immutable. The packet input fingerprint
+identifies semantic inputs; it alone cannot prove completed deliverables.
+Approve runs the shared read-only integrity verifier and records canonical
+completed evidence, including artifact hashes, writing checkpoints, company
+semantic fact IDs, cover-text hash and the exact current public application URL.
+No URL is fetched. `preview_approval(packet_id, expected_packet_fingerprint)`
+returns safe metadata and a deterministic `approval_view_fingerprint` of the
+canonical completed evidence. Approve requires both the expected packet fingerprint
+and that expected view fingerprint. A stale rendered destination or completed
+view fails without creating a decision. Stale packet fingerprints fail for every
+decision. Reject and Revise do not require a completed-view fingerprint.
+
+One packet receives one append-only decision, enforced by SQLite constraints and
+persistent UPDATE/DELETE blocking triggers. Identical requests replay the existing
+record; changed requests conflict. An Approve replay is historical and does not
+prove current authorization. Future submission must call
+`validate_approval_for_packet()` to reconstruct integrity and compare completed
+evidence again. Changed destinations or bound content invalidate authorization
+while preserving the historical decision.
+
+Decisions coordinate with packet building through the existing `.build.lock` and
+use `BEGIN IMMEDIATE` before decision reads. The lock coordinates cooperating Job
+Pilot processes, not arbitrary hostile local writers. SQLite and the filesystem
+are separate resources; current authorization must be revalidated before future
+submission. Approval performs no submission or employer-facing action.
+
+Reject captures one of `not_interested`, `bad_fit`, `company`, `location`, `pay`,
+or `other`, with optional detail; it does not tune filters. Revise records only a
+nonblank request of at most 4000 Unicode characters, preserving the original
+spaces, Unicode and newlines. Neither requires intact deliverables or regenerates
+anything. The existing lock/root must remain available. Revision feedback is
+private persisted state and is not logged.
+
+Run 2 handles style memory and revised packet generation. Run 3 handles the
+queue/UI and HTTP approval access. Run 4 handles authentication, Tailscale and
+phone/multi-device access. Automated submission is later. This core has no Gmail,
+email, referral research or application-submission integration. Deterministic
+screening truth checks reuse the existing candidate verifier for prepared prose;
+structured booleans/enums remain structured answers. Defined deterministic rules
+are not universal natural-language truth proofs.
