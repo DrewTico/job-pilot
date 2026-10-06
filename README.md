@@ -768,6 +768,114 @@ restoration. The historical database evidence and any surviving artifacts remain
 under the original version. Future approval records can therefore refer to one
 exact immutable completed packet version.
 
+### Run 3 local approval queue: Milestones A through D
+
+```sh
+job-agent approval-queue --data-dir data --port 8643
+```
+
+This separate approval application binds exactly `127.0.0.1`. Port defaults to
+8643 and accepts 1..65535; there is no host option. It requires an existing
+schema-v9 database and does not migrate or import data on startup. The legacy
+dashboard and its extension routes remain separate and unchanged.
+
+Milestone A provides a fixed local read-only shell and JSON queue, exact packet
+detail and version history. The queue keeps every undecided ready version,
+ordered by score descending, ready time ascending, then packet ID. Cards start
+with integrity not checked. Detail uses the trusted approval preview and
+reconciles the displayed packet bindings afterward; a changed snapshot returns
+`stale_packet` and must be reviewed again. Historical approval is displayed
+separately from current validation. Historical cover text uses the existing
+writing-checkpoint authenticator. Screening exposes required saved answers and
+manual-needed questions, never the complete answer bank.
+
+Requests accept only exact configured local Host authorities and loopback
+endpoints. Proxy headers are disabled and cannot redefine this origin. There is
+no permissive CORS, documentation API, remote asset, cacheable private response,
+or inline script/style. Security headers include a restrictive CSP, no-store,
+no-referrer, frame denial and nosniff. This is local-only access, without identity
+authentication. Run 4 owns authentication, Tailscale and multi-device access.
+
+Milestone B adds `GET /api/bootstrap` and exact-packet POST endpoints for
+`approve`, `reject` and `revise`. Bootstrap returns a process-scoped synchronizer
+token generated from 32 cryptographically random bytes. It stays in memory and
+changes when the server restarts. Every mutation requires the
+`X-Job-Pilot-CSRF` header and an exact local HTTP Origin matching the already
+validated Host. Origin/token rejection happens before private body reads.
+Mutations require bounded JSON, forbid extra fields, and sanitize validation
+errors without echoing private input.
+
+Approve requires both the displayed packet fingerprint and approval-view
+fingerprint. It never refreshes stale expectations during POST. A stale packet
+or view needs another explicit review and click. Exact replay returns the
+existing historical decision; current authorization is checked independently
+before being reported as valid. A busy post-commit check reports current
+authorization not checked while preserving the committed decision.
+
+Reject requires one of the six trusted reasons and optional detail of at most
+4000 Unicode characters; it does not tune search filters. Revise preserves exact
+nonblank feedback of at most 4000 Unicode characters and commits only the Revise
+decision. It does not generate, write style preferences, or start a worker in
+the HTTP request. Its response includes a revision-status URI.
+Creates a new packet version. The new version needs its own
+approval. Exact requests replay; changed requests conflict. A dropped response
+or API/browser restart does not erase a committed Revise decision.
+
+Milestone C adds the responsive Needs Review, Processing, Needs Attention and
+History sections, exact-version detail and inline decision confirmations.
+Desktop uses a queue rail and readable detail area; narrow screens use a single
+column with Back to queue. Private text enters the page through text nodes.
+Authority tokens stay in memory; restored pages refetch before allowing actions.
+
+Resume PDFs open only on explicit click in a separate local tab. The server
+returns captured authenticated bytes after the existing historical artifact
+checks, without accepting a caller path. Cover text preserves paragraphs;
+screening distinguishes saved answers from manual-needed questions. If the
+application asks a new question not represented here, stop and return to Job
+Pilot rather than inventing an answer. Company facts remain packet-bound and
+source links open only on explicit click without a referrer. History and local
+resume/cover diffs are informational and never authorize a packet.
+
+Revision status polls every five seconds while work is nonterminal. It provides
+state labels, not progress percentages or ETAs. A successor requires independent
+review and approval. Exact historical Reject detail or Revise feedback is fetched
+separately and displayed as plain text. This server does not start a worker.
+
+Run the approval server and revision worker in separate terminals/processes:
+
+```sh
+# Terminal 1
+job-agent approval-queue --data-dir data --port 8643
+
+# Terminal 2
+job-agent scheduler --revisions-only --data-dir data
+```
+
+The revisions-only mode scans immediately on startup and then every 10 seconds
+using APScheduler. It registers only revision processing; no discovery, batch or
+maintenance schedule runs. `--revisions-only` cannot be combined with `--once`.
+It opens only an existing schema-v9 database and requires no scoring profile.
+Normal scheduler behavior remains unchanged.
+
+A separate data-directory process lock permits one revision worker alongside
+the normal scheduler. Work is selected in decision-time/ID order: committed
+Revise decisions without work, or pending, style-prepared, style-persisted or
+building work. Succeeded, blocked and recovery-required work is excluded.
+Processing is sequential through the existing RevisionProcessor, whose global
+build lock and durable checkpoints remain authoritative. Restarts recover from
+those checkpoints, without resetting claims or blindly retrying ambiguous
+provider outcomes. Committed requests survive browser/API shutdown. Legitimate
+revision generation may call Anthropic under existing budget/checkpoint rules;
+the worker never calls Tavily or an employer. Blocked or recovery-required work
+requires manual review; no automatic recovery command is added.
+
+Historical Approve and current validity remain separate. The manual application
+link requires a current destination check, then revalidates on explicit click
+before opening the exact URL. The server never fetches the employer URL. No
+automatic navigation, form filling, upload or submission is added. Run 4 will
+add authenticated multi-device access; responsive layout does not enable remote
+phone access in Run 3.
+
 ### Exact packet decisions (Run 1)
 
 Schema v8 adds the local `ApprovalService` backend for Approve, Reject and Revise
@@ -935,8 +1043,9 @@ is denied. Ambiguous provider outcomes enter recovery_required and are not blind
 retried. Blocked/recovery_required work requires manual review; there is no new
 automatic reset or provider-retry command. Replayed success authenticates the
 surviving successor, and final completion reloads authoritative candidate inputs.
-The narrow CLI below exposes this operation. UI/API/authentication/Tailscale
-and submission remain deferred.
+The narrow CLI below exposes this operation. Run 3 adds the separate local
+approval UI/API described above. Authentication/Tailscale and submission remain
+deferred.
 
 
 ### Run 2 local revision command and historical views
@@ -981,5 +1090,6 @@ identity only. Original line endings and terminal newline presence are preserved
 with explicit missing-newline markers. Full content/diffs are not logged.
 These historical views **do not approve or authorize a packet**. Current
 authoritative truth, policy, URL, artifact and stale-view checks still apply to
-independent approval. Settings editing, Run 3 queue/UI/API, Run 4
-authentication/Tailscale/multi-device access and submission remain deferred.
+independent approval. The Run 3 section describes the local queue/UI/API.
+Settings editing, Run 4 authentication/Tailscale/multi-device access and
+submission remain deferred.

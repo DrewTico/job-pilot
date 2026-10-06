@@ -65,7 +65,7 @@ from job_agent.tailor.verify import (
     verify_pdf,
 )
 
-SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops", "packets", "revision-process"}
+SUBCOMMANDS = {"search", "tailor", "apply", "applications", "dashboard", "discover", "batch", "scheduler", "ops", "packets", "revision-process", "approval-queue"}
 DEMO_DIR = Path(__file__).resolve().parent / "tailor" / "demo"
 
 _VERDICT_STYLE = {"strong": "bold green", "possible": "yellow", "skip": "dim", "unscored": "red"}
@@ -643,10 +643,41 @@ def cmd_discover(console: Console, args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------------- #
 
+def _approval_port(value):
+    try:
+        port = int(value)
+        if 1 <= port <= 65535:
+            return port
+    except ValueError:
+        pass
+    raise argparse.ArgumentTypeError("port must be in 1..65535")
+
+
+def cmd_approval_queue(console, args):
+    try:
+        import uvicorn
+        from job_agent.dashboard.approval_app import create_approval_app
+        settings = load_settings()
+        if args.data_dir:
+            settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
+        app = create_approval_app(settings=settings, port=args.port)
+    except Exception:
+        console.print("Approval queue unavailable; requires existing schema v9 and installed dashboard dependencies. Details omitted.")
+        return 1
+    console.print(f"Local approval queue: http://127.0.0.1:{args.port} (Ctrl-C to stop)")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, proxy_headers=False,
+                forwarded_allow_ips="", access_log=False, log_level="warning")
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="job_agent",
                                      description="Discover, score, and tailor to jobs.")
     sub = parser.add_subparsers(dest="command")
+
+    approval = sub.add_parser("approval-queue", help="Local-only approval queue; binds exactly 127.0.0.1.")
+    approval.add_argument("--port", type=_approval_port, default=8643, help="Local port, 1..65535 (default 8643).")
+    approval.add_argument("--data-dir", default=None, help="Existing schema-v9 data directory.")
 
     rev = sub.add_parser("revision-process", help="Process one immutable Revise decision; no approval or submission.")
     rev.add_argument("--decision-id", required=True)
@@ -659,10 +690,13 @@ def _build_parser() -> argparse.ArgumentParser:
     pk.add_argument("--limit", type=int, default=None)
     pk.add_argument("--dry-run", action="store_true")
 
-    sch = sub.add_parser("scheduler", help="Run local discovery and scoring schedules.")
+    sch = sub.add_parser("scheduler", help="Run local discovery/scoring schedules or a separate revision-only worker.")
     sch.add_argument("--data-dir", default=None)
     sch.add_argument("--profile", default="search_profile.yaml")
-    sch.add_argument("--once", choices=["morning", "midday", "batch", "maintenance"])
+    sch_mode = sch.add_mutually_exclusive_group()
+    sch_mode.add_argument("--once", choices=["morning", "midday", "batch", "maintenance"])
+    sch_mode.add_argument("--revisions-only", action="store_true",
+                          help="Only process durable Revise decisions immediately and every 10 seconds; no discovery or batch schedules.")
     ops = sub.add_parser("ops", help="Read-only local operational status.")
     ops.add_argument("action", choices=["status"])
     ops.add_argument("--data-dir", default=None)
@@ -800,12 +834,14 @@ def cmd_ops(console, args):
 
 def cmd_scheduler(console, args):
     import logging
-    from job_agent.scheduler import run_scheduler, SchedulerLocked
+    from job_agent.scheduler import run_scheduler, run_revision_scheduler, SchedulerLocked
     settings = load_settings()
     if args.data_dir:
         settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     try:
+        if args.revisions_only:
+            return run_revision_scheduler(settings)
         return run_scheduler(settings, args.profile, once=args.once)
     except SchedulerLocked:
         console.print("Another scheduler holds the data-directory lock; no operations ran.")
@@ -826,7 +862,7 @@ def main(argv: list[str] | None = None) -> int:
                 "applications": cmd_applications, "dashboard": cmd_dashboard,
                 "discover": cmd_discover, "batch": cmd_batch,
                 "scheduler": cmd_scheduler, "ops": cmd_ops, "packets": cmd_packets,
-                "revision-process": cmd_revision_process}
+                "revision-process": cmd_revision_process, "approval-queue": cmd_approval_queue}
     handler = dispatch.get(args.command, cmd_search)
     try:
         return handler(console, args)

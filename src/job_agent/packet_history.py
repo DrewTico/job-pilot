@@ -41,6 +41,28 @@ class PacketDiff:
     diff: str | None = None
 
 
+@dataclass(frozen=True)
+class PacketCover:
+    status: str
+    text: str | None = None
+
+
+@private_packet_logs()
+def authenticated_cover_text(session, packet):
+    """Narrow historical cover view using the existing checkpoint authenticator.
+
+    Caller owns a read snapshot. This is informational, never current approval.
+    """
+    if packet.ready_at is None:
+        return PacketCover("unavailable")
+    try:
+        return PacketCover("available", _cover_text(session, packet))
+    except _ContentError as exc:
+        return PacketCover(str(exc))
+    except Exception:
+        return PacketCover("integrity_failed")
+
+
 def _id(value):
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{32}", value) is not None
 
@@ -177,7 +199,7 @@ def _cover_text(session, packet):
     return packet.cover_letter
 
 
-def _resume_text(settings, packet):
+def _resume_artifacts(settings, packet):
     if not packet.artifacts:
         raise _ContentError("unavailable")
     if not isinstance(packet.artifacts, dict) or set(packet.artifacts) != ARTIFACT_NAMES:
@@ -226,12 +248,43 @@ def _resume_text(settings, packet):
         face = contents["resume.face.txt"].decode("utf-8", errors="strict")
         checker = PacketService.__new__(PacketService)
         checker._verify_artifact_content(None, face, artifact_bytes=contents)
-        return face
+        return contents
     except FileNotFoundError:
         raise _ContentError("unavailable") from None
     finally:
         for descriptor in reversed(descriptors):
             os.close(descriptor)
+
+
+def _resume_text(settings, packet):
+    return _resume_artifacts(settings, packet)["resume.face.txt"].decode("utf-8", errors="strict")
+
+
+@private_packet_logs()
+def authenticated_resume_pdf(engine, settings, packet_id):
+    """Return captured fixed PDF bytes using the existing historical reader.
+
+    Never reopen a path for serving. Historical completion/integrity is not
+    current approval. No caller filename/path or alternate artifact is accepted.
+    """
+    if not _id(packet_id):
+        raise HistoryError("invalid_history_reference")
+    try:
+        with Session(engine) as session:
+            packet = session.get(ApplicationPacket, packet_id)
+            if packet is None:
+                raise HistoryError("packet_not_found")
+            if packet.ready_at is None:
+                raise HistoryError("artifact_unavailable")
+            if type(packet.version) is not int or packet.version < 1:
+                raise HistoryError("artifact_integrity_failed")
+            return packet.version, _resume_artifacts(settings, packet)["resume.pdf"]
+    except HistoryError:
+        raise
+    except _ContentError as exc:
+        raise HistoryError("artifact_unavailable" if str(exc) == "unavailable" else "artifact_integrity_failed") from None
+    except Exception:
+        raise HistoryError("artifact_integrity_failed") from None
 
 
 def _unified(left, right, left_packet, right_packet):

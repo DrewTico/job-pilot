@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Job Pilot local approval queue</title>
+  <link rel="stylesheet" href="/assets/approval.css">
+  <script src="/assets/approval.js" defer></script>
+</head>
+<body>
+  <header class="app-header">
+    <h1>Job Pilot approval queue</h1>
+    <p>Local only. Review and decide on one exact packet version.</p>
+  </header>
+  <p id="status" class="status" role="status" aria-live="polite">Loading queue.</p>
+  <main class="workspace">
+    <section id="queue-pane" aria-labelledby="queue-heading">
+      <h2 id="queue-heading">Needs Review</h2>
+      <nav id="sections" aria-label="Queue sections">
+        <button type="button" data-section="needs-review" aria-pressed="true">Needs Review</button>
+        <button type="button" data-section="processing" aria-pressed="false">Processing</button>
+        <button type="button" data-section="needs-attention" aria-pressed="false">Needs Attention</button>
+        <button type="button" data-section="history" aria-pressed="false">History</button>
+      </nav>
+      <ul id="queue" aria-label="Application packet queue"></ul>
+      <div class="pagination">
+        <button type="button" id="previous" disabled>Previous page</button>
+        <button type="button" id="next" disabled>Next page</button>
+      </div>
+    </section>
+    <section id="detail-pane" aria-label="Exact packet review">
+      <div class="detail-toolbar">
+        <button type="button" id="back">Back to queue</button>
+        <button type="button" id="refresh" disabled>Refresh exact packet</button>
+      </div>
+      <article id="detail"><h2>Select a packet to review</h2></article>
+    </section>
+  </main>
+</body>
+</html>

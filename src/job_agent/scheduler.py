@@ -25,11 +25,12 @@ class SchedulerLocked(RuntimeError):
 
 
 @contextmanager
-def scheduler_lock(data_dir):
+def scheduler_lock(data_dir, *, revisions_only=False):
     directory = Path(data_dir).resolve()
     directory.mkdir(parents=True, exist_ok=True)
     # Never unlink: replacing the inode would allow two lock owners.
-    with (directory / "scheduler.lock").open("a") as handle:
+    name = "revision_scheduler.lock" if revisions_only else "scheduler.lock"
+    with (directory / name).open("a") as handle:
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
@@ -93,6 +94,88 @@ def build_scheduler(operations):
                           args=[name], id=name, max_instances=1, coalesce=True,
                           misfire_grace_time=900)
     return scheduler
+
+
+class RevisionOperations:
+    """Discover committed decisions; durable domain checkpoints own execution."""
+    def __init__(self, engine, processor):
+        self.engine, self.processor = engine, processor
+        self.scan_lock = threading.Lock()
+
+    def run(self):
+        from sqlmodel import Session, select
+        from job_agent.database import PacketDecision, PacketRevisionWork
+        from job_agent.packets import private_packet_logs
+        if not self.scan_lock.acquire(blocking=False):
+            return False
+        try:
+            # Read only IDs, bounded pages. No transaction survives processing.
+            cursor = None
+            while True:
+                with Session(self.engine) as session:
+                    query = (select(PacketDecision.id, PacketDecision.created_at)
+                        .outerjoin(PacketRevisionWork, PacketRevisionWork.decision_id == PacketDecision.id)
+                        .where(PacketDecision.decision == "revise",
+                            (PacketRevisionWork.decision_id.is_(None)) |
+                            PacketRevisionWork.state.in_(("pending", "style_prepared", "style_persisted", "building"))))
+                    if cursor:
+                        timestamp, decision_id = cursor
+                        query = query.where((PacketDecision.created_at > timestamp) |
+                            ((PacketDecision.created_at == timestamp) & (PacketDecision.id > decision_id)))
+                    rows = session.exec(query.order_by(PacketDecision.created_at, PacketDecision.id).limit(100)).all()
+                if not rows:
+                    return True
+                for decision_id, timestamp in rows:
+                    cursor = (timestamp, decision_id)
+                    try:
+                        with private_packet_logs():
+                            self.processor.process_revision(decision_id)
+                    except Exception:
+                        # No retry/reset here. The next scan trusts domain state.
+                        LOG.error("operation=revision failed decision_id=%s", decision_id)
+        except Exception:
+            LOG.error("operation=revision scan_failed")
+            return False
+        finally:
+            self.scan_lock.release()
+
+
+def build_revision_scheduler(operations):
+    scheduler = BlockingScheduler(timezone=TIMEZONE)
+    scheduler.add_job(operations.run, "interval", seconds=10, id="revisions",
+                      max_instances=1, coalesce=True, misfire_grace_time=10)
+    return scheduler
+
+
+def run_revision_scheduler(settings):
+    """Separate local worker; no discovery, profile, research or batch service."""
+    import signal
+    from job_agent.dashboard.approval_app import _existing_engine
+    from job_agent.packets import private_packet_logs
+    from job_agent.revisions import RevisionProcessor
+    with scheduler_lock(settings.data_dir, revisions_only=True):
+        with private_packet_logs():
+            engine = _existing_engine(settings)  # Existing v9 only; no migration/import.
+        try:
+            operations = RevisionOperations(engine, RevisionProcessor(engine, settings))
+            scheduler = build_revision_scheduler(operations)
+            stopping = threading.Event()
+            def terminate(*_):
+                stopping.set()
+                if scheduler.running:
+                    scheduler.shutdown(wait=True)
+            previous = signal.signal(signal.SIGTERM, terminate)
+            try:
+                operations.run()  # Discover durable work immediately on startup.
+                if not stopping.is_set():
+                    scheduler.start()
+            finally:
+                signal.signal(signal.SIGTERM, previous)
+                if scheduler.running:
+                    scheduler.shutdown(wait=True)
+        finally:
+            engine.dispose()
+    return 0
 
 
 def run_scheduler(settings, profile, *, once=None):

@@ -284,3 +284,250 @@ def test_locked_scheduler_never_initializes_services(tmp_path,monkeypatch):
     with scheduler_lock(tmp_path):
         with pytest.raises(RuntimeError,match='Another scheduler'):
             run_scheduler(Settings(data_dir=tmp_path),'unused',once='maintenance')
+
+
+# Run 3 D: real durable Run 2 services, fake provider and outbound traps.
+from test_revisions import revision_setup, packet_setup, offline_only, REVISION_CRASH_PHASES
+from job_agent.scheduler import RevisionOperations, build_revision_scheduler, run_revision_scheduler
+from job_agent.database import PacketDecision, PacketRevisionWork, ApplicationPacket
+
+
+def test_revision_schedule_registers_only_coalesced_ten_second_scan():
+    scheduler = build_revision_scheduler(NS(run=lambda: True))
+    jobs = scheduler.get_jobs()
+    assert len(jobs) == 1 and jobs[0].id == "revisions"
+    assert jobs[0].trigger.interval.total_seconds() == 10
+    assert jobs[0].max_instances == 1 and jobs[0].coalesce
+
+
+def _try_revision_lock(directory, result):
+    try:
+        with scheduler_lock(directory, revisions_only=True):
+            result.put("acquired")
+    except RuntimeError:
+        result.put("refused")
+
+
+def test_revision_worker_process_lock_coexists_with_normal_scheduler(tmp_path):
+    ctx = multiprocessing.get_context("spawn")
+    with scheduler_lock(tmp_path):
+        with scheduler_lock(tmp_path, revisions_only=True):
+            result = ctx.Queue()
+            child = ctx.Process(target=_try_revision_lock, args=(tmp_path, result))
+            child.start()
+            assert result.get(timeout=10) == "refused"
+            child.join(10)
+            assert child.exitcode == 0
+    with scheduler_lock(tmp_path, revisions_only=True):
+        pass
+
+
+def test_revision_cli_mode_dispatch_and_incompatible_once(monkeypatch, tmp_path):
+    import job_agent.cli as cli
+    import job_agent.scheduler as scheduling
+    from rich.console import Console
+    from io import StringIO
+    seen = []
+    monkeypatch.setattr(scheduling, "run_revision_scheduler", lambda settings: seen.append(settings.data_dir) or 0)
+    monkeypatch.setattr(scheduling, "run_scheduler", lambda *args, **kwargs: pytest.fail("normal scheduler invoked"))
+    args = cli._build_parser().parse_args(["scheduler", "--revisions-only", "--data-dir", str(tmp_path)])
+    assert cli.cmd_scheduler(Console(file=StringIO()), args) == 0 and seen == [tmp_path]
+    with pytest.raises(SystemExit):
+        cli._build_parser().parse_args(["scheduler", "--revisions-only", "--once", "batch"])
+
+
+def test_revision_worker_startup_scan_before_interval_and_no_unrelated_services(revision_setup, monkeypatch):
+    import job_agent.scheduler as scheduling
+    import job_agent.revisions as revisions
+    import job_agent.batch as batch
+    import job_agent.search_state as search
+    import job_agent.dashboard.approval_app as app
+    processor, service, calls, directory, source, decision = revision_setup
+    import sqlite3
+    with sqlite3.connect(directory / "test.sqlite") as origin:
+        with sqlite3.connect(directory / "job_pilot.sqlite3") as destination:
+            origin.backup(destination)
+    service.engine.dispose()
+    service.engine = app._existing_engine(service.settings)
+    processor.engine = service.engine
+    events = []
+    original = processor.process_revision
+    processor.process_revision = lambda key: events.append("scan") or original(key)
+    monkeypatch.setattr(revisions, "RevisionProcessor", lambda *args: processor)
+    def forbidden(*args, **kwargs): pytest.fail("unrelated service started")
+    monkeypatch.setattr(batch, "BatchService", forbidden)
+    monkeypatch.setattr(search, "search_database", forbidden)
+    monkeypatch.setattr(scheduling, "scheduled_discovery", forbidden)
+    monkeypatch.setattr(scheduling, "build_revision_scheduler", lambda ops: NS(
+        running=False, start=lambda: events.append("interval")))
+    assert run_revision_scheduler(service.settings) == 0
+    assert events == ["scan", "interval"] and len(calls) == 4
+    assert RevisionOperations(service.engine, processor).run()
+    assert events == ["scan", "interval"]  # Succeeded work is excluded.
+    with Session(service.engine) as session:
+        work = session.get(PacketRevisionWork, decision.id)
+        assert work.state == "succeeded"
+        assert session.exec(select(PacketDecision).where(PacketDecision.packet_id == work.successor_packet_id)).first() is None
+        assert session.connection().exec_driver_sql("PRAGMA user_version").scalar() == 9
+
+
+@pytest.mark.parametrize("phase", REVISION_CRASH_PHASES)
+def test_revision_worker_crash_restart_discovers_durable_checkpoint(revision_setup, phase):
+    from job_agent.revisions import RevisionProcessor
+    processor, service, calls, directory, source, decision = revision_setup
+    def crash(name):
+        if name == phase: raise SystemExit("test-only crash")
+    processor._boundary = crash
+    with pytest.raises(SystemExit): RevisionOperations(service.engine, processor).run()
+    restarted = RevisionProcessor(service.engine, service.settings, executor=service.executor, clock=processor.clock)
+    assert RevisionOperations(service.engine, restarted).run()
+    with Session(service.engine) as session:
+        work = session.get(PacketRevisionWork, decision.id)
+        assert work.state == "succeeded", work.failure_code
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+    assert len(calls) == 4
+    assert RevisionOperations(service.engine, restarted).run() and len(calls) == 4
+
+
+def test_revision_worker_ambiguous_provider_outcome_excluded_after_restart(revision_setup):
+    from job_agent.revisions import RevisionProcessor
+    processor, service, calls, directory, source, decision = revision_setup
+    attempted = []
+    def unknown(**request):
+        attempted.append(request["task"])
+        raise RuntimeError("PRIVATE provider outcome")
+    processor.executor = NS(create=unknown)
+    assert RevisionOperations(service.engine, processor).run()
+    with Session(service.engine) as session:
+        work = session.get(PacketRevisionWork, decision.id)
+        assert work.state == "recovery_required"
+    restart = RevisionProcessor(service.engine, service.settings, executor=processor.executor, clock=processor.clock)
+    assert RevisionOperations(service.engine, restart).run()
+    assert attempted == ["tailor_resume"] and len(calls) == 2
+
+
+def test_revision_worker_blocked_excluded_and_status_available(revision_setup):
+    from job_agent.dashboard.approval_service import ApprovalQueueService
+    processor, service, calls, directory, source, decision = revision_setup
+    with Session(service.engine) as session:
+        session.add(PacketRevisionWork(decision_id=decision.id, state="blocked", failure_code="budget_blocked"))
+        session.commit()
+    processor.process_revision = lambda key: pytest.fail("blocked retry")
+    assert RevisionOperations(service.engine, processor).run() and len(calls) == 2
+    status = ApprovalQueueService(service.engine, service.settings).revision_status(source.id)
+    assert status.state == "blocked" and status.label == "Revision needs attention"
+
+
+def test_revision_worker_order_sequential_overlap_and_sanitized_failure(revision_setup, caplog):
+    from test_packets import add_job
+    from job_agent.approvals import ApprovalService
+    processor, service, calls, directory, source, decision = revision_setup
+    other = service.build_one(add_job(service, "other"))
+    second = ApprovalService(service.engine, service.settings).revise(other.id, other.fingerprint, "PRIVATE feedback")
+    seen = []
+    def fail(key):
+        seen.append(key)
+        raise RuntimeError("PRIVATE exception /absolute/path")
+    operations = RevisionOperations(service.engine, NS(process_revision=fail))
+    with Session(service.engine) as session:
+        expected = session.exec(select(PacketDecision.id).order_by(PacketDecision.created_at, PacketDecision.id)).all()
+    assert operations.run() and seen == expected
+    assert "PRIVATE" not in caplog.text and "/absolute/path" not in caplog.text
+    operations.scan_lock.acquire()
+    try: assert operations.run() is False
+    finally: operations.scan_lock.release()
+    assert seen == expected
+
+
+def test_duplicate_revision_launcher_never_opens_storage(tmp_path, monkeypatch):
+    from job_agent.config import Settings
+    import job_agent.dashboard.approval_app as app
+    monkeypatch.setattr(app, "_existing_engine", lambda settings: pytest.fail("storage opened"))
+    with scheduler_lock(tmp_path, revisions_only=True):
+        with pytest.raises(RuntimeError, match="Another scheduler"):
+            run_revision_scheduler(Settings(data_dir=tmp_path))
+
+
+
+def test_revision_duplicate_scan_converges_under_domain_lock(revision_setup):
+    from concurrent.futures import ThreadPoolExecutor
+    processor, service, calls, directory, source, decision = revision_setup
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: RevisionOperations(service.engine, processor).run(), range(2)))
+    assert results == [True, True] and len(calls) == 4
+    with Session(service.engine) as session:
+        assert session.get(PacketRevisionWork, decision.id).state == "succeeded"
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+
+
+def test_revision_sigterm_during_initial_scan_does_not_start_interval(revision_setup, monkeypatch):
+    import signal
+    import job_agent.scheduler as scheduling
+    import job_agent.revisions as revisions
+    import job_agent.dashboard.approval_app as app
+    processor, service, calls, directory, source, decision = revision_setup
+    previous = signal.getsignal(signal.SIGTERM)
+    def stopping(key): signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)
+    processor.process_revision = stopping
+    monkeypatch.setattr(revisions, "RevisionProcessor", lambda *args: processor)
+    monkeypatch.setattr(app, "_existing_engine", lambda settings: service.engine)
+    monkeypatch.setattr(scheduling, "build_revision_scheduler", lambda ops: NS(
+        running=False, start=lambda: pytest.fail("started after termination")))
+    assert run_revision_scheduler(service.settings) == 0
+    assert signal.getsignal(signal.SIGTERM) == previous
+
+
+@pytest.mark.parametrize("present", [False, True])
+def test_revision_worker_storage_requires_existing_v9(tmp_path, present):
+    from job_agent.config import Settings
+    import sqlite3
+    path = tmp_path / "job_pilot.sqlite3"
+    if present:
+        with sqlite3.connect(path) as conn: conn.execute("PRAGMA user_version=8")
+    with pytest.raises(ValueError, match="approval_storage_unavailable"):
+        run_revision_scheduler(Settings(data_dir=tmp_path))
+    assert path.exists() == present
+    if present:
+        with sqlite3.connect(path) as conn: assert conn.execute("PRAGMA user_version").fetchone()[0] == 8
+
+
+
+@pytest.mark.parametrize("phase", ["after_writing_checkpoint", "after_ready_commit"])
+def test_revision_worker_process_death_releases_lock_and_preserves_provider_checkpoints(revision_setup, phase):
+    import os
+    from job_agent.revisions import RevisionProcessor
+    from job_agent.dashboard.approval_service import ApprovalQueueService
+    processor, service, calls, directory, source, decision = revision_setup
+    status_service = ApprovalQueueService(service.engine, service.settings)
+    assert status_service.revision_status(source.id).state == "queued"
+    context = multiprocessing.get_context("fork")
+    paid = context.Value("i", 0)
+    original = processor.executor.create
+    def counted(**request):
+        with paid.get_lock(): paid.value += 1
+        return original(**request)
+    processor.executor = NS(create=counted)
+    def worker():
+        service.engine.dispose()
+        def crash(name):
+            if name == phase: os._exit(97)
+        processor._boundary = crash
+        with scheduler_lock(directory, revisions_only=True):
+            RevisionOperations(service.engine, processor).run()
+        os._exit(98)
+    child = context.Process(target=worker)
+    child.start(); child.join(15)
+    try: assert not child.is_alive() and child.exitcode == 97
+    finally:
+        if child.is_alive(): child.terminate(); child.join(5)
+    assert status_service.revision_status(source.id).state == "building"
+    restart = RevisionProcessor(service.engine, service.settings, executor=processor.executor, clock=processor.clock)
+    with scheduler_lock(directory, revisions_only=True):
+        assert RevisionOperations(service.engine, restart).run()
+    status = status_service.revision_status(source.id)
+    assert status.state == "succeeded" and status.successor_version == source.version + 1
+    assert status.successor_status == "packet_ready" and paid.value == 2
+    with Session(service.engine) as session:
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+        assert session.exec(select(PacketDecision).where(PacketDecision.packet_id == status.successor_packet_id)).first() is None
+    assert RevisionOperations(service.engine, restart).run() and paid.value == 2
