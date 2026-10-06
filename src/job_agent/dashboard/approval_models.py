@@ -198,3 +198,9 @@ class BootstrapResponse(DTO):
     csrf_token: str
     local_only: bool = True
     origin: str
+
+
+class TailscaleBootstrapResponse(DTO):
+    csrf_token: str
+    local_only: Literal[False] = False
+    access_mode: Literal["tailscale"] = "tailscale"

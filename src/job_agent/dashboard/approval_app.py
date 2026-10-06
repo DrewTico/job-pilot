@@ -1,4 +1,4 @@
-"""Separate strictly local approval app. Legacy dashboard/router are not mounted."""
+"""Separate loopback approval app. Legacy dashboard/router are not mounted."""
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -19,9 +19,9 @@ from job_agent.packet_history import HistoryError
 from job_agent.packets import private_packet_logs
 from job_agent.dashboard.approval_models import (ApproveRequest, BootstrapResponse,
     ApplicationDestination, DecisionDetail, DecisionResult, HistoryItem, PacketDetail, PacketDiffResult,
-    QueueQuery, QueueResponse, RejectRequest, ReviseRequest, RevisionStatus)
+    QueueQuery, QueueResponse, RejectRequest, ReviseRequest, RevisionStatus, TailscaleBootstrapResponse)
 from job_agent.dashboard.approval_security import (
-    AdapterError, LocalBoundaryMiddleware, ProcessCSRF, error_response, validate_port,
+    AdapterError, LocalBoundaryMiddleware, ProcessCSRF, approval_access, error_response, validate_port,
 )
 from job_agent.dashboard.approval_service import ApprovalQueueService
 
@@ -70,7 +70,8 @@ def _existing_engine(settings):
     return engine
 
 
-def create_approval_app(*, settings: Settings | None = None, engine=None, port: int = 8643) -> FastAPI:
+def create_approval_app(*, settings: Settings | None = None, engine=None, port: int = 8643,
+                        access: str = "local") -> FastAPI:
     """Factory binds request policy to the actual CLI/test server port.
 
     Alternate launchers must bind 127.0.0.1 with proxy_headers=False too. Broad
@@ -78,6 +79,7 @@ def create_approval_app(*, settings: Settings | None = None, engine=None, port: 
     """
     validate_port(port)
     settings = settings if settings is not None else Settings()
+    approval_access(access, settings)
     owned = engine is None
     if owned:
         with private_packet_logs():
@@ -93,9 +95,9 @@ def create_approval_app(*, settings: Settings | None = None, engine=None, port: 
             if owned:
                 engine.dispose()
 
-    app = FastAPI(title="Job Pilot local approval", docs_url=None, redoc_url=None,
+    app = FastAPI(title="Job Pilot approval", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
-    app.add_middleware(LocalBoundaryMiddleware, port=port, csrf=csrf)
+    app.add_middleware(LocalBoundaryMiddleware, port=port, csrf=csrf, access=access, settings=settings)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):
@@ -135,8 +137,10 @@ def create_approval_app(*, settings: Settings | None = None, engine=None, port: 
     def queue(query: Annotated[QueueQuery, Query()]):
         return service.queue(query)
 
-    @app.get("/api/bootstrap", response_model=BootstrapResponse)
+    @app.get("/api/bootstrap", response_model=BootstrapResponse | TailscaleBootstrapResponse)
     async def bootstrap(request: Request):
+        if access == "tailscale":
+            return TailscaleBootstrapResponse(csrf_token=csrf.token())
         # Host has already passed the raw boundary; no DB/provider access.
         authority = request.headers["host"]
         if port == 80:

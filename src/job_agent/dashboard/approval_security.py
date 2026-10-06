@@ -1,7 +1,8 @@
-"""Run 3 request boundary. No proxy, cross-origin or remote access support."""
+"""Loopback approval boundary with explicit local or trusted Serve identity policy."""
 import fcntl
 import hmac
 import os
+import re
 import secrets
 import stat
 
@@ -25,6 +26,32 @@ SECURITY_HEADERS = {
 MAX_MUTATION_BODY_BYTES = 65_536
 
 
+def supported_login(value):
+    """Strict ASCII bytes only; no decoding/normalization or ambiguous lists."""
+    return (isinstance(value, bytes) and 1 <= len(value) <= 512
+            and all(33 <= byte <= 126 for byte in value)
+            and not any(char in value for char in (b",", b"*", b"?", b"[", b"]"))
+            and b"=?" not in value)
+
+
+def approval_access(access, settings):
+    """Validate private mode configuration before opening storage. Never echo it."""
+    if access == "local":
+        return None, None
+    if access != "tailscale":
+        raise ValueError("invalid_approval_access")
+    try:
+        login = settings.approval_tailscale_login.get_secret_value().encode("ascii")
+        host = settings.approval_tailscale_host.get_secret_value().encode("ascii")
+    except (AttributeError, UnicodeError):
+        raise ValueError("invalid_approval_access_configuration") from None
+    label = rb"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+    if (not supported_login(login) or len(host) > 253
+            or re.fullmatch(label + rb"\." + label + rb"\.ts\.net", host) is None):
+        raise ValueError("invalid_approval_access_configuration")
+    return login, host
+
+
 class ProcessCSRF:
     """One in-memory synchronizer token per approval app server instance.
 
@@ -37,13 +64,15 @@ class ProcessCSRF:
     def token(self):
         return self._token
 
-    def accepts(self, headers, host, port):
+    def accepts(self, headers, host, port, *, origin=None):
         origins = [value for name, value in headers if name.lower() == b"origin"]
         tokens = [value for name, value in headers if name.lower() == b"x-job-pilot-csrf"]
         allowed = {b"http://" + host}
         if port == 80:
             name = host.removesuffix(b":80")
             allowed = {b"http://" + name, b"http://" + name + b":80"}
+        if origin is not None:
+            allowed = {origin}
         return (len(origins) == 1 and origins[0] in allowed and len(tokens) == 1
                 and hmac.compare_digest(tokens[0], self._token.encode("ascii")))
 
@@ -71,12 +100,22 @@ class LocalBoundaryMiddleware:
     Uvicorn must also disable proxy_headers. Forwarded headers are ignored here.
     Exact scope server/client checks fail closed for alternate broad invocation.
     """
-    def __init__(self, app, *, port, csrf=None):
+    def __init__(self, app, *, port, csrf=None, access="local", settings=None):
         self.app, self.port = app, validate_port(port)
+        self.login, self.tailnet_host = approval_access(access, settings)
+        self.access = access
         self.csrf = csrf if csrf is not None else ProcessCSRF()
         self.authorities = {f"127.0.0.1:{port}".encode(), f"localhost:{port}".encode()}
         if port == 80:
             self.authorities.update({b"127.0.0.1", b"localhost"})
+        if access == "tailscale":
+            # Canonical HTTPS authority only; explicit ports are refused.
+            self.authorities = {self.tailnet_host}
+
+    def loopback_boundary(self, scope):
+        server, client = scope.get("server"), scope.get("client")
+        return (server == ("127.0.0.1", self.port) and client
+                and client[0] == "127.0.0.1" and scope.get("scheme") == "http")
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "lifespan":
@@ -85,18 +124,28 @@ class LocalBoundaryMiddleware:
         if scope["type"] != "http":
             await send({"type": "websocket.close", "code": 1008})
             return
+        if self.access == "tailscale" and not self.loopback_boundary(scope):
+            await error_response("local_only", 403)(scope, receive, send)
+            return
         hosts = [value for name, value in scope.get("headers", []) if name.lower() == b"host"]
         if len(hosts) != 1 or hosts[0] not in self.authorities:
             await error_response("invalid_host", 400)(scope, receive, send)
             return
-        server, client = scope.get("server"), scope.get("client")
-        if (server != ("127.0.0.1", self.port) or not client or client[0] != "127.0.0.1"
-                or scope.get("scheme") != "http"):
+        if not self.loopback_boundary(scope):
             await error_response("local_only", 403)(scope, receive, send)
             return
+        if self.access == "tailscale":
+            identities = [v for k, v in scope.get("headers", []) if k.lower() == b"tailscale-user-login"]
+            if len(identities) != 1 or not supported_login(identities[0]):
+                await error_response("authentication_required", 401)(scope, receive, send)
+                return
+            if not hmac.compare_digest(identities[0], self.login):
+                await error_response("authorization_failed", 403)(scope, receive, send)
+                return
         if scope["method"] not in {"GET", "HEAD", "OPTIONS"}:
             # Origin + token are checked BEFORE receiving/parsing private bodies.
-            if not self.csrf.accepts(scope.get("headers", []), hosts[0], self.port):
+            origin = b"https://" + self.tailnet_host if self.access == "tailscale" else None
+            if not self.csrf.accepts(scope.get("headers", []), hosts[0], self.port, origin=origin):
                 await error_response("csrf_failed", 403)(scope, receive, send)
                 return
             try:

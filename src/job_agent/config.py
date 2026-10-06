@@ -99,6 +99,8 @@ class Settings(BaseModel):
     immediate_scoring_max_age_hours: float = Field(default=48, ge=0, allow_inf_nan=False)
     max_batch_items: int = Field(default=100, ge=1, le=100000)
     data_dir: Path = Path("data")
+    approval_tailscale_login: SecretStr | None = Field(default=None, repr=False, exclude=True)
+    approval_tailscale_host: SecretStr | None = Field(default=None, repr=False, exclude=True)
 
     @model_validator(mode="before")
     @classmethod
@@ -120,6 +122,8 @@ def load_settings() -> Settings:
         "data_dir": Path(os.environ.get("JOB_AGENT_DATA_DIR", "data")),
         "company_research_provider": os.environ.get("JOB_AGENT_COMPANY_RESEARCH_PROVIDER", "fixture"),
         "tavily_api_key": os.environ.get("TAVILY_API_KEY") or None,
+        "approval_tailscale_login": os.environ.get("JOB_AGENT_APPROVAL_TAILSCALE_LOGIN"),
+        "approval_tailscale_host": os.environ.get("JOB_AGENT_APPROVAL_TAILSCALE_HOST"),
     }
     values["github_ready"] = os.environ.get("JOB_AGENT_GITHUB_READY", "false").lower() == "true"
     if os.environ.get("JOB_AGENT_MODEL"):

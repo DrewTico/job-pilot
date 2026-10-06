@@ -1093,3 +1093,64 @@ authoritative truth, policy, URL, artifact and stale-view checks still apply to
 independent approval. The Run 3 section describes the local queue/UI/API.
 Settings editing, Run 4 authentication/Tailscale/multi-device access and
 submission remain deferred.
+
+### Run 4 Milestone A: authenticated Tailscale access policy
+
+The approval command defaults to local mode, preserving Run 3:
+
+```sh
+job-agent approval-queue --data-dir data --port 8643
+job-agent approval-queue --access local --data-dir data --port 8643
+```
+
+Application support for a future operator-managed Tailscale Serve proxy is explicit:
+
+```sh
+job-agent approval-queue --access tailscale --data-dir data --port 8643
+```
+
+Both modes bind only `127.0.0.1`, with proxy headers and access logging disabled.
+There is no host option. This command does not install Tailscale, log in, configure
+Serve/Funnel/HTTPS, change policy or contact Tailscale APIs. **Real Serve placement
+and multi-device access have not been tested.** Milestone B requires separate
+operator approval and controlled setup/smoke testing.
+
+Tailscale mode requires both private environment/.env settings:
+`JOB_AGENT_APPROVAL_TAILSCALE_LOGIN` and `JOB_AGENT_APPROVAL_TAILSCALE_HOST`.
+They use excluded, non-repr `SecretStr` fields and never enter SQLite, bootstrap
+JSON or startup output. Local mode requires neither and ignores these settings.
+Login is one exact printable ASCII identity of 1–512 bytes, without whitespace,
+controls, commas, wildcard characters (`*?[]`) or RFC2047 encoded words. No
+trimming, case folding, Unicode normalization or alias/suffix matching occurs.
+Unsupported future operator representations must be deliberately supported before
+setup can proceed. Host is a lowercase DNS name with exactly device and tailnet
+labels before `.ts.net`, valid 1–63 character DNS labels and at most 253 bytes.
+Schemes, paths, ports, userinfo, wildcards, trailing dots, localhost and IPs fail.
+Keep actual private values in the local environment/.env, never committed docs.
+
+Every HTTP request, including shell, assets, bootstrap, PDFs and unknown paths,
+requires the actual ASGI server `127.0.0.1:<configured-port>`, IPv4 loopback client
+and HTTP backend scheme. Then exactly one raw Host must equal the configured
+hostname, without an explicit port (canonical external HTTPS authority). Direct
+localhost browser access to this mode fails. Exactly one raw
+`Tailscale-User-Login` must have the supported byte representation and exactly
+match the configured login. Display name, profile picture, forwarded headers,
+cookies, query parameters and request bodies supply no identity authority.
+Missing/invalid identity returns `401 authentication_required`; supported but
+nonmatching identity returns `403 authorization_failed`. Neither reveals values.
+
+Mutation additionally requires exactly one Origin equal to
+`https://<configured-host>` and the existing process-memory CSRF token, followed
+by Run 3's bounded JSON/DTO checks and exact packet/view expectations. The origin
+is configured, never derived from the backend HTTP scheme or forwarded headers.
+Rejected authentication/Origin/CSRF requests do not read private bodies. Restart
+invalidates old CSRF tokens and still requires identity. Authenticated bootstrap
+returns only `csrf_token`, `local_only: false` and `access_mode: tailscale`; local
+bootstrap retains its exact Run 3 fields. Same-origin UI resources, CSP, no CORS,
+security headers, private log suppression and all domain semantics are preserved.
+
+Synthetic ASGI tests establish application policy only. Milestone B must prove
+that WSL-local Serve actually supplies the required Host, identity and loopback
+scope in this NAT environment. An equally privileged malicious local process can
+forge identity headers and remains inside the trusted-host boundary. This is
+not isolation from a compromised host. See [TAILSCALE_ACCESS_REPORT.md](TAILSCALE_ACCESS_REPORT.md).

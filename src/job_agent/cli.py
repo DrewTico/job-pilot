@@ -660,11 +660,14 @@ def cmd_approval_queue(console, args):
         settings = load_settings()
         if args.data_dir:
             settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
-        app = create_approval_app(settings=settings, port=args.port)
+        app = create_approval_app(settings=settings, port=args.port, access=args.access)
     except Exception:
-        console.print("Approval queue unavailable; requires existing schema v9 and installed dashboard dependencies. Details omitted.")
+        console.print("Approval queue unavailable; requires existing schema v9, installed dashboard dependencies and valid access configuration. Details omitted.")
         return 1
-    console.print(f"Local approval queue: http://127.0.0.1:{args.port} (Ctrl-C to stop)")
+    if args.access == "local":
+        console.print(f"Local approval queue: http://127.0.0.1:{args.port} (Ctrl-C to stop)")
+    else:
+        console.print("Authenticated approval queue: loopback backend only; external setup is operator-managed. (Ctrl-C to stop)")
     uvicorn.run(app, host="127.0.0.1", port=args.port, proxy_headers=False,
                 forwarded_allow_ips="", access_log=False, log_level="warning")
     return 0
@@ -675,9 +678,11 @@ def _build_parser() -> argparse.ArgumentParser:
                                      description="Discover, score, and tailor to jobs.")
     sub = parser.add_subparsers(dest="command")
 
-    approval = sub.add_parser("approval-queue", help="Local-only approval queue; binds exactly 127.0.0.1.")
+    approval = sub.add_parser("approval-queue", help="Approval queue with explicit access policy; binds exactly 127.0.0.1.")
     approval.add_argument("--port", type=_approval_port, default=8643, help="Local port, 1..65535 (default 8643).")
     approval.add_argument("--data-dir", default=None, help="Existing schema-v9 data directory.")
+    approval.add_argument("--access", choices=["local", "tailscale"], default="local",
+                          help="Approval access policy (default local); both bind 127.0.0.1.")
 
     rev = sub.add_parser("revision-process", help="Process one immutable Revise decision; no approval or submission.")
     rev.add_argument("--decision-id", required=True)
