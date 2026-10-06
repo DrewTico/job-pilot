@@ -40,7 +40,13 @@
     if (!response.ok) throw new Error(data && data.error && errors[data.error.code] ? data.error.code : "unavailable");
     return data;
   }
-  async function bootstrap() { state.csrf = null; const data = await api("/api/bootstrap"); state.csrf = data.csrf_token; }
+  async function bootstrap() {
+    state.csrf = null;
+    const data = await api("/api/bootstrap");
+    state.csrf = data.csrf_token;
+    if (data.local_only === true) $("access-mode").textContent = "Local only. Review and decide on one exact packet version.";
+    else if (data.local_only === false && data.access_mode === "tailscale") $("access-mode").textContent = "Tailnet only. Review and decide on one exact packet version.";
+  }
   function stopPolling() { if (state.timer !== null) clearTimeout(state.timer); state.timer = null; }
   function invalidate() {
     state.ready = false; stopPolling();

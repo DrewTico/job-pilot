@@ -48,6 +48,45 @@ def test_static_accessible_shell_and_codepoint_counter():
     assert "min-height: 44px" in css and "white-space: pre-wrap" in css
 
 
+def test_static_mode_neutral_title_banner_and_csrf_bootstrap():
+    html = (STATIC / "approval.html").read_text()
+    js = (STATIC / "approval.js").read_text()
+    assert "<title>Job Pilot approval queue</title>" in html
+    assert "Local only" not in html and "Tailnet only" not in html
+    assert '<p id="access-mode">Loading access mode.' in html
+    assert 'state.csrf = null;\n    const data = await api("/api/bootstrap");\n    state.csrf = data.csrf_token;' in js
+
+
+@pytest.mark.parametrize("data,label", [
+    ({"local_only": True, "origin": "http://127.0.0.1:8643"}, "Local only"),
+    ({"local_only": False, "access_mode": "tailscale"}, "Tailnet only"),
+])
+def test_browser_bootstrap_access_mode_and_csrf(ui, ready, data, label):
+    from playwright.sync_api import expect
+    ui[3]["/api/bootstrap"] = {**data, "csrf_token": "test-bootstrap-token"}
+    ui[3][f"/api/packets/{ready[2].id}/approve"] = (403, {"error": {"code": "csrf_failed"}})
+    open_packet(ui, ready)
+    page = ui[0]
+    assert page.title() == "Job Pilot approval queue"
+    expect(page.locator("#access-mode")).to_have_text(
+        f"{label}. Review and decide on one exact packet version.")
+    page.get_by_role("button", name="Approve", exact=True).click()
+    page.get_by_role("button", name="Confirm approve", exact=True).click()
+    expect(page.locator("#status")).to_have_text("Session changed. Reload the page before deciding.")
+    assert ui[4][0][2]["x-job-pilot-csrf"] == "test-bootstrap-token"
+
+
+def test_browser_failed_bootstrap_keeps_neutral_banner_and_stops_queue(ui):
+    from playwright.sync_api import expect
+    ui[3]["/api/bootstrap"] = (403, {"error": {"code": "csrf_failed"}})
+    page = ui[0]; page.goto(ui[2])
+    expect(page.locator("#status")).to_have_text("Session unavailable. Reload the page.")
+    expect(page.locator("#access-mode")).to_have_text(
+        "Loading access mode. Review and decide on one exact packet version.")
+    assert not any("/api/queue" in url for url in ui[5])
+    assert not ui[4]
+
+
 @pytest.fixture
 def loopback_server(ready, monkeypatch):
     """Test-only real Uvicorn; socket allocation supplies the app's actual port."""
