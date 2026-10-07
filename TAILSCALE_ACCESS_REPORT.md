@@ -1,4 +1,29 @@
-# Run 4 Milestone A: application authentication boundary
+# Run 4 authenticated Tailscale and multi-device access report
+
+## Current Run 4 status
+
+| Milestone | Status |
+| --- | --- |
+| A: application authentication boundary | COMPLETE |
+| B: real Tailscale / Serve validation | COMPLETE |
+| C: real authenticated multi-device approval access | COMPLETE |
+| D | NOT STARTED |
+
+This documentation/sign-off pass started at `ed28f72 fix: show approval access
+mode accurately`, with `main` and `origin/main` aligned and a clean working tree.
+The completed B/C session evidence below is supplied by Andrew as authoritative
+operator observations, not a new live validation performed during this pass.
+Runs 1-3 use one report per broader Run with accumulated milestone history;
+this report continues that convention for Run 4.
+
+The Milestone A historical body/evidence below is preserved unchanged. Its untested/deferred and
+stop-before-B statements describe the end of A; B and C subsequently closed
+those real-environment limitations. Run 4 is not declared complete: D has not
+started. The production approval queue was restored, then intentionally stopped
+for milestone sign-off. This does not assert that the full Job Pilot pipeline
+is running.
+
+## Historical Milestone A: application authentication boundary
 
 Starting HEAD: `f103915 feat: add secure local approval queue and revision worker`.
 The start gate confirmed that HEAD and a clean working tree. Read CLAUDE.md,
@@ -243,3 +268,145 @@ change, provider/employer activity, commit or push occurred. HEAD is unchanged.
 Python compilation and `git diff --check` pass. Final working tree has exactly
 the nine intended modified/new files listed above. Complete offline validation
 is finished. STOP for Andrew's Milestone A review; no Milestone B, commit or push.
+
+
+## Milestone B: real Tailscale / Serve validation COMPLETE
+
+Operator-observed validation confirmed that Tailscale was installed and connected
+inside WSL and the WSL Job Pilot node was online. Tailscale Serve was configured
+as tailnet-only HTTPS and proxied to `http://127.0.0.1:8643`:
+
+```text
+tailnet HTTPS -> Tailscale Serve -> HTTP loopback -> Job Pilot 127.0.0.1:8643
+```
+
+Job Pilot remained bound only to IPv4 loopback. No `0.0.0.0` or other broad
+backend bind was introduced, and no Tailscale Funnel/public exposure was enabled.
+The real Serve trust boundary was exercised in the actual WSL environment. The
+real path demonstrated the intended Host, Tailscale identity, HTTPS Origin and
+CSRF boundary through Serve. Direct/spoofed-header behavior was tested rather
+than accepted as authority; generic forwarded headers continued to supply no
+application authority.
+
+B closed the real-environment limitation explicitly left open at the end of A.
+No approval-domain semantics changed, no employer-facing submission occurred,
+and no provider operation was part of B. The trusted-host limitation remains:
+an equally privileged compromised local process can forge identity headers.
+Real Serve validation does not establish stronger local-host isolation.
+
+## Milestone C: real multi-device validation COMPLETE
+
+### Real iPhone access and narrowed authorization
+
+A real iPhone accessed the authenticated Job Pilot approval queue successfully
+with Tailscale enabled. The same access failed with Tailscale disabled. The
+tailnet Grant was narrowed to the authorized user -> Job Pilot node -> `tcp:443`.
+The external path remained tailnet-only and the backend remained loopback-only:
+
+```text
+iPhone -> tailnet HTTPS -> Tailscale Serve -> loopback-only Job Pilot approval queue
+```
+
+This completes real authenticated multi-device approval access. It does not
+claim public Internet access.
+
+### Production isolation and first exact-content failure
+
+A retained production-data baseline was captured before controlled testing.
+Production baseline comparison passed before the phone test. Synthetic phone-test
+state existed only in isolated temporary databases under `/tmp`; these are test
+evidence locations, not required runtime configuration. No synthetic state was
+moved into production for demonstration or history.
+
+The first real iPhone attempt persisted all three decision types: Approve,
+Reject and Revise. Its durable Reject had `reason_code = bad_fit` and an empty
+string detail. The controlled C target required `detail = Exact reason`, so the
+independent verifier correctly returned:
+
+```text
+FAIL: reject_audit_mismatch
+```
+
+This was a failed exact-content run, not a passing validation. Reject detail is
+optional in normal product semantics; this controlled test required the exact
+expected detail. The failed synthetic database was preserved and was not
+rewritten, reused, weakened or mutated to manufacture a passing result.
+
+### Fresh retry and independent final pass
+
+A completely fresh synthetic retry database was created and independently
+seed-verified before phone interaction. Andrew repeated all three actions from
+the real iPhone. The independent post-phone verifier returned:
+
+```text
+Verified three synthetic packets and manual decisions.
+verify-decisions exit=0
+```
+
+Independent production comparison after the successful retry returned:
+
+```text
+Production baseline matches explicit expectations.
+compare-baseline exit=0
+```
+
+Final durable counts in the successful synthetic retry were:
+
+```text
+packet_decisions = 3
+revision_work = 0
+application_events = 0
+```
+
+Here `revision_work` is the supplied count label for durable revision work
+(the repository table is `packet_revision_work`), not a new schema/table.
+The exact durable decisions were:
+
+| Decision | Actor | Reason / reason_code | Detail / feedback |
+| --- | --- | --- | --- |
+| Approve | Andrew | empty | empty |
+| Revise | Andrew | empty | Make the synthetic packet more concise. |
+| Reject | Andrew | bad_fit | Exact reason |
+
+No revision worker ran during these phone decision requests. No application event
+was created, no employer-facing submission occurred, and no provider/employer
+operation occurred. No synthetic decision entered production. Append-only decision
+behavior was preserved; the failed record was not repaired into the retry result.
+HTTP Revise recorded a durable request only, without automatic revision processing.
+The independent baseline comparison establishes that this synthetic validation
+did not modify the production Job Pilot data set.
+
+### Production approval queue restoration and runtime scope
+
+After successful synthetic validation, production data again matched the retained
+pre-test baseline. The authenticated approval queue was successfully started
+against the real production data directory, still backed by `127.0.0.1:8643`,
+with Tailscale Serve as the tailnet-only HTTPS front door. The approval queue was
+then intentionally stopped for milestone sign-off.
+
+This proves restoration and successful startup of the production approval queue,
+one Job Pilot component. Search/discovery, scoring, packet generation, revision
+processing, scheduling and future submission have separate runtime lifecycles.
+It does not prove full Job Pilot runtime orchestration or that Job Pilot is
+currently running. The production queue contained no synthetic phone-test history
+because the tests were deliberately isolated; that is expected, not missing data.
+Existing trusted-host, filesystem/DB/cooperating-lock and point-in-time
+validation limitations remain unchanged.
+
+## Documentation sign-off and review stop
+
+This pass changes only this report and the current Run 4 wording in README.md.
+Milestone A history and older Run 1-3 reports remain intact. No production code,
+tests, schema, data, private configuration, approval/packet/revision semantics or
+security boundaries changed. No dependency, live network call, workflow start,
+Tailscale/Serve/Grant/Funnel/listener/networking change, staging, commit or push
+was performed during this documentation pass.
+
+The documentation uses generic architecture and exact supplied synthetic test
+results, without private login/hostname, authentication or CSRF values, secrets,
+private environment contents or unnecessary temporary absolute paths.
+No supplied operator evidence conflicts with the inspected repository contract;
+the B/C results are recorded as operator evidence rather than newly rerun checks.
+
+STOP for Andrew's Run 4 Milestone C review under CLAUDE.md:
+“Stop after every milestone for Andrew's review.” Milestone D has NOT STARTED.

@@ -1091,10 +1091,19 @@ with explicit missing-newline markers. Full content/diffs are not logged.
 These historical views **do not approve or authorize a packet**. Current
 authoritative truth, policy, URL, artifact and stale-view checks still apply to
 independent approval. The Run 3 section describes the local queue/UI/API.
-Settings editing, Run 4 authentication/Tailscale/multi-device access and
-submission remain deferred.
+Settings editing and submission remain deferred. Run 4 authenticated
+Tailscale/multi-device approval access is complete through Milestone C and
+documented below.
 
-### Run 4 Milestone A: authenticated Tailscale access policy
+### Run 4: authenticated Tailscale and multi-device approval access
+
+Milestones A, B and C are COMPLETE; Milestone D is NOT STARTED. Real WSL-local
+Serve validation and real authenticated iPhone approval access passed. Phone
+decisions used isolated synthetic databases, including an honestly retained
+first exact-content failure and an independently verified fresh retry. Production
+data matched the retained baseline. The production approval queue was restored,
+then intentionally stopped for milestone sign-off. This is approval access,
+not full Job Pilot runtime orchestration or automated submission.
 
 The approval command defaults to local mode, preserving Run 3:
 
@@ -1103,7 +1112,7 @@ job-agent approval-queue --data-dir data --port 8643
 job-agent approval-queue --access local --data-dir data --port 8643
 ```
 
-Application support for a future operator-managed Tailscale Serve proxy is explicit:
+Application support for the operator-managed Tailscale Serve proxy is explicit:
 
 ```sh
 job-agent approval-queue --access tailscale --data-dir data --port 8643
@@ -1111,9 +1120,12 @@ job-agent approval-queue --access tailscale --data-dir data --port 8643
 
 Both modes bind only `127.0.0.1`, with proxy headers and access logging disabled.
 There is no host option. This command does not install Tailscale, log in, configure
-Serve/Funnel/HTTPS, change policy or contact Tailscale APIs. **Real Serve placement
-and multi-device access have not been tested.** Milestone B requires separate
-operator approval and controlled setup/smoke testing.
+Serve/Funnel/HTTPS, change policy or contact Tailscale APIs. Completed operator
+validation proved the tailnet-only HTTPS -> Tailscale Serve -> HTTP loopback ->
+Job Pilot `127.0.0.1:8643` path, without a broad backend bind or Funnel/public
+exposure. Real iPhone access succeeded with Tailscale enabled and failed with it
+disabled; the Grant was narrowed to the authorized user -> Job Pilot node ->
+`tcp:443`.
 
 Tailscale mode requires both private environment/.env settings:
 `JOB_AGENT_APPROVAL_TAILSCALE_LOGIN` and `JOB_AGENT_APPROVAL_TAILSCALE_HOST`.
@@ -1149,8 +1161,8 @@ returns only `csrf_token`, `local_only: false` and `access_mode: tailscale`; loc
 bootstrap retains its exact Run 3 fields. Same-origin UI resources, CSP, no CORS,
 security headers, private log suppression and all domain semantics are preserved.
 
-Synthetic ASGI tests establish application policy only. Milestone B must prove
-that WSL-local Serve actually supplies the required Host, identity and loopback
-scope in this NAT environment. An equally privileged malicious local process can
-forge identity headers and remains inside the trusted-host boundary. This is
+Synthetic ASGI tests establish application policy only. Completed Milestone B
+exercised the real WSL Serve Host/identity/HTTPS Origin/CSRF boundary, including
+direct/spoofed-header checks and continued generic forwarded-header nonauthority.
+An equally privileged malicious local process can forge identity headers and remains inside the trusted-host boundary. This is
 not isolation from a compromised host. See [TAILSCALE_ACCESS_REPORT.md](TAILSCALE_ACCESS_REPORT.md).
