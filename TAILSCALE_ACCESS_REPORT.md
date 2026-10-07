@@ -7,9 +7,10 @@
 | A: application authentication boundary | COMPLETE |
 | B: real Tailscale / Serve validation | COMPLETE |
 | C: real authenticated multi-device approval access | COMPLETE |
-| D | NOT STARTED |
+| D: approval queue lifecycle | COMPLETE |
+| E | NOT STARTED |
 
-This documentation/sign-off pass started at `ed28f72 fix: show approval access
+The historical B/C documentation/sign-off pass started at `ed28f72 fix: show approval access
 mode accurately`, with `main` and `origin/main` aligned and a clean working tree.
 The completed B/C session evidence below is supplied by Andrew as authoritative
 operator observations, not a new live validation performed during this pass.
@@ -18,9 +19,10 @@ this report continues that convention for Run 4.
 
 The Milestone A historical body/evidence below is preserved unchanged. Its untested/deferred and
 stop-before-B statements describe the end of A; B and C subsequently closed
-those real-environment limitations. Run 4 is not declared complete: D has not
-started. The production approval queue was restored, then intentionally stopped
-for milestone sign-off. This does not assert that the full Job Pilot pipeline
+those real-environment limitations. Milestones A, B, C and D are COMPLETE.
+Run 4 is not complete: Milestone E is NOT STARTED.
+At the end of C, the production approval queue was restored, then
+intentionally stopped for milestone sign-off. This does not assert that the full Job Pilot pipeline
 is running.
 
 ## Historical Milestone A: application authentication boundary
@@ -393,7 +395,7 @@ because the tests were deliberately isolated; that is expected, not missing data
 Existing trusted-host, filesystem/DB/cooperating-lock and point-in-time
 validation limitations remain unchanged.
 
-## Documentation sign-off and review stop
+## Historical Milestone C documentation sign-off and review stop
 
 This pass changes only this report and the current Run 4 wording in README.md.
 Milestone A history and older Run 1-3 reports remain intact. No production code,
@@ -410,3 +412,179 @@ the B/C results are recorded as operator evidence rather than newly rerun checks
 
 STOP for Andrew's Run 4 Milestone C review under CLAUDE.md:
 “Stop after every milestone for Andrew's review.” Milestone D has NOT STARTED.
+
+## Milestone D: approval queue lifecycle COMPLETE
+
+### Historical preparation/design state
+
+This preparation pass started with a clean working tree at `ec9a206 docs: record
+Run 4 Tailscale validation`; `main` and `origin/main` were aligned there. The
+completed read-only lifecycle inspection supplied by Andrew is authoritative
+evidence, not a new live inspection or lifecycle validation in this pass:
+
+- WSL PID 1 is systemd; the installed version supports the user-service design.
+- Andrew's user manager is running and lingering is already enabled.
+- No Job Pilot systemd unit, approval queue or revision worker was running.
+- `tailscaled` is independently enabled/running as a system service; Tailscale
+  is online. Serve retains tailnet-only HTTPS :443 to `http://127.0.0.1:8643`.
+- No Funnel entry exists. No Tailscale, Serve, Grant/policy, firewall or WSL
+  networking change is needed.
+- Reliable Windows boot startup of WSL has not been proven. Starting a service
+  inside running WSL and starting WSL at Windows boot are distinct. Windows
+  startup automation is an optional future decision outside this slice.
+
+Selected architecture B is **user-level systemd for the approval queue only**,
+with no sudo/root installation requirement. The revision worker is deliberately
+excluded from autostart: it scans durable revision work immediately and then
+every 10 seconds, and may begin eligible Anthropic writing. The normal scheduler
+is also excluded. Manual commands remain separate:
+
+```sh
+.venv/bin/job-agent approval-queue --access tailscale --data-dir data --port 8643
+# Only when Andrew intentionally requests revision processing:
+.venv/bin/job-agent scheduler --revisions-only --data-dir data
+```
+
+### Historical repository preparation artifacts and configuration evidence
+
+`deploy/systemd/job-pilot-approval.service` is a template only, intended for a
+future operator copy to `~/.config/systemd/user/job-pilot-approval.service`.
+It uses Type=exec, the existing virtualenv approval command, explicit production
+data path and port 8643, on-failure restart with a 10-second delay and three
+starts per 300 seconds, SIGTERM/control-group stop with a finite 30-second
+timeout, UMask=0077, LimitCORE=0 and journal stdout/stderr. WantedBy=default.target
+is declarative installation metadata, not installation or enablement. There are
+no other execution hooks, worker commands, network-online/tailscaled ownership
+dependencies, private values, Environment/EnvironmentFile assignments, Tailscale
+configuration commands or aggressive sandbox directives.
+
+The working directory is `%h/projects/job-pilot`; the executable and explicit
+data path share that prefix. Local systemd.service(5) accepts command-line
+specifiers and systemd.unit(5) defines `%h` as the service manager user's home.
+Local systemd.exec(5) documents WorkingDirectory path semantics. To resolve its
+specifier behavior explicitly, the matching upstream systemd 259
+[working-directory parser](https://github.com/systemd/systemd/blob/v259/src/core/load-fragment.c)
+calls unit_path_printf, and the
+[specifier implementation](https://github.com/systemd/systemd/blob/v259/src/core/unit-printf.c)
+uses the shared table containing the home-directory specifier. This establishes
+support in both fields without hardcoding an operator home path.
+
+Installed python-dotenv 1.2.3 source was inspected without loading private
+configuration. `load_settings()` still calls `load_dotenv()` with no arguments;
+normal CLI execution searches upward from the caller source location. The
+current editable import resolves to repository `src/job_agent/config.py`.
+Two isolated subprocess tests copy the unchanged loader into a controlled
+temporary editable layout and prove discovery of its temporary `.env` from
+the repository working directory and a different working directory. Children
+have an empty inherited environment and isolated import paths. No private
+`.env` is read, changed or copied. No config.py change or secret EnvironmentFile
+is required. Existing environment overrides retain precedence.
+
+Both private settings, `JOB_AGENT_APPROVAL_TAILSCALE_LOGIN` and
+`JOB_AGENT_APPROVAL_TAILSCALE_HOST`, must be valid before any live authenticated
+start. `.env.example` now documents commented placeholders only, with real
+values confined to `.env` and normal local-mode defaults unchanged. The supplied
+inspection established that the private `.env` is gitignored, user-owned and
+0600; its values were not inspected in this pass.
+
+No production Python, schema v9, domain, packet, revision or authentication
+change is required. Startup opens existing SQLite storage without migration,
+import or schema creation, generates process-local CSRF state and starts no
+worker, Anthropic operation or employer contact.
+
+### Historical preparation validation and review boundary
+
+Repository tests inspect the service as data, never call systemctl, and cover
+the exclusive command, paths, restart/stop/privacy contracts, absence of other
+execution/install/network hooks and controlled dotenv discovery.
+
+Sandbox validation for this exact slice:
+
+```sh
+.venv/bin/pytest -q tests/test_approval_service_unit.py tests/test_config.py tests/test_cli_defaults.py tests/test_tailscale_security.py tests/test_approval_security.py
+# 201 passed in 1.37s (includes all five new tests)
+.venv/bin/pytest -q tests/test_approval_api.py -k 'factory_only_opens_existing_v9_without_mutation or cli_loopback_only_and_port_bounds'
+# 2 passed, 124 deselected in 2.09s
+.venv/bin/pytest -q tests/test_tailscale_api.py -k 'bootstrap_auth_private_restart_no_storage or no_tailscale_management_in_approval_code'
+# 2 passed, 74 deselected in 3.13s
+.venv/bin/python -m py_compile tests/test_approval_service_unit.py
+git diff --check
+```
+
+All commands above exited 0. These focused selections total 205 distinct passing
+tests, covering the template, settings, CLI, local/Tailscale boundaries, existing
+v9-only startup and private bootstrap/restart contract. No full Milestone E
+regression, threaded/browser validation or live lifecycle test was run.
+
+Earlier sandbox `systemd-analyze --user --generators=no verify` failed before
+unit parsing because the Codex sandbox denied SO_PASSCRED on a handoff timestamp
+socket (exit 1). A system-scope offline parser attempt failed at the same point
+(exit 1). Neither is a passing unit verification or live service operation;
+those failures remain recorded as sandbox limitations.
+
+Andrew explicitly approved the following TEST-ONLY, read-only outside-sandbox
+verification, which then ran against the real installed user-scope systemd v259
+parser:
+
+```sh
+systemd-analyze --user --generators=no --recursive-errors=no verify "$PWD/deploy/systemd/job-pilot-approval.service"
+```
+
+Result: exit code 0; stdout and stderr were empty; no warnings or errors were
+emitted. The proposed unit passed actual parser verification. `--user` selected
+the user-service context, `--generators=no` prevented generator execution, and
+`--recursive-errors=no` made errors in the specified unit affect the result.
+No installation, unit copy, daemon reload, enablement or service start occurred.
+The command did not read private `.env` or modify repository files, production
+data or manager configuration. Parser verification does not establish live
+lifecycle behavior. The user service can manage the queue once WSL and its user
+manager are running; it does not prove Windows automatically starts WSL or that
+the service keeps WSL alive indefinitely. Windows boot / WSL startup automation
+remains a separate optional future decision.
+
+Post-verification sandbox follow-up: `.venv/bin/pytest -q
+tests/test_approval_service_unit.py` exited 0 with 5 passed in 0.41s;
+`git diff --check` exited 0 with no output.
+
+At the end of preparation, journal privacy and actual lifecycle behavior still
+required controlled live validation. No live unit copy, installation, daemon
+reload, enablement or start/stop/restart occurred during that preparation pass.
+The subsequent operator validation below supersedes that pending live-validation
+boundary.
+
+### Completed live operator validation
+
+Andrew supplied the following completed operator evidence. These observations
+were not rerun during this documentation repair:
+
+- The reviewed user-systemd approval service was installed; user daemon-reload
+  succeeded. Controlled start/stop/start and systemd restart succeeded.
+  Controlled systemd restart changed MainPID and produced fresh process-local
+  CSRF state. One controlled SIGKILL caused one `Restart=on-failure` recovery
+  with a new PID and fresh process-local CSRF state. The service was enabled
+  successfully.
+- A full WSL shutdown/restart was performed. The enabled approval service returned
+  automatically after WSL restarted. Exactly one approval queue ran; the revision
+  worker and normal scheduler remained absent.
+- The listener remained exactly `127.0.0.1:8643`; schema remained v9. The production
+  SQLite hash remained unchanged across the WSL interruption.
+- Tailscale returned online. Serve remained the private tailnet HTTPS -> loopback
+  proxy; Funnel remained absent. Authenticated Tailscale bootstrap still succeeded.
+- Private Tailscale login/hostname were absent from the current-boot service journal.
+
+This is a **user systemd service for the approval queue only**. Revision processing
+remains **manual/on-demand**; neither the revision worker nor the normal scheduler
+is automatic. Job Pilot does not own `tailscaled` or the Serve/Funnel lifecycle.
+The validated access path remains private, with no public exposure.
+
+The successful WSL interruption test proves behavior once WSL itself is
+started/restarted. Windows automatically launching WSL at Windows boot has **NOT
+been proven**. This evidence does not establish that the service keeps WSL alive
+indefinitely. Controlled restart and crash recovery each produced fresh
+process-local CSRF state; the WSL interruption test did not separately perform
+a pre/post token comparison.
+
+### Current milestone status
+
+**Milestone D is COMPLETE. Milestone E is NOT STARTED.**
+This is not completion of all Run 4 or full Job Pilot runtime orchestration.

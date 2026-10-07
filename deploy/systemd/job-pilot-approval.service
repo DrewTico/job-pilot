@@ -1,0 +1,22 @@
+# User service template: operator copy to ~/.config/systemd/user after review.
+[Unit]
+Description=Job Pilot authenticated approval queue
+StartLimitIntervalSec=300
+StartLimitBurst=3
+
+[Service]
+Type=exec
+WorkingDirectory=%h/projects/job-pilot
+ExecStart=%h/projects/job-pilot/.venv/bin/job-agent approval-queue --access tailscale --data-dir %h/projects/job-pilot/data --port 8643
+Restart=on-failure
+RestartSec=10s
+KillSignal=SIGTERM
+KillMode=control-group
+TimeoutStopSec=30s
+UMask=0077
+LimitCORE=0
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

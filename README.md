@@ -1092,17 +1092,18 @@ These historical views **do not approve or authorize a packet**. Current
 authoritative truth, policy, URL, artifact and stale-view checks still apply to
 independent approval. The Run 3 section describes the local queue/UI/API.
 Settings editing and submission remain deferred. Run 4 authenticated
-Tailscale/multi-device approval access is complete through Milestone C and
+Tailscale/multi-device approval access is complete through Milestone D and
 documented below.
 
 ### Run 4: authenticated Tailscale and multi-device approval access
 
-Milestones A, B and C are COMPLETE; Milestone D is NOT STARTED. Real WSL-local
+Milestones A, B, C and D are COMPLETE; Milestone E is NOT STARTED.
+Run 4 is not complete. Real WSL-local
 Serve validation and real authenticated iPhone approval access passed. Phone
 decisions used isolated synthetic databases, including an honestly retained
 first exact-content failure and an independently verified fresh retry. Production
-data matched the retained baseline. The production approval queue was restored,
-then intentionally stopped for milestone sign-off. This is approval access,
+data matched the retained baseline. At the end of Milestone C, the production
+approval queue was restored, then intentionally stopped for milestone sign-off. This is approval access,
 not full Job Pilot runtime orchestration or automated submission.
 
 The approval command defaults to local mode, preserving Run 3:
@@ -1166,3 +1167,91 @@ exercised the real WSL Serve Host/identity/HTTPS Origin/CSRF boundary, including
 direct/spoofed-header checks and continued generic forwarded-header nonauthority.
 An equally privileged malicious local process can forge identity headers and remains inside the trusted-host boundary. This is
 not isolation from a compromised host. See [TAILSCALE_ACCESS_REPORT.md](TAILSCALE_ACCESS_REPORT.md).
+
+### Run 4 Milestone D: approval queue lifecycle validation
+
+The selected design is a **user-level systemd service for the authenticated approval
+queue only**. [deploy/systemd/job-pilot-approval.service](deploy/systemd/job-pilot-approval.service)
+is the repository template reviewed and installed by the operator at
+`~/.config/systemd/user/job-pilot-approval.service`. The earlier preparation pass
+did not install or start it; controlled operator validation has now completed.
+The supplied operator evidence records:
+
+- User daemon-reload, controlled start/stop/start and systemd restart succeeded.
+  Controlled systemd restart changed MainPID and produced fresh process-local
+  CSRF state. One controlled SIGKILL caused one `Restart=on-failure` recovery
+  with a new PID and fresh process-local CSRF state; enablement succeeded.
+- A full WSL shutdown/restart was performed, and the enabled approval service
+  returned automatically after WSL restarted. Exactly one approval queue ran;
+  the revision worker and normal scheduler remained absent.
+- The listener remained exactly `127.0.0.1:8643`, schema remained v9, and the
+  production SQLite hash remained unchanged across the WSL interruption.
+- Tailscale returned online; Serve remained the private tailnet HTTPS -> loopback
+  proxy, Funnel remained absent, and authenticated Tailscale bootstrap still
+  succeeded. Private Tailscale login/hostname were absent from the current-boot
+  service journal.
+
+This records completed operator validation, not checks rerun for this repair.
+
+The template uses `Type=exec`, `%h/projects/job-pilot` as its working directory,
+the existing `.venv/bin/job-agent`, an explicit `%h/projects/job-pilot/data` path
+and port 8643. Local systemd documentation and upstream systemd 259 parser source
+confirm `%h` expansion in both WorkingDirectory and ExecStart. It restarts only
+on failure after 10 seconds, with at most three starts per 300-second window.
+Stopping sends SIGTERM to the process group, with a 30-second timeout before
+systemd's final termination. `UMask=0077` restricts newly created files; core dumps
+are disabled. No additional OS sandbox architecture is introduced.
+
+Existing schema v9, installed dashboard dependencies and both valid private
+Tailscale settings remain prerequisites for service startup. The unchanged
+`load_settings()` calls `load_dotenv()`; installed python-dotenv 1.2.3 searches
+upward from the calling source file during normal CLI execution. In the current
+editable layout that is `src/job_agent/config.py`, leading to the repository
+`.env`. Isolated tests of the unchanged loader and this layout prove discovery,
+including from the configured working directory. No EnvironmentFile or duplicated
+secret configuration is needed. Inherited environment values take precedence;
+operators must check for unintended overrides without printing private values.
+
+The revision worker remains **manual/on-demand**, as a separate process. It scans
+durable Revise decisions immediately at startup and every 10 seconds afterward;
+eligible pending work can begin Anthropic writing. Neither it nor the normal
+scheduler belongs in automatic D startup. Starting the approval queue itself
+opens existing storage, creates process-local CSRF state and starts no worker,
+migration, provider operation or employer contact.
+
+Job Pilot does not own `tailscaled` or the Tailscale Serve/Funnel lifecycle. The retained path is
+tailnet-only HTTPS :443 to `http://127.0.0.1:8643`; no Funnel/public exposure or
+Tailscale policy, Grant, firewall or WSL networking change is part of D. The
+existing user manager and already-enabled lingering support this lifecycle
+within running WSL. The successful interruption test proves recovery once WSL
+itself is started/restarted. Windows automatically launching WSL at Windows boot
+has NOT been proven; Windows boot automation remains a separate optional future
+decision.
+
+Manual fallback, from the repository directory, remains available:
+
+```sh
+.venv/bin/job-agent approval-queue --access tailscale --data-dir data --port 8643
+```
+
+Only when Andrew intentionally wants revision processing, in a separate terminal:
+
+```sh
+.venv/bin/job-agent scheduler --revisions-only --data-dir data
+```
+
+Ctrl-C ends each manual process. With the service installed, avoid running a
+manual approval queue alongside the service on the same port. For a failed
+service, privately inspect `systemctl --user status job-pilot-approval.service`
+and `journalctl --user -u job-pilot-approval.service`; do not paste unreviewed
+journal output into shared reports. Check paths, private configuration, existing
+schema and port ownership before recovery. Do not migrate storage, start a worker
+or change Serve to recover this queue. Once the cause is corrected and Andrew
+approves live recovery, `systemctl --user reset-failed job-pilot-approval.service`
+clears the rate limit and `systemctl --user start job-pilot-approval.service`
+retries. The completed operator evidence above establishes the validated live
+lifecycle and journal privacy boundary. Controlled restart and crash recovery
+each produced fresh process-local CSRF state; the WSL interruption test did not
+separately perform a pre/post token comparison. **Milestone D is COMPLETE.
+Milestone E is NOT STARTED.** This is not completion of all Run 4 or full Job
+Pilot runtime orchestration.
