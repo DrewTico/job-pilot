@@ -14,6 +14,10 @@ and uses an LLM to score how well each one fits you — then prints a ranked tab
 > your own logged-in browser, an application tracker, and a board-token
 > discovery utility.
 
+**Run 4 is COMPLETE through Milestones A, B, C, D and E:** authenticated private
+Tailscale multi-device access to the approval queue, preserving existing
+packet/approval/revision safety boundaries. The broader Job Pilot roadmap continues.
+
 ## Why this exists
 
 Company career pages are backed by a handful of ATS vendors that expose **public,
@@ -1092,13 +1096,13 @@ These historical views **do not approve or authorize a packet**. Current
 authoritative truth, policy, URL, artifact and stale-view checks still apply to
 independent approval. The Run 3 section describes the local queue/UI/API.
 Settings editing and submission remain deferred. Run 4 authenticated
-Tailscale/multi-device approval access is complete through Milestone D and
+Tailscale/multi-device approval access is COMPLETE through Milestone E and
 documented below.
 
 ### Run 4: authenticated Tailscale and multi-device approval access
 
-Milestones A, B, C and D are COMPLETE; Milestone E is NOT STARTED.
-Run 4 is not complete. Real WSL-local
+Milestones A, B, C, D and E are COMPLETE. Run 4 is COMPLETE within the
+authenticated private multi-device approval-access scope. Real WSL-local
 Serve validation and real authenticated iPhone approval access passed. Phone
 decisions used isolated synthetic databases, including an honestly retained
 first exact-content failure and an independently verified fresh retry. Production
@@ -1252,6 +1256,73 @@ clears the rate limit and `systemctl --user start job-pilot-approval.service`
 retries. The completed operator evidence above establishes the validated live
 lifecycle and journal privacy boundary. Controlled restart and crash recovery
 each produced fresh process-local CSRF state; the WSL interruption test did not
-separately perform a pre/post token comparison. **Milestone D is COMPLETE.
-Milestone E is NOT STARTED.** This is not completion of all Run 4 or full Job
-Pilot runtime orchestration.
+separately perform a pre/post token comparison. **Milestone D is COMPLETE.**
+At D sign-off, E had not started; its subsequent closeout follows. D did not
+establish full Job Pilot runtime orchestration.
+
+### Run 4 Milestone E: final regression and security closeout COMPLETE
+
+The following records supplied operator/test evidence and the final independent
+static audit; none was rerun during this documentation closeout. E began at
+`58e8fb0ef08a11efcceeaf6571a4a3c6fdb57e6b` (`feat: add approval queue user service`),
+with `main` and `origin/main` aligned.
+
+The initial monolithic run passed all 2795 tests but produced 21 Python 3.12
+multiprocessing DeprecationWarnings and changed the production SQLite file hash.
+Schema stayed v9, quick_check passed, all 15 business/application tables were
+empty, no sidecar remained, and no production business row mutation was found.
+That run was not the accepted final regression. A Bubblewrap trace against a
+private production-data copy isolated an extension fill-values test: independently
+loaded settings retained a different/default data directory, and an eagerly
+constructed screening LLM executor initialized that directory's accounting DB
+even though no unresolved free-text question needed drafting. Collection did not
+mutate the shadow DB; the real production DB stayed unchanged during the trace.
+
+The narrow repair in `extension_api.py` and `test_extension_api.py` copies
+Settings with Pydantic `model_copy`, binds screening/accounting to the router's
+injected data directory, and constructs the LLM generator only for unresolved
+free text under the existing classification predicate. Global settings, drafting
+capability metadata, actual free-text drafting, grounding, review and gating are
+preserved. Schema and trusted approval-domain code did not change. Focused tests
+passed **24/24**; the original offending test passed under Bubblewrap (**1 passed**)
+with both shadow and real production SQLite byte-for-byte unchanged.
+
+The three warning-producing files passed in fresh pytest processes with
+`-W error::DeprecationWarning`: packet chaos **207**, revisions **283**, scheduler
+**49**. The evidence identifies the original warnings as a long-lived monolithic
+test-process artifact after threads had existed; no production multiprocessing
+behavior was changed. This does not dismiss Python's general fork hazard.
+The accepted final deterministic/offline disjoint suite also promoted
+DeprecationWarning to an error: sandbox-compatible complement **2412 passed**
+and established outside FastAPI/Chromium/API split **383 passed**, both exit 0,
+for **2795/2795 unique tests passed**. Production DB hash and service PID remained
+unchanged, schema stayed v9, service was active/running with `NRestarts=0`, the
+listener stayed exactly `127.0.0.1:8643`, and `git diff --check` passed.
+
+The controlled final real-tailnet security smoke **PASSED** with ordinary TLS
+certificate verification: authenticated bootstrap, replacement of spoofed login
+headers by Serve, exact Host/identity/HTTPS Origin/CSRF enforcement, rejection of
+direct-backend CSRF without identity, and unreachable direct Tailscale-IP/WSL-IP
+port 8643. Production DB, schema and service PID/restart state remained unchanged;
+no Serve, policy, login or systemd configuration changed. The subsequent read-only
+GPT-6 Astra independent static audit returned **VERDICT: PASS**, with **0 BLOCKER,
+0 HIGH, 0 MEDIUM and 0 LOW**. Detailed evidence is in
+[TAILSCALE_ACCESS_REPORT.md](TAILSCALE_ACCESS_REPORT.md).
+
+Serve remains operator-managed; Funnel is not used or permitted for this
+deployment. Trust in Serve identity headers depends on the loopback-only backend
+behind that trusted local proxy, with the exact configured tailnet Host and
+authorized login. Generic forwarded headers grant no authority. CSRF and exact
+packet/view/current-evidence checks remain required. An equally privileged
+malicious local process is inside the trusted-host boundary; this is not
+protection from a compromised host. Tailscale/network configuration is not stored
+in the Job Pilot DB, whose schema remains v9.
+
+The persistent service runs **approval-queue only**. Revision processing remains
+independent/manual/on-demand; a Revise decision starts no automatic revision
+worker, and this service launches no normal scheduler. The user service has
+returned automatically after WSL shut down and later started; Windows boot
+automatically launching WSL remains unproven and a separate operations concern.
+Run 4 completion does not complete automated employer submission, revision
+processing, Windows boot orchestration, the future UI redesign or the broader
+Job Pilot product/roadmap. Approval access does not automate employer submission.

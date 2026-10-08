@@ -8,7 +8,14 @@
 | B: real Tailscale / Serve validation | COMPLETE |
 | C: real authenticated multi-device approval access | COMPLETE |
 | D: approval queue lifecycle | COMPLETE |
-| E | NOT STARTED |
+| E: final regression and security closeout | COMPLETE |
+| Run 4 | COMPLETE |
+
+Run 4 completes authenticated private Tailscale multi-device access to the Job
+Pilot approval queue, preserving existing packet/approval/revision safety
+boundaries. It does not complete the broader product or roadmap, automated
+employer submission, revision processing, Windows boot orchestration or the
+future UI redesign.
 
 The historical B/C documentation/sign-off pass started at `ed28f72 fix: show approval access
 mode accurately`, with `main` and `origin/main` aligned and a clean working tree.
@@ -19,8 +26,9 @@ this report continues that convention for Run 4.
 
 The Milestone A historical body/evidence below is preserved unchanged. Its untested/deferred and
 stop-before-B statements describe the end of A; B and C subsequently closed
-those real-environment limitations. Milestones A, B, C and D are COMPLETE.
-Run 4 is not complete: Milestone E is NOT STARTED.
+those real-environment limitations. Milestones A, B, C, D and E are COMPLETE.
+Earlier milestone stop/deferred statements are historical; the E closeout below
+records the final supplied evidence, not new runtime validation in this pass.
 At the end of C, the production approval queue was restored, then
 intentionally stopped for milestone sign-off. This does not assert that the full Job Pilot pipeline
 is running.
@@ -584,7 +592,212 @@ indefinitely. Controlled restart and crash recovery each produced fresh
 process-local CSRF state; the WSL interruption test did not separately perform
 a pre/post token comparison.
 
-### Current milestone status
+### Historical Milestone D sign-off status
 
 **Milestone D is COMPLETE. Milestone E is NOT STARTED.**
 This is not completion of all Run 4 or full Job Pilot runtime orchestration.
+
+## Milestone E: final regression and security closeout COMPLETE
+
+### Evidence provenance and starting checkpoint
+
+This section records Andrew's supplied operator/test evidence and final
+independent static audit. These checks were not rerun for documentation closeout.
+E began from `58e8fb0ef08a11efcceeaf6571a4a3c6fdb57e6b`,
+`feat: add approval queue user service`, with `main` and `origin/main` aligned.
+The documentation start gate confirmed that checkpoint and exactly the two
+reviewed modified files: `src/job_agent/dashboard/extension_api.py` and
+`tests/test_extension_api.py`. This closeout edits only README.md and this report.
+
+### Initial complete regression findings
+
+The first monolithic pytest run collected and passed all **2795 tests**, but
+reported **21 Python 3.12 multiprocessing DeprecationWarnings**:
+
+| File | Warnings |
+| --- | --- |
+| tests/test_packet_chaos.py | 7 |
+| tests/test_revisions.py | 12 |
+| tests/test_scheduler.py | 2 |
+
+All originated in `multiprocessing/popen_fork.py`, warning that `fork()` from a
+multithreaded process may deadlock. The production SQLite **file hash changed**
+during that run. Schema remained v9, SQLite quick_check was OK, all 15 production
+business/application tables contained zero rows, and no WAL/SHM/journal sidecar
+remained. The approval service stayed active and loopback-only; no production
+business row mutation was found. This initial run was **not the final accepted
+regression**.
+
+### Controlled DB-writer trace and root cause
+
+A controlled Bubblewrap trace used a **private copy** of production data.
+Pytest collection itself did not mutate the shadow production-path DB. The first
+mutating test was
+`tests/test_extension_api.py::test_file_fields_pause_and_the_response_recommends_the_tailored_pdf`.
+The real production DB remained unchanged throughout the trace.
+
+Source inspection established this path:
+
+```text
+create_app(data_dir=tmp_path)
+  -> create_extension_router(data_dir=tmp_path)
+  -> /api/extension/fill-values
+  -> load_settings() independently retains another/default data_dir
+  -> company/context + API key eagerly constructs screening.make_llm_generate(settings)
+  -> AnthropicExecutor without an explicit engine
+  -> initialize_database(settings.data_dir / "job_pilot.sqlite3")
+```
+
+Thus an app/test using an injected alternate data directory could touch the
+repository-default SQLite accounting path. The offending request did not even
+contain unresolved free text requiring LLM drafting.
+
+### Bounded repair and targeted reproof
+
+The repair changes exactly `src/job_agent/dashboard/extension_api.py` and
+`tests/test_extension_api.py`. It copies Settings with Pydantic `model_copy` to
+make the extension router's injected `data_dir` authoritative for screening LLM
+accounting, without mutating global Settings. Before constructing the generator
+or accounting path, it checks the same existing
+`screening.classify_question(..., reason) == "free_text"` predicate used by
+`apply_drafts`. No unresolved free-text need means no `make_llm_generate`
+construction. Drafting capability metadata, grounding, review, gating and actual
+drafting when free text requires it are preserved. No schema or trusted
+approval-domain production code changed.
+
+The regression assertions prove:
+
+1. API key plus company context with no unresolved free text does not call
+   `make_llm_generate`.
+2. Real unresolved free text supplies `make_llm_generate` with `settings.data_dir`
+   equal to the synthetic directory passed to `create_app`, even when
+   `JOB_AGENT_DATA_DIR` points elsewhere.
+
+Focused `tests/test_extension_api.py` validation: **24 passed**. The exact original
+offending test under Bubblewrap shadow production data: **1 passed**. Both the
+shadow production-path SQLite and real production SQLite remained byte-for-byte
+unchanged. Result: **PASS - DATABASE-PATH DEFECT REPAIR VERIFIED**.
+
+### Multiprocessing warning isolation
+
+Each originally warning-producing file was rerun in its own **fresh pytest
+process** with `-W error::DeprecationWarning`:
+
+| File | Result |
+| --- | --- |
+| tests/test_packet_chaos.py | 207 passed |
+| tests/test_revisions.py | 283 passed |
+| tests/test_scheduler.py | 49 passed |
+
+No promoted DeprecationWarning failed any file; production SQLite remained
+unchanged. The controlled results identify the original 21 warnings as a
+monolithic-process test-run artifact: later fork-based tests ran after threads
+had existed in the same long-lived pytest process. No production multiprocessing
+behavior was changed merely to suppress the artifact. These results do not
+establish that Python has no general fork hazard.
+
+### Accepted complete deterministic/offline regression
+
+The final accepted suite used the established **disjoint** test architecture,
+with DeprecationWarning promoted to an error:
+
+| Disjoint partition | Passed | Exit |
+| --- | --- | --- |
+| Sandbox-compatible complement | 2412 | 0 |
+| Established outside FastAPI/Chromium/API split | 383 | 0 |
+| Unique complete current suite | **2795 / 2795** | |
+
+Targeted reproof and warning-isolation reruns are not added to this unique total.
+After the suite, production SQLite hash and approval-service PID were unchanged;
+`ActiveState=active`, `SubState=running`, `NRestarts=0`. The listener remained
+exactly `127.0.0.1:8643`, production schema remained v9, and `git diff --check`
+passed. Result: **PASS - COMPLETE DISJOINT OFFLINE REGRESSION**.
+
+### Controlled final real-tailnet security smoke
+
+The final live smoke used the existing configured environment. It changed no
+Serve, tailnet policy, login, systemd configuration or production data. Its
+starting and final repository state contained only the two reviewed repair files
+at checkpoint `58e8fb0`. The supplied observations passed:
+
+- Approval service active; backend exactly loopback-only; Tailscale self state
+  available. Serve remained tailnet-only, proxying to `127.0.0.1:8643`.
+  Funnel/public Serve permission was absent.
+- Authenticated HTTPS bootstrap succeeded with normal TLS certificate
+  verification, without `-k`. It returned `access_mode=tailscale`,
+  `local_only=false` and a present process CSRF token.
+- Deliberately spoofed `Tailscale-User-Login` headers were replaced by the
+  Serve-authenticated identity. Foreign Host was rejected.
+- Exact authenticated identity plus exact HTTPS Origin plus CSRF reached routing.
+  Identity without CSRF was rejected; foreign Origin was rejected.
+- CSRF sent directly to the loopback backend without Tailscale identity was
+  rejected. Direct Tailscale-IP and WSL-IP access to port 8643 was unreachable.
+- Production SQLite hash, approval-service PID/restart state and schema v9 were
+  unchanged. The repository still contained only the reviewed repair and
+  `git diff --check` passed.
+
+Result: **PASS - CONTROLLED RUN 4 E REAL-TAILNET SECURITY SMOKE**.
+Private tailnet hostname, login and CSRF values are intentionally not recorded.
+
+### Final independent static source audit
+
+After runtime validation, a fresh GPT-6 Astra independent **read-only** static
+source audit returned **VERDICT: PASS**, with **0 BLOCKER, 0 HIGH, 0 MEDIUM and
+0 LOW**. It changed no files and confirmed:
+
+- Screening accounting is bound to injected `data_dir`; requests without free
+  text do not construct `make_llm_generate`; actual free-text requests still use
+  existing screening drafting. Schema remains v9 and grounding/review behavior
+  is not weakened.
+- The exact supported Tailscale login remains required. `Tailscale-User-Name`
+  is not authority; duplicate login headers fail. Generic `X-Forwarded-*`
+  headers and wildcard/suffix Host matching grant no authority.
+- Foreign/HTTP mutation Origin is rejected in Tailscale mode. Identity cannot
+  bypass CSRF, and CSRF cannot authenticate direct backend access. The supported
+  authenticated CLI binds `127.0.0.1`; local and Tailscale modes remain distinct.
+- Run 4 adds no weaker approval-domain path. Approval reads/actions initiate no
+  Anthropic or Tavily operation, contact no employer and submit no application.
+- The systemd unit launches only `approval-queue`, does not configure Serve/Funnel
+  and embeds no private identity. All eight protected trusted-domain production
+  files had empty diffs.
+
+One **INFO** observation noted that the extension test module's autouse fixture
+neutralizes dotenv/API-key influence but does not isolate every possible
+unrelated ambient setting. The audit explicitly determined this does not
+invalidate either regression assertion; it was not a defect finding.
+
+### Final scope, trust assumptions and operational limitations
+
+**A: COMPLETE. B: COMPLETE. C: COMPLETE. D: COMPLETE. E: COMPLETE.
+Run 4: COMPLETE.** This means authenticated private Tailscale multi-device access
+to the Job Pilot approval queue, preserving existing packet/approval/revision
+safety boundaries. Runtime results above are tested observations in the configured
+environment; static confirmations are source-audited behavior. Neither removes
+the following trust assumptions or limitations:
+
+- The backend binds only `127.0.0.1`. Serve is operator-managed; Funnel is not
+  used or permitted for this deployment. Serve identity-header trust applies
+  only behind the trusted local Serve proxy with this loopback-only backend.
+  Exact configured tailnet Host and authorized login are required; generic
+  forwarded headers grant no authority.
+- CSRF and exact packet/view/current-evidence checks remain required. An equally
+  privileged malicious local process remains inside the trusted-host boundary
+  and can forge identity headers. This is not protection from a compromised
+  local host. Existing filesystem/DB/cooperating-lock and point-in-time
+  validation limitations remain.
+- Tailscale/network configuration is not stored in the Job Pilot DB. Schema
+  remains v9. Approval access does not automate employer submission.
+- The persistent service runs **approval-queue only**. Revision processing stays
+  independent/manual/on-demand; a Revise decision does not imply an automatically
+  running revision worker. The service does not launch the normal scheduler.
+- The user-level systemd approval service has been proven to return automatically
+  after WSL itself shuts down and later starts. Windows boot automatically
+  launching WSL has **not been proven** and remains a separate environment/
+  operations concern. Keeping WSL alive indefinitely is also not established.
+- Automated job submission, revision processing, Windows boot orchestration,
+  the future UI redesign and the broader Job Pilot product/roadmap are not
+  declared complete by this closeout.
+
+This documentation-only closeout leaves the two reviewed repair files unchanged.
+No runtime validation, private configuration inspection, database access, service
+operation, commit or push is part of this pass. Stop for Andrew's review.

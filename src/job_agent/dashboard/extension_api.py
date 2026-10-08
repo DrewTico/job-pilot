@@ -186,7 +186,7 @@ def create_extension_router(*, data_dir: Path, facts_path: Path,
         # extension shows them for review and NEVER enters one unreviewed.
         # The popup needs to know WHY drafting didn't run, not just that it
         # didn't — report the state explicitly.
-        settings = load_settings()
+        settings = load_settings().model_copy(update={"data_dir": Path(data_dir)})
         if not settings.anthropic_api_key:
             drafting = {"enabled": False,
                         "reason": "no ANTHROPIC_API_KEY loaded in the backend — "
@@ -197,11 +197,15 @@ def create_extension_router(*, data_dir: Path, facts_path: Path,
         else:
             from job_agent.apply import screening
 
-            drafter = screening.make_drafter(
-                screening.make_llm_generate(settings), facts, bank,
-                jd=req.jd, company=req.company,
-                cache_path=data_dir / "answers_cache.json")
-            plan = screening.apply_drafts(plan, drafter)
+            # Capability is available even when this plan needs no draft.
+            # Match apply_drafts routing before initializing LLM accounting.
+            if any(screening.classify_question(u.field, u.reason) == "free_text"
+                   for u in plan.unfilled):
+                drafter = screening.make_drafter(
+                    screening.make_llm_generate(settings), facts, bank,
+                    jd=req.jd, company=req.company,
+                    cache_path=data_dir / "answers_cache.json")
+                plan = screening.apply_drafts(plan, drafter)
             drafting = {"enabled": True, "reason": ""}
 
         by_selector = {f.selector: f for f in fields}

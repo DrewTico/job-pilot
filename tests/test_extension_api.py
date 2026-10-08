@@ -26,6 +26,13 @@ FACTS_YAML = (
 BANK_YAML = "authorized_us: true\nrequires_sponsorship: false\n"
 
 
+@pytest.fixture(autouse=True)
+def synthetic_settings(monkeypatch):
+    # Keep this file independent of private .env contents and ambient keys.
+    monkeypatch.setattr("job_agent.config.load_dotenv", lambda: None)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+
+
 def _control(**kw) -> dict:
     base = {"tag": "input", "type": "text", "name": "", "label": "",
             "groupLabel": "", "required": False, "maxlength": None,
@@ -126,7 +133,14 @@ def test_missing_answer_bank_is_a_clear_error(tmp_path):
 
 # --- resume hint: which file the human should attach (never auto-uploaded) -----------
 
-def test_file_fields_pause_and_the_response_recommends_the_tailored_pdf(tmp_path):
+def test_file_fields_pause_and_the_response_recommends_the_tailored_pdf(tmp_path, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    from job_agent.apply import screening
+
+    def unexpected_generator(settings):
+        pytest.fail("No unresolved free-text field should initialize an LLM generator")
+
+    monkeypatch.setattr(screening, "make_llm_generate", unexpected_generator)
     (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     out = tmp_path / "output"
@@ -145,9 +159,12 @@ def test_file_fields_pause_and_the_response_recommends_the_tailored_pdf(tmp_path
     assert data["resume"]["name"] == "Jordan_AI_Engineer_Stripe.pdf"  # newest
 
     # naming the company prefers its tailored resume over the newest one
-    data = client.post("/api/extension/fill-values",
-                       json={"fields": fields, "company": "Plaid"}).json()
+    response = client.post("/api/extension/fill-values",
+                           json={"fields": fields, "company": "Plaid"})
+    assert response.status_code == 200
+    data = response.json()
     assert data["resume"]["name"] == "Jordan_ML_Engineer_Plaid.pdf"
+    assert data["drafting"] == {"enabled": True, "reason": ""}
 
 
 def test_resume_hint_is_null_when_nothing_is_tailored_yet(client):
@@ -164,9 +181,16 @@ ESSAY = _control(tag="textarea", type="", name="project",
 
 def test_free_text_drafts_with_the_existing_screening_drafter(tmp_path, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("JOB_AGENT_DATA_DIR", str(tmp_path / "unrelated-default"))
     from job_agent.apply import screening
-    monkeypatch.setattr(screening, "make_llm_generate",
-                        lambda settings: lambda prompt: "I shipped an ML feature store at Acme.")
+    generator_data_dirs = []
+
+    def fake_generate(settings):
+        generator_data_dirs.append(settings.data_dir)
+        assert settings.data_dir == tmp_path
+        return lambda prompt: "I shipped an ML feature store at Acme."
+
+    monkeypatch.setattr(screening, "make_llm_generate", fake_generate)
     (tmp_path / "facts.yaml").write_text(FACTS_YAML)
     (tmp_path / "answer_bank.yaml").write_text(BANK_YAML)
     client = TestClient(create_app(data_dir=tmp_path))
@@ -177,6 +201,7 @@ def test_free_text_drafts_with_the_existing_screening_drafter(tmp_path, monkeypa
     draft = next(p for p in data["planned"] if p["selector"] == "#project")
     assert draft["tag"] in ("[AI-DRAFT]", "[NEEDS-INPUT]", "[GATE-FLAGGED]")
     assert draft["value"]                        # the draft text, for review
+    assert generator_data_dirs == [tmp_path]
 
 
 def test_no_api_key_means_no_drafting_and_the_question_pauses(client, monkeypatch):
