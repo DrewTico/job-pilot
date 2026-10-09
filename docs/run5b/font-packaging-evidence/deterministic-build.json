@@ -1,0 +1,32 @@
+{
+  "equivalent_source_state": true,
+  "manifest_byte_identical": true,
+  "build_1_manifest_sha256": "2fd53f777b9d8654ede7a4f8910649ef94ba0cf2d5d493b7d1396d0ecbc15bb9",
+  "build_2_manifest_sha256": "2fd53f777b9d8654ede7a4f8910649ef94ba0cf2d5d493b7d1396d0ecbc15bb9",
+  "assets": 17,
+  "total_package_asset_bytes": 726813,
+  "font_total_bytes": 103088,
+  "font_entries": {
+    "_next/static/media/bricolage-grotesque-latin-wght-normal.3e340e57.woff2": {
+      "sha256": "a97804dc9fbe5fc972a08018c5eda4dab7ef2346f64c57e61419d05e6de4ea1c",
+      "size": 41344,
+      "type": "font/woff2"
+    },
+    "_next/static/media/geist-latin-wght-normal.9ff55a8a.woff2": {
+      "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1",
+      "size": 29400,
+      "type": "font/woff2"
+    },
+    "_next/static/media/geist-mono-latin-400-normal.d4363d9d.woff2": {
+      "sha256": "3f98383b122fe015a48536cd4a1cda855a201718923ffe74931a01597107b9b5",
+      "size": 9864,
+      "type": "font/woff2"
+    },
+    "_next/static/media/newsreader-latin-400-normal.40164bd1.woff2": {
+      "sha256": "e66067814f1c672d33a457e4f4d102c818b481420e2234cf685ebdbf2f443904",
+      "size": 22480,
+      "type": "font/woff2"
+    }
+  },
+  "every_emitted_asset_hash_verified": true
+}

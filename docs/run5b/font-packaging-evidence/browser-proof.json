@@ -1,0 +1,1168 @@
+{
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "resolved_fonts": {
+    "hero_title": {
+      "computed": {
+        "family": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "weight": "700",
+        "size": "38px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Bricolage Grotesque",
+            "status": "loaded",
+            "weight": "700 800",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Bricolage Grotesque 96pt ExtraBold",
+          "postScriptName": "BricolageGrotesque96ptExtraBold-Regular",
+          "isCustomFont": true,
+          "glyphCount": 29
+        }
+      ]
+    },
+    "ready_for_you": {
+      "computed": {
+        "family": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "weight": "700",
+        "size": "22px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Bricolage Grotesque",
+            "status": "loaded",
+            "weight": "700 800",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Bricolage Grotesque 96pt ExtraBold",
+          "postScriptName": "BricolageGrotesque96ptExtraBold-Regular",
+          "isCustomFont": true,
+          "glyphCount": 13
+        }
+      ]
+    },
+    "fit_score": {
+      "computed": {
+        "family": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "weight": "800",
+        "size": "42px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Bricolage Grotesque",
+            "status": "loaded",
+            "weight": "700 800",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Bricolage Grotesque 96pt ExtraBold",
+          "postScriptName": "BricolageGrotesque96ptExtraBold-Regular",
+          "isCustomFont": true,
+          "glyphCount": 2
+        }
+      ]
+    },
+    "ordinary_ui": {
+      "computed": {
+        "family": "Geist, Arial, sans-serif",
+        "weight": "400",
+        "size": "13px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Geist",
+            "status": "loaded",
+            "weight": "400 600",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Geist",
+          "postScriptName": "Geist-Regular",
+          "isCustomFont": true,
+          "glyphCount": 28
+        }
+      ]
+    },
+    "company_line": {
+      "computed": {
+        "family": "Geist, Arial, sans-serif",
+        "weight": "600",
+        "size": "16px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Geist",
+            "status": "loaded",
+            "weight": "400 600",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Geist",
+          "postScriptName": "Geist-Regular",
+          "isCustomFont": true,
+          "glyphCount": 10
+        }
+      ]
+    },
+    "demo_badge": {
+      "computed": {
+        "family": "Geist, Arial, sans-serif",
+        "weight": "500",
+        "size": "9px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Geist",
+            "status": "loaded",
+            "weight": "400 600",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Geist",
+          "postScriptName": "Geist-Regular",
+          "isCustomFont": true,
+          "glyphCount": 4
+        }
+      ]
+    },
+    "fit_label": {
+      "computed": {
+        "family": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "weight": "700",
+        "size": "24px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Bricolage Grotesque",
+            "status": "loaded",
+            "weight": "700 800",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Bricolage Grotesque 96pt ExtraBold",
+          "postScriptName": "BricolageGrotesque96ptExtraBold-Regular",
+          "isCustomFont": true,
+          "glyphCount": 9
+        }
+      ]
+    },
+    "tile_value": {
+      "computed": {
+        "family": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "weight": "700",
+        "size": "24px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Bricolage Grotesque",
+            "status": "loaded",
+            "weight": "700 800",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Bricolage Grotesque 96pt ExtraBold",
+          "postScriptName": "BricolageGrotesque96ptExtraBold-Regular",
+          "isCustomFont": true,
+          "glyphCount": 9
+        }
+      ]
+    },
+    "technical_mono": {
+      "computed": {
+        "family": "\"Geist Mono\", monospace",
+        "weight": "400",
+        "size": "11px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Geist Mono",
+            "status": "loaded",
+            "weight": "400",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Geist Mono",
+          "postScriptName": "GeistMono-Regular",
+          "isCustomFont": true,
+          "glyphCount": 64
+        }
+      ]
+    },
+    "cover_letter": {
+      "computed": {
+        "family": "Newsreader, Georgia, serif",
+        "weight": "400",
+        "size": "17px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Newsreader",
+            "status": "loaded",
+            "weight": "400",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Newsreader 16pt 16pt",
+          "postScriptName": "Newsreader16pt16pt-Regular",
+          "isCustomFont": true,
+          "glyphCount": 354
+        }
+      ]
+    },
+    "cover_letter_reader": {
+      "computed": {
+        "family": "Newsreader, Georgia, serif",
+        "weight": "400",
+        "size": "17.5px"
+      },
+      "font_face_set": {
+        "check": true,
+        "status": "loaded",
+        "faces": [
+          {
+            "family": "Newsreader",
+            "status": "loaded",
+            "weight": "400",
+            "style": "normal",
+            "display": "swap"
+          }
+        ]
+      },
+      "platform_fonts": [
+        {
+          "familyName": "Newsreader 16pt 16pt",
+          "postScriptName": "Newsreader16pt16pt-Regular",
+          "isCustomFont": true,
+          "glyphCount": 354
+        }
+      ]
+    }
+  },
+  "font_requests": [
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/geist-latin-wght-normal.9ff55a8a.woff2",
+      "type": "font",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/bricolage-grotesque-latin-wght-normal.3e340e57.woff2",
+      "type": "font",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/geist-mono-latin-400-normal.d4363d9d.woff2",
+      "type": "font",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/newsreader-latin-400-normal.40164bd1.woff2",
+      "type": "font",
+      "method": "GET"
+    }
+  ],
+  "font_responses": [
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/geist-latin-wght-normal.9ff55a8a.woff2",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/bricolage-grotesque-latin-wght-normal.3e340e57.woff2",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/geist-mono-latin-400-normal.d4363d9d.woff2",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/newsreader-latin-400-normal.40164bd1.woff2",
+      "status": 200
+    }
+  ],
+  "requests": [
+    {
+      "url": "http://127.0.0.1:45531/ui",
+      "type": "document",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/css/5a503cdee5161b8c.css",
+      "type": "stylesheet",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/webpack-fdd28d056a83dca5.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/framework-af66a490e913929a.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/main-4897e27d74d5ea94.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/pages/_app-012326b38a31a2da.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/643-43fc3560c6fe6574.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/271-0c3573665d7ffc1d.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/chunks/pages/index-cd812a9aea3b860a.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/run5b/_buildManifest.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/run5b/_ssgManifest.js",
+      "type": "script",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/geist-latin-wght-normal.9ff55a8a.woff2",
+      "type": "font",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/bricolage-grotesque-latin-wght-normal.3e340e57.woff2",
+      "type": "font",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/api/queue?section=needs-review&limit=25&offset=0",
+      "type": "fetch",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/api/queue?section=needs-review&limit=25&offset=0",
+      "type": "fetch",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/api/packets/00000000000000000000000000000001",
+      "type": "fetch",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/geist-mono-latin-400-normal.d4363d9d.woff2",
+      "type": "font",
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:45531/ui/_next/static/media/newsreader-latin-400-normal.40164bd1.woff2",
+      "type": "font",
+      "method": "GET"
+    }
+  ],
+  "third_party_request_count": 0,
+  "csp_violations": [],
+  "metrics": {
+    ".job-hero": [
+      {
+        "text": "NI\n\nNorthstar InstrumentsDEMO\n\nPacket v2\nSoftware Engineer, Applied AI\nRemote, United States\nPacket ready\nBack to queue\n1 of 4 loaded\n94\nFIT\nGreat fit\nJob fit \u00b7 out of 100\nWhy this score",
+        "x": 384,
+        "y": 18,
+        "width": 1036,
+        "height": 202.546875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "400",
+        "lineHeight": "21px",
+        "tracking": "normal",
+        "padding": "20px 26px",
+        "border": "1px",
+        "radius": "24px",
+        "align": "center",
+        "justify": "normal"
+      }
+    ],
+    ".review-panes": [
+      {
+        "text": "RESUME\nView package\n\nAvailable\n\nPacket v2 \u00b7 PDF artifact\n\nMatch\nNot available yet\n\nINTERVIEW\n\nNot available yet\n\nNo interview prediction available.\n\nRIGHT PEOPLE\nView\n\nNot available yet\n\nContacts and emails are unavailable.\n\nLOCATION\n\nRemote, United States\n\nRelocation\nNot stated\n\nWHY IT MATCHES\nThe role asks for Python APIs and practical AI evaluation.\nThe packet includes evidence of retrieval testing and review tooling.\nWATCH OUT\nProduction experience with the employer's internal platform\nPackage\nCover letter\nResume\nScreening\nPeople\nHistory\nResume\nPacket v2 \u00b7 PDF artifact\nAvailable\nCover letter\n57 words \u00b7 authenticated text\nAvailable\nScreening questions\n2 answers \u00b7 0 manual-needed\nReview\nPeople\nNot available yet\nNot authorized\n\nNo decision \u00b7 Integrity passed\n\nResume PDF\nAvailable\nPacket v2\nLatest ready\nManual review\n0 to review\nCover evidence\nCover available\n\nCover accepted: yes\n\nCompany evidence\n\nFictional Northstar Instruments makes review tools for laboratory teams.\n\nSynthetic company profile\n(opens in a new tab)",
+        "x": 384,
+        "y": 234.546875,
+        "width": 1036,
+        "height": 569.453125,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "400",
+        "lineHeight": "21px",
+        "tracking": "normal",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".decision-handoff": [
+      {
+        "text": "Reviewing packet v2 \u00b7 Northstar InstrumentsDEMO\n\nExact version only \u00b7 Select this packet in the trusted decision UI.\n\nOpen trusted decision UI",
+        "x": 384,
+        "y": 818,
+        "width": 1036,
+        "height": 82,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "400",
+        "lineHeight": "21px",
+        "tracking": "normal",
+        "padding": "12px 0px 14px",
+        "border": "1px 0px 0px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "normal"
+      }
+    ],
+    ".company-label": [
+      {
+        "text": "Northstar InstrumentsDEMO",
+        "x": 487,
+        "y": 39,
+        "width": 224.546875,
+        "height": 24,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "16px",
+        "weight": "600",
+        "lineHeight": "24px",
+        "tracking": "-0.16px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".demo-label": [
+      {
+        "text": "DEMO",
+        "x": 227.46875,
+        "y": 221.25,
+        "width": 42.890625,
+        "height": 18,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "9px",
+        "weight": "500",
+        "lineHeight": "12.6px",
+        "tracking": "0.72px",
+        "padding": "0px 6px",
+        "border": "1px",
+        "radius": "6px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "DEMO",
+        "x": 206.03125,
+        "y": 419.625,
+        "width": 42.890625,
+        "height": 18,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "9px",
+        "weight": "500",
+        "lineHeight": "12.6px",
+        "tracking": "0.72px",
+        "padding": "0px 6px",
+        "border": "1px",
+        "radius": "6px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "DEMO",
+        "x": 250.921875,
+        "y": 601.90625,
+        "width": 42.890625,
+        "height": 18,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "9px",
+        "weight": "500",
+        "lineHeight": "12.6px",
+        "tracking": "0.72px",
+        "padding": "0px 6px",
+        "border": "1px",
+        "radius": "6px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "DEMO",
+        "x": 219.609375,
+        "y": 837.96875,
+        "width": 42.890625,
+        "height": 18,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "9px",
+        "weight": "500",
+        "lineHeight": "12.6px",
+        "tracking": "0.72px",
+        "padding": "0px 6px",
+        "border": "1px",
+        "radius": "6px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "DEMO",
+        "x": 668.65625,
+        "y": 42.734375,
+        "width": 42.890625,
+        "height": 18,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "9px",
+        "weight": "500",
+        "lineHeight": "12.6px",
+        "tracking": "0.72px",
+        "padding": "0px 6px",
+        "border": "1px",
+        "radius": "6px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "DEMO",
+        "x": 736.03125,
+        "y": 839.765625,
+        "width": 42.890625,
+        "height": 18,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "9px",
+        "weight": "500",
+        "lineHeight": "12.6px",
+        "tracking": "0.72px",
+        "padding": "0px 6px",
+        "border": "1px",
+        "radius": "6px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".score": [
+      {
+        "text": "94",
+        "x": 1152.875,
+        "y": 88.265625,
+        "width": 48.234375,
+        "height": 42,
+        "font": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "fontSize": "42px",
+        "weight": "800",
+        "lineHeight": "42px",
+        "tracking": "-1.89px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".fit-ring>div>span": [
+      {
+        "text": "FIT",
+        "x": 1167.6875,
+        "y": 134.265625,
+        "width": 18.609375,
+        "height": 16,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "10px",
+        "weight": "500",
+        "lineHeight": "15px",
+        "tracking": "1.2px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".row-company": [
+      {
+        "text": "Northstar InstrumentsDEMO",
+        "x": 140,
+        "y": 200.390625,
+        "width": 158.671875,
+        "height": 39.1875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "600",
+        "lineHeight": "19.6px",
+        "tracking": "-0.14px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Meridian Field SystemsDEMO",
+        "x": 140,
+        "y": 398.765625,
+        "width": 158.671875,
+        "height": 39.1875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "600",
+        "lineHeight": "19.6px",
+        "tracking": "-0.14px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Lantern ArchiveDEMO",
+        "x": 140,
+        "y": 600.640625,
+        "width": 158.671875,
+        "height": 19.59375,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "600",
+        "lineHeight": "19.6px",
+        "tracking": "-0.14px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Long Content LaboratoryDEMO",
+        "x": 140,
+        "y": 817.109375,
+        "width": 158.671875,
+        "height": 39.1875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "600",
+        "lineHeight": "19.6px",
+        "tracking": "-0.14px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".row-title": [
+      {
+        "text": "Software Engineer, Applied AI",
+        "x": 140,
+        "y": 243.578125,
+        "width": 158.671875,
+        "height": 37.6875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "400",
+        "lineHeight": "18.85px",
+        "tracking": "normal",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Associate Platform Engineer",
+        "x": 140,
+        "y": 441.953125,
+        "width": 158.671875,
+        "height": 37.6875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "400",
+        "lineHeight": "18.85px",
+        "tracking": "normal",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Frontend Engineer, Accessible Research Collections and Long-Form Evidence Review",
+        "x": 140,
+        "y": 624.234375,
+        "width": 158.671875,
+        "height": 75.375,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "400",
+        "lineHeight": "18.85px",
+        "tracking": "normal",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Software Engineer, Applied AI",
+        "x": 140,
+        "y": 860.296875,
+        "width": 158.671875,
+        "height": 37.6875,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "400",
+        "lineHeight": "18.85px",
+        "tracking": "normal",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".tile-value": [
+      {
+        "text": "Available",
+        "x": 404,
+        "y": 283.546875,
+        "width": 224.953125,
+        "height": 30,
+        "font": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "fontSize": "24px",
+        "weight": "700",
+        "lineHeight": "30px",
+        "tracking": "-0.6px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Not available yet",
+        "x": 678.953125,
+        "y": 283.546875,
+        "width": 224.96875,
+        "height": 25,
+        "font": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "fontSize": "20px",
+        "weight": "700",
+        "lineHeight": "25px",
+        "tracking": "-0.5px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      },
+      {
+        "text": "Not available yet",
+        "x": 404,
+        "y": 466.9375,
+        "width": 224.953125,
+        "height": 25,
+        "font": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "fontSize": "20px",
+        "weight": "700",
+        "lineHeight": "25px",
+        "tracking": "-0.5px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".location-value": [
+      {
+        "text": "Remote, United States",
+        "x": 678.953125,
+        "y": 466.9375,
+        "width": 224.96875,
+        "height": 25,
+        "font": "\"Bricolage Grotesque\", Arial, sans-serif",
+        "fontSize": "20px",
+        "weight": "700",
+        "lineHeight": "25px",
+        "tracking": "-0.5px",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ],
+    ".job-location": [
+      {
+        "text": "Remote, United States",
+        "x": 487,
+        "y": 125.546875,
+        "width": 178.53125,
+        "height": 30,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "12px",
+        "weight": "500",
+        "lineHeight": "16.8px",
+        "tracking": "0.12px",
+        "padding": "4px 12px",
+        "border": "1px",
+        "radius": "15px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".status-badge": [
+      {
+        "text": "Packet ready",
+        "x": 673.53125,
+        "y": 125.546875,
+        "width": 103.453125,
+        "height": 30,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "12px",
+        "weight": "500",
+        "lineHeight": "16.8px",
+        "tracking": "0.12px",
+        "padding": "4px 12px",
+        "border": "1px",
+        "radius": "15px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".manual-badge": [
+      {
+        "text": "2 manual",
+        "x": 227,
+        "y": 521.640625,
+        "width": 66.90625,
+        "height": 20,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "11px",
+        "weight": "500",
+        "lineHeight": "15.4px",
+        "tracking": "0.11px",
+        "padding": "0px 8px",
+        "border": "1px",
+        "radius": "7px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "1 manual",
+        "x": 227,
+        "y": 939.984375,
+        "width": 66.90625,
+        "height": 20,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "11px",
+        "weight": "500",
+        "lineHeight": "15.4px",
+        "tracking": "0.11px",
+        "padding": "0px 8px",
+        "border": "1px",
+        "radius": "7px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".evidence-panel .tabs-trigger": [
+      {
+        "text": "Package",
+        "x": 948.921875,
+        "y": 242.546875,
+        "width": 75,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "500",
+        "lineHeight": "19.5px",
+        "tracking": "normal",
+        "padding": "0px 6px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "Cover letter",
+        "x": 1023.921875,
+        "y": 242.546875,
+        "width": 95.015625,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "500",
+        "lineHeight": "19.5px",
+        "tracking": "normal",
+        "padding": "0px 6px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "Resume",
+        "x": 1118.9375,
+        "y": 242.546875,
+        "width": 73.015625,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "500",
+        "lineHeight": "19.5px",
+        "tracking": "normal",
+        "padding": "0px 6px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "Screening",
+        "x": 1191.953125,
+        "y": 242.546875,
+        "width": 84.015625,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "500",
+        "lineHeight": "19.5px",
+        "tracking": "normal",
+        "padding": "0px 6px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "People",
+        "x": 1275.96875,
+        "y": 242.546875,
+        "width": 66.015625,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "500",
+        "lineHeight": "19.5px",
+        "tracking": "normal",
+        "padding": "0px 6px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "History",
+        "x": 1341.984375,
+        "y": 242.546875,
+        "width": 67.015625,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "13px",
+        "weight": "500",
+        "lineHeight": "19.5px",
+        "tracking": "normal",
+        "padding": "0px 6px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".queue-tabs>.tabs-list>.tabs-trigger": [
+      {
+        "text": "Needs review",
+        "x": 76,
+        "y": 78.390625,
+        "width": 71.171875,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "11px",
+        "weight": "500",
+        "lineHeight": "16.5px",
+        "tracking": "-0.11px",
+        "padding": "0px 2px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "Processing",
+        "x": 147.171875,
+        "y": 78.390625,
+        "width": 64.703125,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "11px",
+        "weight": "500",
+        "lineHeight": "16.5px",
+        "tracking": "-0.11px",
+        "padding": "0px 2px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "Needs attention",
+        "x": 211.875,
+        "y": 78.390625,
+        "width": 93.828125,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "11px",
+        "weight": "500",
+        "lineHeight": "16.5px",
+        "tracking": "-0.11px",
+        "padding": "0px 2px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      },
+      {
+        "text": "History",
+        "x": 305.703125,
+        "y": 78.390625,
+        "width": 45.28125,
+        "height": 44,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "11px",
+        "weight": "500",
+        "lineHeight": "16.5px",
+        "tracking": "-0.11px",
+        "padding": "0px 2px",
+        "border": "0px 0px 2px",
+        "radius": "0px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".button": [
+      {
+        "text": "Open trusted decision UI",
+        "x": 1189.3125,
+        "y": 835.5,
+        "width": 230.6875,
+        "height": 46,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "600",
+        "lineHeight": "21px",
+        "tracking": "0.07px",
+        "padding": "10px 18px",
+        "border": "1px",
+        "radius": "13px",
+        "align": "center",
+        "justify": "center"
+      }
+    ],
+    ".packet-signals": [
+      {
+        "text": "Resume PDF\nAvailable\nPacket v2\nLatest ready\nManual review\n0 to review\nCover evidence\nCover available",
+        "x": 958.921875,
+        "y": 708.046875,
+        "width": 440.078125,
+        "height": 93.375,
+        "font": "Geist, Arial, sans-serif",
+        "fontSize": "14px",
+        "weight": "400",
+        "lineHeight": "21px",
+        "tracking": "normal",
+        "padding": "0px",
+        "border": "0px",
+        "radius": "0px",
+        "align": "normal",
+        "justify": "normal"
+      }
+    ]
+  }
+}

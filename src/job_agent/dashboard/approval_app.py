@@ -24,6 +24,7 @@ from job_agent.dashboard.approval_security import (
     AdapterError, LocalBoundaryMiddleware, ProcessCSRF, approval_access, error_response, validate_port,
 )
 from job_agent.dashboard.approval_service import ApprovalQueueService
+from job_agent.dashboard.frontend_delivery import register_frontend
 
 _STATIC = Path(__file__).resolve().parent / "static"
 PacketID = Annotated[str, PathParam(pattern=r"^[0-9a-f]{32}$")]
@@ -98,6 +99,7 @@ def create_approval_app(*, settings: Settings | None = None, engine=None, port: 
     app = FastAPI(title="Job Pilot approval", docs_url=None, redoc_url=None,
                   openapi_url=None, lifespan=lifespan)
     app.add_middleware(LocalBoundaryMiddleware, port=port, csrf=csrf, access=access, settings=settings)
+    register_frontend(app)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):

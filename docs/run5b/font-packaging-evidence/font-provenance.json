@@ -1,0 +1,298 @@
+[
+  {
+    "package": "@fontsource-variable/bricolage-grotesque",
+    "version": "5.3.0",
+    "family": "Bricolage Grotesque",
+    "license": {
+      "type": "OFL-1.1",
+      "url": "https://openfontlicense.org",
+      "attribution": "Copyright 2022 The Bricolage Grotesque Project Authors (https://github.com/ateliertriay/bricolage)"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/fontsource/font-files.git",
+      "directory": "fonts/variable/bricolage-grotesque"
+    },
+    "asset": "files/bricolage-grotesque-latin-wght-normal.woff2",
+    "css_weight": "700 800",
+    "size": 41344,
+    "sha256": "a97804dc9fbe5fc972a08018c5eda4dab7ef2346f64c57e61419d05e6de4ea1c",
+    "npm_tarball": "https://registry.npmjs.org/@fontsource-variable/bricolage-grotesque/-/bricolage-grotesque-5.3.0.tgz",
+    "npm_integrity": "sha512-TLi9Q4hJjS2UvoTMRSS2nHu6c4R56lAw60NR9QYtVRCHn0XtsFpiEhNffZ8Glsoxu6wEEwLKBP8lb94J52PNBA==",
+    "source_metadata": {
+      "id": "bricolage-grotesque",
+      "family": "Bricolage Grotesque",
+      "subsets": [
+        "latin",
+        "latin-ext",
+        "vietnamese"
+      ],
+      "weights": [
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800
+      ],
+      "styles": [
+        "normal"
+      ],
+      "defSubset": "latin",
+      "variable": {
+        "opsz": {
+          "default": "14",
+          "min": "12",
+          "max": "96",
+          "step": "0.1"
+        },
+        "wdth": {
+          "default": "100",
+          "min": "75",
+          "max": "100",
+          "step": "0.1"
+        },
+        "wght": {
+          "default": "400",
+          "min": "200",
+          "max": "800",
+          "step": "1"
+        }
+      },
+      "lastModified": "2025-09-11",
+      "version": "v9",
+      "category": "sans-serif",
+      "license": {
+        "type": "OFL-1.1",
+        "url": "https://openfontlicense.org",
+        "attribution": "Copyright 2022 The Bricolage Grotesque Project Authors (https://github.com/ateliertriay/bricolage)"
+      },
+      "source": "https://github.com/google/fonts",
+      "type": "google"
+    },
+    "runtime_requests_required": false
+  },
+  {
+    "package": "@fontsource-variable/geist",
+    "version": "5.3.0",
+    "family": "Geist",
+    "license": {
+      "type": "OFL-1.1",
+      "url": "https://openfontlicense.org",
+      "attribution": "Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font) Geist-Italic[wght].ttf: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/fontsource/font-files.git",
+      "directory": "fonts/variable/geist"
+    },
+    "asset": "files/geist-latin-wght-normal.woff2",
+    "css_weight": "400 600",
+    "size": 29400,
+    "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1",
+    "npm_tarball": "https://registry.npmjs.org/@fontsource-variable/geist/-/geist-5.3.0.tgz",
+    "npm_integrity": "sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA==",
+    "source_metadata": {
+      "id": "geist",
+      "family": "Geist",
+      "subsets": [
+        "cyrillic",
+        "cyrillic-ext",
+        "latin",
+        "latin-ext",
+        "vietnamese"
+      ],
+      "weights": [
+        100,
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800,
+        900
+      ],
+      "styles": [
+        "italic",
+        "normal"
+      ],
+      "defSubset": "latin",
+      "variable": {
+        "ital": {
+          "default": "0",
+          "min": "0",
+          "max": "1",
+          "step": "1"
+        },
+        "wght": {
+          "default": "400",
+          "min": "100",
+          "max": "900",
+          "step": "1"
+        }
+      },
+      "lastModified": "2026-05-13",
+      "version": "v5",
+      "category": "sans-serif",
+      "license": {
+        "type": "OFL-1.1",
+        "url": "https://openfontlicense.org",
+        "attribution": "Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font) Geist-Italic[wght].ttf: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font)"
+      },
+      "source": "https://github.com/google/fonts",
+      "type": "google"
+    },
+    "runtime_requests_required": false
+  },
+  {
+    "package": "@fontsource/geist-mono",
+    "version": "5.3.0",
+    "family": "Geist Mono",
+    "license": {
+      "type": "OFL-1.1",
+      "url": "https://openfontlicense.org",
+      "attribution": "Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git) GeistMono-Italic[wght].ttf: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git)"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/fontsource/font-files.git",
+      "directory": "fonts/google/geist-mono"
+    },
+    "asset": "files/geist-mono-latin-400-normal.woff2",
+    "css_weight": "400",
+    "size": 9864,
+    "sha256": "3f98383b122fe015a48536cd4a1cda855a201718923ffe74931a01597107b9b5",
+    "npm_tarball": "https://registry.npmjs.org/@fontsource/geist-mono/-/geist-mono-5.3.0.tgz",
+    "npm_integrity": "sha512-UtJ1BBBCVpMYdIcW7nEB45UAoAw5M53ZXs2t0ciPW+IokuAAIc56M8+kW5tXbRJCTpDw4XTtU7proT6NdQAHTg==",
+    "source_metadata": {
+      "id": "geist-mono",
+      "family": "Geist Mono",
+      "subsets": [
+        "cyrillic",
+        "cyrillic-ext",
+        "latin",
+        "latin-ext",
+        "symbols2",
+        "vietnamese"
+      ],
+      "weights": [
+        100,
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800,
+        900
+      ],
+      "styles": [
+        "italic",
+        "normal"
+      ],
+      "defSubset": "latin",
+      "variable": {
+        "ital": {
+          "default": "0",
+          "min": "0",
+          "max": "1",
+          "step": "1"
+        },
+        "wght": {
+          "default": "400",
+          "min": "100",
+          "max": "900",
+          "step": "1"
+        }
+      },
+      "lastModified": "2026-06-08",
+      "version": "v6",
+      "category": "monospace",
+      "license": {
+        "type": "OFL-1.1",
+        "url": "https://openfontlicense.org",
+        "attribution": "Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git) GeistMono-Italic[wght].ttf: Copyright 2024 The Geist Project Authors (https://github.com/vercel/geist-font.git)"
+      },
+      "source": "https://github.com/google/fonts",
+      "type": "google"
+    },
+    "runtime_requests_required": false
+  },
+  {
+    "package": "@fontsource/newsreader",
+    "version": "5.3.0",
+    "family": "Newsreader",
+    "license": {
+      "type": "OFL-1.1",
+      "url": "https://openfontlicense.org",
+      "attribution": "Copyright 2020 The Newsreader Project Authors (http://github.com/productiontype/Newsreader) Newsreader-Italic[opsz,wght].ttf: Copyright 2020 The Newsreader Project Authors (http://github.com/productiontype/Newsreader)"
+    },
+    "repository": {
+      "type": "git",
+      "url": "git+https://github.com/fontsource/font-files.git",
+      "directory": "fonts/google/newsreader"
+    },
+    "asset": "files/newsreader-latin-400-normal.woff2",
+    "css_weight": "400",
+    "size": 22480,
+    "sha256": "e66067814f1c672d33a457e4f4d102c818b481420e2234cf685ebdbf2f443904",
+    "npm_tarball": "https://registry.npmjs.org/@fontsource/newsreader/-/newsreader-5.3.0.tgz",
+    "npm_integrity": "sha512-AFR6ZKY89GNL+9qBI2P2+66NhD5bhOj/v6fsLnFYLM4E0JnMB1yKb+Ro8cA64i1hwAWoBfTq5CHJGWH1toLDkw==",
+    "source_metadata": {
+      "id": "newsreader",
+      "family": "Newsreader",
+      "subsets": [
+        "latin",
+        "latin-ext",
+        "vietnamese"
+      ],
+      "weights": [
+        200,
+        300,
+        400,
+        500,
+        600,
+        700,
+        800
+      ],
+      "styles": [
+        "italic",
+        "normal"
+      ],
+      "defSubset": "latin",
+      "variable": {
+        "ital": {
+          "default": "0",
+          "min": "0",
+          "max": "1",
+          "step": "1"
+        },
+        "opsz": {
+          "default": "16",
+          "min": "6",
+          "max": "72",
+          "step": "0.1"
+        },
+        "wght": {
+          "default": "400",
+          "min": "200",
+          "max": "800",
+          "step": "1"
+        }
+      },
+      "lastModified": "2025-09-08",
+      "version": "v26",
+      "category": "serif",
+      "license": {
+        "type": "OFL-1.1",
+        "url": "https://openfontlicense.org",
+        "attribution": "Copyright 2020 The Newsreader Project Authors (http://github.com/productiontype/Newsreader) Newsreader-Italic[opsz,wght].ttf: Copyright 2020 The Newsreader Project Authors (http://github.com/productiontype/Newsreader)"
+      },
+      "source": "https://github.com/google/fonts",
+      "type": "google"
+    },
+    "runtime_requests_required": false
+  }
+]

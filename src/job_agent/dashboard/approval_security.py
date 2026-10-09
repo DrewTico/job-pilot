@@ -11,7 +11,7 @@ from starlette.responses import JSONResponse
 
 CSP = (
     "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; "
-    "img-src 'none'; font-src 'none'; object-src 'none'; frame-src 'none'; "
+    "img-src 'none'; font-src 'self'; object-src 'none'; frame-src 'none'; "
     "worker-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none';"
 )
 SECURITY_HEADERS = {

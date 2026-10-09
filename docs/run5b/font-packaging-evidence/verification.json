@@ -1,0 +1,91 @@
+{
+  "baseline_files_guarded": 249,
+  "changed_baseline_files": [
+    "src/job_agent/dashboard/frontend_delivery.py",
+    "src/job_agent/dashboard/approval_security.py",
+    "tests/test_frontend_ui_dom.py",
+    "frontend/src/styles/globals.css",
+    "frontend/src/pages/_app.tsx",
+    "frontend/scripts/package-export.mjs",
+    "frontend/scripts/export-policy.test.mjs",
+    "frontend/scripts/export-policy.mjs",
+    "frontend/package.json",
+    "frontend/package-lock.json"
+  ],
+  "all_other_baseline_files_unchanged": true,
+  "approved_design_and_pre_font_evidence_unchanged": true,
+  "database": {
+    "path": "data/job_pilot.sqlite3",
+    "size": 241664,
+    "before_sha256": "da1796bc37cd43868ed999c89a4f11c1c65bad7c1ce671f8d15552d7526994e2",
+    "after_sha256": "da1796bc37cd43868ed999c89a4f11c1c65bad7c1ce671f8d15552d7526994e2",
+    "byte_identical": true
+  },
+  "git": {
+    "branch --show-current": "main\n",
+    "rev-parse HEAD": "3245f796f2d7931012f8a3c883526a0d15ba9bc9\n",
+    "rev-parse origin/main": "3245f796f2d7931012f8a3c883526a0d15ba9bc9\n",
+    "status --short": " M .gitignore\n M src/job_agent/dashboard/approval_app.py\n M src/job_agent/dashboard/approval_security.py\n?? RUN_5B_IMPLEMENTATION_REPORT.md\n?? docs/\n?? frontend/\n?? job-pilot-design-updated.zip\n?? job-pilot-design-updated.zip:Zone.Identifier\n?? job-pilot-design.zip\n?? job-pilot-design.zip:Zone.Identifier\n?? src/job_agent/dashboard/frontend_delivery.py\n?? tests/test_frontend_delivery.py\n?? tests/test_frontend_font_dom.py\n?? tests/test_frontend_fonts.py\n?? tests/test_frontend_proof.py\n?? tests/test_frontend_ui_dom.py\n",
+    "diff --name-only": ".gitignore\nsrc/job_agent/dashboard/approval_app.py\nsrc/job_agent/dashboard/approval_security.py\n",
+    "diff --stat": " .gitignore                                   | 8 ++++++++\n src/job_agent/dashboard/approval_app.py      | 2 ++\n src/job_agent/dashboard/approval_security.py | 2 +-\n 3 files changed, 11 insertions(+), 1 deletion(-)\n"
+  },
+  "git_diff_check": {
+    "exit_code": 0,
+    "output": ""
+  },
+  "validation": {
+    "lint": {
+      "exit_code": 0
+    },
+    "typecheck": {
+      "exit_code": 0
+    },
+    "frontend_and_export_policy": {
+      "passed": 11,
+      "failed": 0,
+      "skipped": 0
+    },
+    "npm_audit": {
+      "vulnerabilities": 0,
+      "dependencies": 253
+    },
+    "font_delivery_csp_browser_trusted_ui": {
+      "passed": 129,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 79.2
+    },
+    "approval_security_database_regressions": {
+      "passed": 1544,
+      "failed": 0,
+      "skipped": 0,
+      "seconds": 362.22
+    },
+    "production_build_1": {
+      "exit_code": 0,
+      "assets": 17
+    },
+    "production_build_2": {
+      "exit_code": 0,
+      "assets": 17
+    }
+  },
+  "screenshot_hashes": {
+    "docs/run5b/font-packaging-evidence/first-review-1440x900.png": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+    "docs/run5b/font-packaging-evidence/hero-company-detail.png": "00a6ebe76a86b2a62246e9d351854de58eecc437c7d3689a60df45a124434166",
+    "docs/run5b/font-packaging-evidence/score-1440x900.png": "692b53db847ef97705af5a22f7be61a55eec81cec5e90da0ba92704b58903a99",
+    "docs/run5b/font-packaging-evidence/empty-1440x900.png": "225da1ab3c73deca4bba3f6857b05b3b60666d00441564678c005da24ca59184",
+    "docs/run5b/font-packaging-evidence/first-review-1024x900.png": "d7929737d806644ac5a576db7992239db31c2f7ebcd6bc894f99597d67864a41",
+    "docs/run5b/font-packaging-evidence/desktop-queue-light.png": "62b9199c0955a93d16bd45be8c7dd19f6d5ee299a18fb52ffe04229ccb0d81d6",
+    "docs/run5b/font-packaging-evidence/review-1024x900.png": "d7929737d806644ac5a576db7992239db31c2f7ebcd6bc894f99597d67864a41",
+    "docs/run5b/font-packaging-evidence/desktop-queue-dark.png": "62b9199c0955a93d16bd45be8c7dd19f6d5ee299a18fb52ffe04229ccb0d81d6",
+    "docs/run5b/font-packaging-evidence/desktop-inspector-light.png": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+    "docs/run5b/font-packaging-evidence/dock-detail.png": "0bf19613e32aaa0559ba3b561cd48276a218f5093af5cb8f744fb6e02a1b13f7",
+    "docs/run5b/font-packaging-evidence/desktop-inspector-dark.png": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+    "docs/run5b/font-packaging-evidence/reader-1440x900.png": "493102a3d0d4be460d5327981043f4fc0041d5262c795d4eeb2975f7a71044f8",
+    "docs/run5b/font-packaging-evidence/review-1440x900.png": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+    "docs/run5b/font-packaging-evidence/people-1440x900.png": "7b45a3a7ed06984e327cf9b870c340de579ef9d2aacc664b64274c77528878db"
+  },
+  "no_commit": true,
+  "no_push": true
+}

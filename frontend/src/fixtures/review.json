@@ -1,0 +1,1057 @@
+{
+  "synthetic": true,
+  "packets": [
+    {
+      "packet_id": "00000000000000000000000000000001",
+      "version": 2,
+      "company": "Synthetic \u00b7 Northstar Instruments",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": null,
+      "integrity": "passed",
+      "current_authorization": "not_approved",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": "Northstar Instruments builds tools for teams that need traceable evidence.\n\nMy synthetic project pairs a Python API with a review interface and tests every boundary before a decision. I built structured output checks and a manual review path for answers the system could not verify.\n\nI would bring that same evidence-first approach to your applied AI tooling.",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000001",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000001",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": {
+        "packet_id": "00000000000000000000000000000001",
+        "packet_version": 2,
+        "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_approval_view_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "application_url": "https://northstar.invalid/careers/synthetic-role"
+      }
+    },
+    {
+      "packet_id": "00000000000000000000000000000002",
+      "version": 2,
+      "company": "Synthetic \u00b7 Meridian Field Systems",
+      "title": "Associate Platform Engineer",
+      "location": "Remote, United States",
+      "score": 78,
+      "tier": "B",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": null,
+      "integrity": "passed",
+      "current_authorization": "not_approved",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "unknown",
+      "cover_text": "Northstar Instruments builds tools for teams that need traceable evidence.\n\nMy synthetic project pairs a Python API with a review interface and tests every boundary before a decision. I built structured output checks and a manual review path for answers the system could not verify.\n\nI would bring that same evidence-first approach to your applied AI tooling.",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Preferred working hours",
+            "answer": null
+          }
+        ],
+        "manual_needed": [
+          "Confirm travel availability",
+          "Provide an authorized salary expectation"
+        ]
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000002",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000002",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": {
+        "packet_id": "00000000000000000000000000000002",
+        "packet_version": 2,
+        "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_approval_view_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "application_url": "https://northstar.invalid/careers/synthetic-role"
+      }
+    },
+    {
+      "packet_id": "00000000000000000000000000000003",
+      "version": 2,
+      "company": "Synthetic \u00b7 Lantern Archive",
+      "title": "Frontend Engineer, Accessible Research Collections and Long-Form Evidence Review",
+      "location": null,
+      "score": 58,
+      "tier": "C",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": null,
+      "integrity": "not_checked",
+      "current_authorization": "not_approved",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Five years of frontend experience",
+        "Native mobile delivery"
+      ],
+      "cover_letter_acceptance": "no",
+      "cover_text": null,
+      "cover_integrity": "unavailable",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000003",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000003",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": false,
+          "size": null
+        }
+      ],
+      "application_destination": {
+        "url": null,
+        "domain": null,
+        "authorization": "not_checked"
+      },
+      "approval_preview": null
+    },
+    {
+      "packet_id": "00000000000000000000000000000004",
+      "version": 2,
+      "company": "Synthetic \u00b7 Harbor Tools",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "building",
+      "ready_at": null,
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": "revise",
+      "integrity": "not_checked",
+      "current_authorization": "not_approved",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": null,
+      "cover_integrity": "unavailable",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000004",
+          "version": 2,
+          "status": "building",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": null,
+          "decision": "revise",
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000004",
+        "decision_id": "synthetic-revision",
+        "state": "queued",
+        "label": "Revision queued; awaiting worker",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": null
+    },
+    {
+      "packet_id": "00000000000000000000000000000005",
+      "version": 2,
+      "company": "Synthetic \u00b7 Cedar Signal",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "recovery_required",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": "revise",
+      "integrity": "failed",
+      "current_authorization": "integrity_failed",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": null,
+      "cover_integrity": "integrity_failed",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000005",
+          "version": 2,
+          "status": "recovery_required",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": "revise",
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000005",
+        "decision_id": "synthetic-revision-2",
+        "state": "blocked",
+        "label": "Revision needs attention",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": "source_evidence"
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": null
+    },
+    {
+      "packet_id": "00000000000000000000000000000006",
+      "version": 2,
+      "company": "Synthetic \u00b7 Northstar Historical",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": "approve",
+      "integrity": "passed",
+      "current_authorization": "evidence_changed",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": "Northstar Instruments builds tools for teams that need traceable evidence.\n\nMy synthetic project pairs a Python API with a review interface and tests every boundary before a decision. I built structured output checks and a manual review path for answers the system could not verify.\n\nI would bring that same evidence-first approach to your applied AI tooling.",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000006",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": "approve",
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000006",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": null,
+        "domain": null,
+        "authorization": "evidence_changed"
+      },
+      "approval_preview": null
+    },
+    {
+      "packet_id": "00000000000000000000000000000007",
+      "version": 2,
+      "company": "Synthetic \u00b7 Alder Current",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": "approve",
+      "integrity": "passed",
+      "current_authorization": "currently_valid",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": "Northstar Instruments builds tools for teams that need traceable evidence.\n\nMy synthetic project pairs a Python API with a review interface and tests every boundary before a decision. I built structured output checks and a manual review path for answers the system could not verify.\n\nI would bring that same evidence-first approach to your applied AI tooling.",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000007",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": "approve",
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000007",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://alder.invalid/synthetic-job",
+        "domain": "alder.invalid",
+        "authorization": "currently_valid"
+      },
+      "approval_preview": null
+    },
+    {
+      "packet_id": "00000000000000000000000000000008",
+      "version": 2,
+      "company": "Synthetic \u00b7 Elm Research",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": "reject",
+      "integrity": "passed",
+      "current_authorization": "not_approved",
+      "reasons": [],
+      "matched_requirements": [],
+      "missing_requirements": [],
+      "cover_letter_acceptance": "yes",
+      "cover_text": "Northstar Instruments builds tools for teams that need traceable evidence.\n\nMy synthetic project pairs a Python API with a review interface and tests every boundary before a decision. I built structured output checks and a manual review path for answers the system could not verify.\n\nI would bring that same evidence-first approach to your applied AI tooling.",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000008",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": "reject",
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000008",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": null
+    },
+    {
+      "packet_id": "00000000000000000000000000000009",
+      "version": 2,
+      "company": "Synthetic \u00b7 Long Content Laboratory",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": null,
+      "integrity": "passed",
+      "current_authorization": "not_approved",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": "Synthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\nSynthetic evidence paragraph. The review preserves the exact packet text, including long content and line breaks.\n\n",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Explain the architecture in detail in detail in detail in detail in detail in detail in detail in detail in detail in detail in detail in detail ",
+            "answer": "Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. Synthetic structured answer. "
+          }
+        ],
+        "manual_needed": [
+          "Resolve this deliberately long synthetic question about a requirement that was not supplied in the packet. Resolve this deliberately long synthetic question about a requirement that was not supplied in the packet. Resolve this deliberately long synthetic question about a requirement that was not supplied in the packet. Resolve this deliberately long synthetic question about a requirement that was not supplied in the packet. Resolve this deliberately long synthetic question about a requirement that was not supplied in the packet. "
+        ]
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "00000000000000000000000000000009",
+          "version": 2,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        },
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": false,
+          "is_latest_ready": false
+        }
+      ],
+      "revision": {
+        "source_packet_id": "00000000000000000000000000000009",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": {
+        "packet_id": "00000000000000000000000000000009",
+        "packet_version": 2,
+        "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_approval_view_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "application_url": "https://northstar.invalid/careers/synthetic-role"
+      }
+    },
+    {
+      "packet_id": "0000000000000000000000000000005a",
+      "version": 1,
+      "company": "Synthetic \u00b7 Northstar Instruments",
+      "title": "Software Engineer, Applied AI",
+      "location": "Remote, United States",
+      "score": 94,
+      "tier": "A",
+      "status": "packet_ready",
+      "ready_at": "2026-10-01T14:05:00Z",
+      "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "decision": null,
+      "integrity": "passed",
+      "current_authorization": "not_approved",
+      "reasons": [
+        "The role asks for Python APIs and practical AI evaluation.",
+        "The packet includes evidence of retrieval testing and review tooling."
+      ],
+      "matched_requirements": [
+        "Python API development",
+        "Automated testing",
+        "Human review of AI output"
+      ],
+      "missing_requirements": [
+        "Production experience with the employer's internal platform"
+      ],
+      "cover_letter_acceptance": "yes",
+      "cover_text": "Northstar Instruments builds tools for teams that need traceable evidence.\n\nMy synthetic project pairs a Python API with a review interface and tests every boundary before a decision. I built structured output checks and a manual review path for answers the system could not verify.\n\nI would bring that same evidence-first approach to your applied AI tooling.",
+      "cover_integrity": "available",
+      "screening": {
+        "answers": [
+          {
+            "question": "Describe a relevant project.",
+            "answer": "Synthetic project: evidence review with API contracts and keyboard navigation."
+          },
+          {
+            "question": "Can you work in the listed location?",
+            "answer": true
+          }
+        ],
+        "manual_needed": []
+      },
+      "company_facts": [
+        {
+          "text": "Fictional Northstar Instruments makes review tools for laboratory teams.",
+          "source_title": "Synthetic company profile",
+          "source_url": "https://northstar.invalid/company"
+        }
+      ],
+      "history": [
+        {
+          "packet_id": "0000000000000000000000000000005a",
+          "version": 1,
+          "status": "packet_ready",
+          "created_at": "2026-10-01T14:00:00Z",
+          "updated_at": "2026-10-01T14:05:00Z",
+          "ready_at": "2026-10-01T14:05:00Z",
+          "decision": null,
+          "revision_decision_id": null,
+          "source_packet_id": null,
+          "lineage_kind": "unlinked",
+          "is_latest_allocated": true,
+          "is_latest_ready": true
+        }
+      ],
+      "revision": {
+        "source_packet_id": "0000000000000000000000000000005a",
+        "decision_id": null,
+        "state": "none",
+        "label": "No revision requested",
+        "updated_at": null,
+        "successor_packet_id": null,
+        "successor_version": null,
+        "successor_status": null,
+        "failure_category": null
+      },
+      "artifacts": [
+        {
+          "kind": "resume_pdf",
+          "available": true,
+          "size": 18432
+        }
+      ],
+      "application_destination": {
+        "url": "https://northstar.invalid/careers/synthetic-role",
+        "domain": "northstar.invalid",
+        "authorization": "not_approved"
+      },
+      "approval_preview": {
+        "packet_id": "0000000000000000000000000000005a",
+        "packet_version": 1,
+        "expected_packet_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "expected_approval_view_fingerprint": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "application_url": "https://northstar.invalid/careers/synthetic-role"
+      }
+    }
+  ],
+  "sections": {
+    "needs-review": [
+      1,
+      2,
+      3,
+      9
+    ],
+    "processing": [
+      4
+    ],
+    "needs-attention": [
+      5
+    ],
+    "history": [
+      6,
+      7,
+      8
+    ]
+  }
+}

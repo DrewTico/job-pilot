@@ -36,3 +36,13 @@ career_facts.yaml
 answer_bank.yaml
 **/career_facts.yaml
 **/answer_bank.yaml
+
+# Run 5B: build locally, package an explicit manifest for Python delivery.
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/tsconfig.tsbuildinfo
+src/job_agent/dashboard/ui_build/
+src/job_agent/dashboard/ui_build.*/
+/frontend/next-env.d.ts
+*:Zone.Identifier

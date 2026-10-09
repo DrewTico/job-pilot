@@ -1,0 +1,949 @@
+{
+  "QueueResponse": {
+    "$defs": {
+      "QueueItem": {
+        "additionalProperties": false,
+        "properties": {
+          "packet_id": {
+            "title": "Packet Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "company": {
+            "title": "Company",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "score": {
+            "title": "Score",
+            "type": "integer"
+          },
+          "tier": {
+            "title": "Tier",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "building",
+              "packet_ready",
+              "generation_failed",
+              "research_incomplete",
+              "recovery_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "cover_letter_acceptance": {
+            "enum": [
+              "yes",
+              "no",
+              "unknown"
+            ],
+            "title": "Cover Letter Acceptance",
+            "type": "string"
+          },
+          "manual_needed_count": {
+            "title": "Manual Needed Count",
+            "type": "integer"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approve",
+                  "reject",
+                  "revise"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "revision_state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision State"
+          },
+          "integrity": {
+            "const": "not_checked",
+            "default": "not_checked",
+            "title": "Integrity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "packet_id",
+          "version",
+          "company",
+          "title",
+          "location",
+          "score",
+          "tier",
+          "status",
+          "ready_at",
+          "cover_letter_acceptance",
+          "manual_needed_count",
+          "decision",
+          "revision_state"
+        ],
+        "title": "QueueItem",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "section": {
+        "enum": [
+          "needs-review",
+          "processing",
+          "needs-attention",
+          "history"
+        ],
+        "title": "Section",
+        "type": "string"
+      },
+      "limit": {
+        "title": "Limit",
+        "type": "integer"
+      },
+      "offset": {
+        "title": "Offset",
+        "type": "integer"
+      },
+      "items": {
+        "items": {
+          "$ref": "#/$defs/QueueItem"
+        },
+        "title": "Items",
+        "type": "array"
+      }
+    },
+    "required": [
+      "section",
+      "limit",
+      "offset",
+      "items"
+    ],
+    "title": "QueueResponse",
+    "type": "object"
+  },
+  "PacketDetail": {
+    "$defs": {
+      "ApplicationDestination": {
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "authorization": {
+            "enum": [
+              "not_approved",
+              "currently_valid",
+              "evidence_changed",
+              "integrity_failed",
+              "not_checked"
+            ],
+            "title": "Authorization",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "domain",
+          "authorization"
+        ],
+        "title": "ApplicationDestination",
+        "type": "object"
+      },
+      "ApprovalPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "packet_id": {
+            "title": "Packet Id",
+            "type": "string"
+          },
+          "packet_version": {
+            "title": "Packet Version",
+            "type": "integer"
+          },
+          "expected_packet_fingerprint": {
+            "title": "Expected Packet Fingerprint",
+            "type": "string"
+          },
+          "expected_approval_view_fingerprint": {
+            "title": "Expected Approval View Fingerprint",
+            "type": "string"
+          },
+          "application_url": {
+            "title": "Application Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "packet_id",
+          "packet_version",
+          "expected_packet_fingerprint",
+          "expected_approval_view_fingerprint",
+          "application_url"
+        ],
+        "title": "ApprovalPreview",
+        "type": "object"
+      },
+      "ArtifactMetadata": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "const": "resume_pdf",
+            "default": "resume_pdf",
+            "title": "Kind",
+            "type": "string"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Size"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "ArtifactMetadata",
+        "type": "object"
+      },
+      "CompanyFact": {
+        "additionalProperties": false,
+        "properties": {
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "source_title": {
+            "title": "Source Title",
+            "type": "string"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          }
+        },
+        "required": [
+          "text",
+          "source_title",
+          "source_url"
+        ],
+        "title": "CompanyFact",
+        "type": "object"
+      },
+      "HistoryItem": {
+        "additionalProperties": false,
+        "properties": {
+          "packet_id": {
+            "title": "Packet Id",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          },
+          "status": {
+            "enum": [
+              "building",
+              "packet_ready",
+              "generation_failed",
+              "research_incomplete",
+              "recovery_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "decision": {
+            "anyOf": [
+              {
+                "enum": [
+                  "approve",
+                  "reject",
+                  "revise"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision"
+          },
+          "revision_decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision Decision Id"
+          },
+          "source_packet_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Packet Id"
+          },
+          "lineage_kind": {
+            "enum": [
+              "unlinked",
+              "revision",
+              "corruption_recovery"
+            ],
+            "title": "Lineage Kind",
+            "type": "string"
+          },
+          "is_latest_allocated": {
+            "title": "Is Latest Allocated",
+            "type": "boolean"
+          },
+          "is_latest_ready": {
+            "title": "Is Latest Ready",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "packet_id",
+          "version",
+          "status",
+          "created_at",
+          "updated_at",
+          "ready_at",
+          "decision",
+          "revision_decision_id",
+          "source_packet_id",
+          "lineage_kind",
+          "is_latest_allocated",
+          "is_latest_ready"
+        ],
+        "title": "HistoryItem",
+        "type": "object"
+      },
+      "RevisionStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "source_packet_id": {
+            "title": "Source Packet Id",
+            "type": "string"
+          },
+          "decision_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Id"
+          },
+          "state": {
+            "title": "State",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Updated At"
+          },
+          "successor_packet_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Successor Packet Id"
+          },
+          "successor_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Successor Version"
+          },
+          "successor_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "building",
+                  "packet_ready",
+                  "generation_failed",
+                  "research_incomplete",
+                  "recovery_required"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Successor Status"
+          },
+          "failure_category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Failure Category"
+          }
+        },
+        "required": [
+          "source_packet_id",
+          "decision_id",
+          "state",
+          "label"
+        ],
+        "title": "RevisionStatus",
+        "type": "object"
+      },
+      "Screening": {
+        "additionalProperties": false,
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/$defs/ScreeningAnswer"
+            },
+            "title": "Answers",
+            "type": "array"
+          },
+          "manual_needed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Manual Needed",
+            "type": "array"
+          }
+        },
+        "required": [
+          "answers",
+          "manual_needed"
+        ],
+        "title": "Screening",
+        "type": "object"
+      },
+      "ScreeningAnswer": {
+        "additionalProperties": false,
+        "properties": {
+          "question": {
+            "title": "Question",
+            "type": "string"
+          },
+          "answer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Answer"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "ScreeningAnswer",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "packet_id": {
+        "title": "Packet Id",
+        "type": "string"
+      },
+      "version": {
+        "title": "Version",
+        "type": "integer"
+      },
+      "company": {
+        "title": "Company",
+        "type": "string"
+      },
+      "title": {
+        "title": "Title",
+        "type": "string"
+      },
+      "location": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Location"
+      },
+      "score": {
+        "title": "Score",
+        "type": "integer"
+      },
+      "tier": {
+        "title": "Tier",
+        "type": "string"
+      },
+      "status": {
+        "enum": [
+          "building",
+          "packet_ready",
+          "generation_failed",
+          "research_incomplete",
+          "recovery_required"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "ready_at": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Ready At"
+      },
+      "expected_packet_fingerprint": {
+        "title": "Expected Packet Fingerprint",
+        "type": "string"
+      },
+      "decision": {
+        "anyOf": [
+          {
+            "enum": [
+              "approve",
+              "reject",
+              "revise"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Decision"
+      },
+      "integrity": {
+        "enum": [
+          "passed",
+          "failed",
+          "not_checked"
+        ],
+        "title": "Integrity",
+        "type": "string"
+      },
+      "current_authorization": {
+        "enum": [
+          "not_approved",
+          "currently_valid",
+          "evidence_changed",
+          "integrity_failed",
+          "not_checked"
+        ],
+        "title": "Current Authorization",
+        "type": "string"
+      },
+      "reasons": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Reasons",
+        "type": "array"
+      },
+      "matched_requirements": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Matched Requirements",
+        "type": "array"
+      },
+      "missing_requirements": {
+        "items": {
+          "type": "string"
+        },
+        "title": "Missing Requirements",
+        "type": "array"
+      },
+      "cover_letter_acceptance": {
+        "enum": [
+          "yes",
+          "no",
+          "unknown"
+        ],
+        "title": "Cover Letter Acceptance",
+        "type": "string"
+      },
+      "cover_text": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Cover Text"
+      },
+      "cover_integrity": {
+        "enum": [
+          "available",
+          "unavailable",
+          "integrity_failed"
+        ],
+        "title": "Cover Integrity",
+        "type": "string"
+      },
+      "screening": {
+        "$ref": "#/$defs/Screening"
+      },
+      "company_facts": {
+        "items": {
+          "$ref": "#/$defs/CompanyFact"
+        },
+        "title": "Company Facts",
+        "type": "array"
+      },
+      "history": {
+        "items": {
+          "$ref": "#/$defs/HistoryItem"
+        },
+        "title": "History",
+        "type": "array"
+      },
+      "revision": {
+        "$ref": "#/$defs/RevisionStatus"
+      },
+      "artifacts": {
+        "items": {
+          "$ref": "#/$defs/ArtifactMetadata"
+        },
+        "title": "Artifacts",
+        "type": "array"
+      },
+      "application_destination": {
+        "$ref": "#/$defs/ApplicationDestination"
+      },
+      "approval_preview": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/ApprovalPreview"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "packet_id",
+      "version",
+      "company",
+      "title",
+      "location",
+      "score",
+      "tier",
+      "status",
+      "ready_at",
+      "expected_packet_fingerprint",
+      "decision",
+      "integrity",
+      "current_authorization",
+      "reasons",
+      "matched_requirements",
+      "missing_requirements",
+      "cover_letter_acceptance",
+      "cover_text",
+      "cover_integrity",
+      "screening",
+      "company_facts",
+      "history",
+      "revision",
+      "artifacts",
+      "application_destination",
+      "approval_preview"
+    ],
+    "title": "PacketDetail",
+    "type": "object"
+  },
+  "DecisionDetail": {
+    "additionalProperties": false,
+    "properties": {
+      "decision_id": {
+        "title": "Decision Id",
+        "type": "string"
+      },
+      "decision": {
+        "enum": [
+          "approve",
+          "reject",
+          "revise"
+        ],
+        "title": "Decision",
+        "type": "string"
+      },
+      "created_at": {
+        "title": "Created At",
+        "type": "string"
+      },
+      "reason_code": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Reason Code"
+      },
+      "detail": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Detail"
+      },
+      "feedback": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Feedback"
+      }
+    },
+    "required": [
+      "decision_id",
+      "decision",
+      "created_at"
+    ],
+    "title": "DecisionDetail",
+    "type": "object"
+  },
+  "PacketDiffResult": {
+    "additionalProperties": false,
+    "properties": {
+      "kind": {
+        "enum": [
+          "resume",
+          "cover"
+        ],
+        "title": "Kind",
+        "type": "string"
+      },
+      "left_packet_id": {
+        "title": "Left Packet Id",
+        "type": "string"
+      },
+      "left_version": {
+        "title": "Left Version",
+        "type": "integer"
+      },
+      "right_packet_id": {
+        "title": "Right Packet Id",
+        "type": "string"
+      },
+      "right_version": {
+        "title": "Right Version",
+        "type": "integer"
+      },
+      "status": {
+        "enum": [
+          "available",
+          "unavailable",
+          "integrity_failed"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "diff": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Diff"
+      }
+    },
+    "required": [
+      "kind",
+      "left_packet_id",
+      "left_version",
+      "right_packet_id",
+      "right_version",
+      "status"
+    ],
+    "title": "PacketDiffResult",
+    "type": "object"
+  }
+}

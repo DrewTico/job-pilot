@@ -1,0 +1,40 @@
+{
+  "name": "job-pilot-review",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.19.0",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "NEXT_TELEMETRY_DISABLED=1 next dev --webpack --hostname 127.0.0.1",
+    "build": "NEXT_TELEMETRY_DISABLED=1 next build --webpack && node scripts/package-export.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src scripts next.config.ts",
+    "test": "node --test scripts/*.test.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "5.3.0",
+    "@fontsource-variable/geist": "5.3.0",
+    "@fontsource/geist-mono": "5.3.0",
+    "@fontsource/newsreader": "5.3.0",
+    "@radix-ui/react-tabs": "1.1.22",
+    "lucide-react": "1.53.0",
+    "next": "16.4.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/node": "24.19.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "10.12.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "postcss": "8.5.29",
+    "tailwindcss": "4.3.3",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1"
+  }
+}
