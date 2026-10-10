@@ -31,6 +31,12 @@ export interface Packet extends Omit<QueueItem, 'integrity' | 'manual_needed_cou
     expected_approval_view_fingerprint: string; application_url: string} | null;
 }
 export interface DecisionDetail { decision_id: string; decision: Exclude<Decision, null>; created_at: string; reason_code: string | null; detail: string | null; feedback: string | null }
+export interface DecisionResult {
+  decision_id: string; packet_id: string; packet_version: number; decision: Exclude<Decision, null>;
+  created_at: string; historical: boolean; historical_state: 'approved_historically' | 'rejected' | 'revision_requested';
+  current_authorization: Authorization; current_authorization_checked_at: string | null;
+  revision_status_uri: string | null; message: string | null;
+}
 export interface Diff { kind: 'resume' | 'cover'; left_packet_id: string; left_version: number; right_packet_id: string; right_version: number; status: 'available' | 'unavailable' | 'integrity_failed'; diff: string | null }
 export interface Reader {
   queue(section: Section, offset: number, signal: AbortSignal): Promise<Queue>;

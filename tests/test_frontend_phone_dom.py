@@ -15,7 +15,7 @@ from test_packets import setup
 from test_frontend_ui_dom import PACKETS, FIXTURES, queue_item, review
 
 ROOT = Path(__file__).resolve().parents[1]
-EVIDENCE = ROOT / 'docs/run5b/phone-implementation-evidence'
+EVIDENCE = Path('/tmp/job-pilot-run5c-read-regressions')
 
 
 def phone(review, width=390):
@@ -77,7 +77,7 @@ def test_phone_composition_navigation_and_touch_targets(review, width):
     expect(page.locator('#packet-title')).to_have_text(PACKETS[f'{1:032x}']['title'])
     page.get_by_role('button', name='Back to queue', exact=True).click()
     expect(page.locator('.queue-row').first).to_be_focused()
-    assert not any('bootstrap' in url for url in review[5])
+    assert any('bootstrap' in url for url in review[5])
     assert not review[4]
 
 
@@ -119,9 +119,9 @@ def test_phone_visual_evidence_and_read_only_sheets(review):
     expect(page.locator('.phone-package-row').filter(has=page.get_by_text('History', exact=True))).to_be_focused()
     page.get_by_role('button', name='Next loaded job', exact=True).click()
     expect(page.locator('.phone-hero')).to_be_visible(); capture(page, 'p10-second-company')
-    assert not page.get_by_role('button', name='Approve', exact=True).count()
-    assert not page.get_by_role('button', name='Revise', exact=True).count()
-    assert not page.get_by_role('button', name='Reject', exact=True).count()
+    expect(page.get_by_role('button', name='Approve', exact=True)).to_be_disabled()
+    expect(page.get_by_role('button', name='Revise', exact=True)).to_be_disabled()
+    expect(page.get_by_role('button', name='Reject', exact=True)).to_be_disabled()
 
 
 def test_phone_empty_loading_api_error_and_integrity_evidence(review):
@@ -296,7 +296,7 @@ def test_phone_emulated_safe_areas_and_short_browser_height(review):
     choose(page)
     assert page.locator('.phone-handoff').evaluate('n=>getComputedStyle(n).paddingBottom') == '50px'
     page.set_viewport_size({'width': 390, 'height': 700})
-    button = page.get_by_role('link', name='Open trusted decision UI').bounding_box()
+    button = page.get_by_role('button', name='Enable decisions', exact=True).bounding_box()
     assert button['y'] + button['height'] <= 700 - 34
     page.evaluate('window.scrollTo(0,400)')
     assert page.locator('.phone-review-nav').bounding_box()['y'] == 20

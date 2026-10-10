@@ -1,7 +1,18 @@
 # Job Pilot approval review
 
-Run 5B is a read-only Pages Router workspace. Python remains the production
-server and security authority. Decisions stay at `/`.
+Run 5C integrates trusted Approve, Reject and Revise recording into the accepted
+Run 5B desktop and dedicated phone Pages Router workspace at `/ui`. Python
+remains the production server and security authority. The existing `/` stays
+available; the new flow uses only the existing three decision endpoints.
+
+The shared decision controller owns a memory-only bootstrap token, frozen packet
+and approval-view fingerprints, explicit confirmations and one in-flight POST.
+It never automatically retries mutations. Recovery uses protected GETs; a lost
+approval acknowledgement remains ambiguous when its original approval-view
+evidence cannot be proven by the read contracts. Queue/history refreshes and
+explicit next-job navigation follow persistence. Approval does not submit an
+application; Revise records a request and generation remains a separate step.
+No employer route, revision processor or worker is invoked by this frontend.
 
 Use Node 24.21.0 and npm 11.19.0 (see `.nvmrc`). From this directory:
 
@@ -52,7 +63,7 @@ providers or storage. Contract tests detect drift against Pydantic.
 Validation from the repository root uses the existing Python Playwright setup:
 
 ```sh
-.venv/bin/pytest -q tests/test_frontend_delivery.py tests/test_frontend_proof.py tests/test_frontend_ui_dom.py
+.venv/bin/pytest -q tests/test_frontend_decisions_dom.py tests/test_frontend_delivery.py tests/test_frontend_proof.py tests/test_frontend_ui_dom.py tests/test_frontend_phone_dom.py
 ```
 
 On this managed environment, Node build/test subprocesses, Chromium, and threaded

@@ -1,8 +1,9 @@
-import type { Authorization, Decision, Status } from './types';
+import type { Authorization, Decision, Packet, Status } from './types';
 export const sections = { 'needs-review': 'Needs review', processing: 'Processing', 'needs-attention': 'Needs attention', history: 'History' } as const;
 export const statusLabel: Record<Status, string> = {packet_ready: 'Packet ready', building: 'Building', generation_failed: 'Generation failed', research_incomplete: 'Research incomplete', recovery_required: 'Recovery required'};
 export const authorizationLabel: Record<Authorization, string> = {not_approved: 'Not authorized', currently_valid: 'Current authorization valid', evidence_changed: 'Evidence changed: authorization stale', integrity_failed: 'Integrity failed: not authorized', not_checked: 'Current authorization not checked'};
 export function decisionLabel(value: Decision) { return value === 'approve' ? 'Historical approval' : value === 'reject' ? 'Historical rejection' : value === 'revise' ? 'Revision requested' : 'No decision'; }
+export function revisionLabel(revision: Packet['revision']) { return revision.state === 'queued' && !revision.successor_packet_id ? 'Revision request recorded. Revision generation is a separate step.' : revision.label; }
 export function date(value: string | null) {
   if (!value) return 'Unavailable';
   const time = new Date(value);

@@ -1,0 +1,9 @@
+{
+  "action": "revise",
+  "packet_decisions_delta": 1,
+  "exact_replay_delta": 0,
+  "application_packets_unchanged": true,
+  "packet_revision_work_delta": 0,
+  "application_events_delta": 0,
+  "provider_worker_employer_calls": 0
+}

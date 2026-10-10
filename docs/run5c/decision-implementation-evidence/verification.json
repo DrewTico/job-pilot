@@ -1,0 +1,391 @@
+{
+  "milestone": "Run 5C trusted decision integration",
+  "starting_git": {
+    "branch": "main",
+    "head": "206435bc38aa4276271d1efcc9a35b03b3a82324",
+    "origin_main": "206435bc38aa4276271d1efcc9a35b03b3a82324",
+    "status_short": "",
+    "diff_name_only": "",
+    "diff_cached_name_only": ""
+  },
+  "final_git": {
+    "branch": "main",
+    "head": "206435bc38aa4276271d1efcc9a35b03b3a82324",
+    "origin_main": "206435bc38aa4276271d1efcc9a35b03b3a82324",
+    "status_short": " M frontend/README.md\n M frontend/scripts/generate-contracts.py\n M frontend/src/components/packet-inspector.tsx\n M frontend/src/components/phone-workspace.tsx\n M frontend/src/components/workspace.tsx\n M frontend/src/lib/contracts.json\n M frontend/src/lib/display.ts\n M frontend/src/lib/types.ts\n M frontend/src/lib/use-review-workspace.ts\n M frontend/src/pages/_app.tsx\n M tests/test_frontend_delivery.py\n M tests/test_frontend_font_dom.py\n M tests/test_frontend_phone_dom.py\n M tests/test_frontend_ui_dom.py\n?? docs/run5c/\n?? frontend/scripts/decisions.test.mjs\n?? frontend/src/components/decision-controls.tsx\n?? frontend/src/components/ui/mobile-sheet.tsx\n?? frontend/src/lib/decision-client.ts\n?? frontend/src/lib/decision-controller.ts\n?? frontend/src/lib/use-decisions.ts\n?? frontend/src/styles/decisions.css\n?? tests/test_frontend_decisions_dom.py",
+    "diff_check": "PASS",
+    "diff_cached_name_only": "",
+    "commit_performed": false,
+    "push_performed": false,
+    "staging_performed": false
+  },
+  "backend_contract_freeze": "PASS: no tracked production backend, security, deployment or extension change",
+  "dependency_changes": false,
+  "production_sqlite": {
+    "path": "data/job_pilot.sqlite3",
+    "sha256_before": "da1796bc37cd43868ed999c89a4f11c1c65bad7c1ce671f8d15552d7526994e2",
+    "sha256_after": "da1796bc37cd43868ed999c89a4f11c1c65bad7c1ce671f8d15552d7526994e2",
+    "byte_identical": true,
+    "production_mutation_requests": 0
+  },
+  "synthetic_write_proofs": [
+    "database-approve.json",
+    "database-reject.json",
+    "database-revise.json"
+  ],
+  "validation": [
+    {
+      "command": "PYTHONPATH=src .venv/bin/python frontend/scripts/generate-contracts.py",
+      "result": "PASS"
+    },
+    {
+      "cwd": "frontend",
+      "command": "npm run lint && npm run typecheck && npm test && npm run build",
+      "result": "PASS",
+      "tests_passed": 66,
+      "tests_failed": 0,
+      "static_packaged_assets": 17
+    },
+    {
+      "cwd": "frontend",
+      "command": "npm audit --json --cache /tmp/job-pilot-run5c-npm-audit-cache",
+      "result": "PASS",
+      "vulnerabilities": 0,
+      "dependencies": 253
+    },
+    {
+      "command": ".venv/bin/pytest -q tests/test_approval_api.py tests/test_approval_security.py tests/test_tailscale_api.py tests/test_tailscale_security.py tests/test_approval_service_unit.py tests/test_approval_queue.py tests/test_approvals.py tests/test_revisions.py tests/test_apply_submit.py tests/test_apply_handoff.py tests/test_database.py",
+      "result": "PASS",
+      "passed": 920,
+      "failed": 0,
+      "seconds": 272.09
+    },
+    {
+      "command": ".venv/bin/pytest -xq tests/test_frontend_decisions_dom.py tests/test_frontend_phone_dom.py tests/test_frontend_ui_dom.py tests/test_frontend_delivery.py tests/test_frontend_proof.py tests/test_frontend_fonts.py tests/test_frontend_font_dom.py tests/test_approval_ui_dom.py",
+      "result": "PASS",
+      "passed": 177,
+      "failed": 0,
+      "seconds": 162.94
+    },
+    {
+      "command": ".venv/bin/pytest -q",
+      "result": "PASS",
+      "passed": 2950,
+      "failed": 0,
+      "warnings": 21,
+      "warning_kind": "multiprocessing fork deprecation warning",
+      "seconds": 550.03
+    }
+  ],
+  "browser_validation": {
+    "production_routes_security_csrf_persistence": true,
+    "isolated_synthetic_sqlite": true,
+    "isolated_loopback_ports": true,
+    "real_static_export_under_existing_csp": true,
+    "widths": [
+      360,
+      390,
+      430,
+      480,
+      1440
+    ],
+    "automatic_post_replays": 0,
+    "automatic_next_job_selection": 0,
+    "automatic_employer_link_opening": 0,
+    "provider_worker_employer_calls": 0
+  },
+  "privacy": {
+    "result": "PASS",
+    "source_docs_evidence_reviewed": true,
+    "secret_value_findings": 0,
+    "private_candidate_data_findings": 0,
+    "csrf_value_artifacts": 0,
+    "forbidden_artifacts": 0,
+    "png_metadata_chunks": [
+      "IHDR",
+      "IDAT",
+      "IEND"
+    ]
+  },
+  "changed_files": [
+    "docs/run5c/RUN5C_TRUSTED_DECISION_REPORT.md",
+    "docs/run5c/decision-implementation-evidence/database-approve.json",
+    "docs/run5c/decision-implementation-evidence/database-reject.json",
+    "docs/run5c/decision-implementation-evidence/database-revise.json",
+    "docs/run5c/decision-implementation-evidence/desktop-approval-recorded-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-approve-confirmation-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-bootstrap-unavailable-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-decision-dock-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-reject-confirmation-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-reject-recorded-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-revise-confirmation-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-revise-recorded-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/desktop-validation-1440x900.png",
+    "docs/run5c/decision-implementation-evidence/phone-ambiguous-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-approval-recorded-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-approve-confirmation-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-caught-up-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-conflict-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-decision-dock-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-next-queued-job-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-reject-confirmation-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-reject-recorded-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-revise-confirmation-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-revise-recorded-390x844.png",
+    "docs/run5c/decision-implementation-evidence/phone-validation-390x844.png",
+    "docs/run5c/decision-implementation-evidence/verification.json",
+    "frontend/README.md",
+    "frontend/scripts/decisions.test.mjs",
+    "frontend/scripts/generate-contracts.py",
+    "frontend/src/components/decision-controls.tsx",
+    "frontend/src/components/packet-inspector.tsx",
+    "frontend/src/components/phone-workspace.tsx",
+    "frontend/src/components/ui/mobile-sheet.tsx",
+    "frontend/src/components/workspace.tsx",
+    "frontend/src/lib/contracts.json",
+    "frontend/src/lib/decision-client.ts",
+    "frontend/src/lib/decision-controller.ts",
+    "frontend/src/lib/display.ts",
+    "frontend/src/lib/types.ts",
+    "frontend/src/lib/use-decisions.ts",
+    "frontend/src/lib/use-review-workspace.ts",
+    "frontend/src/pages/_app.tsx",
+    "frontend/src/styles/decisions.css",
+    "tests/test_frontend_decisions_dom.py",
+    "tests/test_frontend_delivery.py",
+    "tests/test_frontend_font_dom.py",
+    "tests/test_frontend_phone_dom.py",
+    "tests/test_frontend_ui_dom.py"
+  ],
+  "screenshots": [
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-approval-recorded-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "21c8d86b7220bbac305cedeb22c03e1d857036e384f21d8ea4112a42dc4435e5",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-approve-confirmation-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "f6d7648d5414e3de1c3b4d0e42c70f7019dc7359537b4e27ac2c551b121f367f",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-bootstrap-unavailable-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "0e725358db1710a10c542bfd51a3ee4beea9957f64b7106fa15fd4694d97d404",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-decision-dock-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "6f15d28a22df9ac83674c20c01daf8c8d57b06cd2e986738cc0d8451827c6041",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-reject-confirmation-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "7bd0cef05c6412c6d13c55fcecb41ecc5ea1c1ae2ff8cc25286ec9b9730d4b92",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-reject-recorded-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "10d82d5256d2ca4679fe36c6ba20405462724bdb6e6218fc9c836f66b34505f8",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-revise-confirmation-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "ff234735964789f62405b37ae843a918971c4fe02d4a884139c06ae277c92d4c",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-revise-recorded-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "c3f89fa83bc63dcfb761f379b90e7d87c17bbd0a728847888ffa6b369e7b1d47",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/desktop-validation-1440x900.png",
+      "width": 1440,
+      "height": 900,
+      "sha256": "e8dd1b4b831ca4c99c7458398c22c5c91f31f378ee3195f5da4a64a23e7b16d1",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-ambiguous-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "af69e2506b3e4b540c2fd11635af24cd128c9ca8d0f5f8056f2dad606ef8ec7e",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-approval-recorded-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "af2977174d893514a57cc1d639cd41c3d7809d01e33f1d3cc95a6935293bc44f",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-approve-confirmation-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "f2eda66c457b615881f9f0ed7144477764e3f1f65de4d4242f2b56149983bc72",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-caught-up-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "13001aef969d818187384d429dff8d52d49f28ed143db9aa72beed118e5a99f3",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-conflict-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "650cf00a527b3b918e70416491c1ee6e851376cd0fc968c91f5dc5c438632b68",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-decision-dock-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "fd05047d6407be3113fde24085ee5f038333ea805935630dd7a513b8a67bf444",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-next-queued-job-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "932ac0a71338e7259deadcb7cb26b13596ce9530f154da0c5d58093d687cd7ca",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-reject-confirmation-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "37f8ee95db143155fc42f6d25a5ee7767f363ff1bc557692e1bd0f782f19b19c",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-reject-recorded-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "7bfbc3bb9949cbbeffd9ebf5823772ed0c0e67277bd4a6a208ee4c6b02bc824d",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-revise-confirmation-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "182c5985d01798dd3e67176db92b3a3f2026a01b1b471cecdef8359edc4435e0",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-revise-recorded-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "548523541d0fa1b85e4a5f90f78e1a66cd00333bcc07ee3796d22052293602ad",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    },
+    {
+      "path": "docs/run5c/decision-implementation-evidence/phone-validation-390x844.png",
+      "width": 390,
+      "height": 844,
+      "sha256": "6988f5e370011fdd8cd3851b5348aa9c31ddfc85ec5700d1cb23d828c0aea32c",
+      "visually_inspected": true,
+      "synthetic_content_only": true
+    }
+  ],
+  "known_recovery_limit": "Lost approval acknowledgement remains ambiguous because existing GET decision detail does not expose original approval-view fingerprint. No automatic replay or success inference.",
+  "andrew_review": "PENDING: desktop, phone, forms, wording, recorded/conflict/ambiguous states",
+  "run5d_started": false,
+  "verdict": "READY FOR ANDREW RUN 5C VISUAL REVIEW",
+  "cleanup": {
+    "scope": "Documentation/evidence cleanup of visually accepted Run 5C; source and test behavior unchanged.",
+    "historical_fields": "All pre-existing fields describe implementation completion, including the original 21-image capture inventory and unstaged Git state. Validation was not rerun during cleanup.",
+    "andrew_visual_acceptance": "ACCEPTED: desktop and phone baseline, pending checkpointing and staged-diff review.",
+    "initial_inventory_count": 48,
+    "classification_counts": {
+      "COMMIT": 45,
+      "IGNORE": 0,
+      "REMOVE BEFORE COMMIT": 3,
+      "NEEDS ANDREW DECISION": 0
+    },
+    "retained_evidence": [
+      "database-approve.json",
+      "database-reject.json",
+      "database-revise.json",
+      "desktop-approval-recorded-1440x900.png",
+      "desktop-approve-confirmation-1440x900.png",
+      "desktop-bootstrap-unavailable-1440x900.png",
+      "desktop-decision-dock-1440x900.png",
+      "desktop-reject-confirmation-1440x900.png",
+      "desktop-revise-confirmation-1440x900.png",
+      "desktop-validation-1440x900.png",
+      "phone-ambiguous-390x844.png",
+      "phone-approval-recorded-390x844.png",
+      "phone-approve-confirmation-390x844.png",
+      "phone-caught-up-390x844.png",
+      "phone-conflict-390x844.png",
+      "phone-decision-dock-390x844.png",
+      "phone-next-queued-job-390x844.png",
+      "phone-reject-confirmation-390x844.png",
+      "phone-reject-recorded-390x844.png",
+      "phone-revise-confirmation-390x844.png",
+      "phone-revise-recorded-390x844.png",
+      "verification.json"
+    ],
+    "removed_evidence": [
+      {
+        "file": "desktop-reject-recorded-1440x900.png",
+        "reason": "Shared rejection-recorded state retained in phone result and Reject database proof."
+      },
+      {
+        "file": "desktop-revise-recorded-1440x900.png",
+        "reason": "Shared revision-request-recorded state retained in phone result and Revise database proof."
+      },
+      {
+        "file": "phone-validation-390x844.png",
+        "reason": "Shared nonblank-feedback validation retained in desktop capture and browser tests."
+      }
+    ],
+    "intended_staged_path_count": 46,
+    "deferred_polish_backlog": "docs/run5b/DEFERRED_CROSS_DEVICE_POLISH.md",
+    "deferred_polish_implemented": false,
+    "production_sqlite_read_only_hash_matches_implementation_proof": true,
+    "implementation_suites_rerun": false,
+    "run5d_started": false,
+    "integration_matrix_created": false
+  }
+}

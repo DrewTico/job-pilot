@@ -2,13 +2,14 @@
 
 ## Status
 
-- This is the authoritative non-blocking polish backlog for the accepted Run 5B desktop and phone baselines.
+- This is the authoritative NON-BLOCKING polish backlog for the accepted Run 5B desktop, Run 5B phone, and Run 5C trusted-decision baselines.
 - Run 5B desktop baseline is accepted, committed, and pushed at `46e8b2f1c94bc58bd575a77f1b8cb615fa2eddbd`.
-- Run 5B phone baseline is visually accepted by Andrew, pending checkpointing.
-- The items below are intentionally deferred until later real-data states and Run 5C+ functionality make final treatment meaningful.
-- These are polish items, NOT Run 5B blockers. The accepted baselines are not the final forever-polished UI.
+- Run 5B phone baseline is accepted, committed, and pushed at `206435bc38aa4276271d1efcc9a35b03b3a82324`.
+- Run 5C trusted-decision baseline is visually accepted by Andrew, pending checkpointing.
+- The items below are intentionally deferred until later real-data states and workflows make final treatment meaningful.
+- These are NON-BLOCKING polish items, NOT Run 5B or Run 5C blockers. The accepted baselines are not the final forever-polished UI.
 - This backlog does not authorize fabrication of unsupported data or premature implementation of future workflows.
-- No item below was implemented during phone baseline cleanup and staging.
+- No item below was implemented during phone baseline or Run 5C cleanup and staging.
 
 ## Desktop
 
@@ -83,13 +84,50 @@ Do not pre-fill or fake these states.
 
 ### 5. Trusted decision region
 
-- Re-evaluate vertical footprint when Run 5C introduces real decision controls.
-- The current read-only trusted handoff is intentionally temporary.
+- Re-evaluate vertical footprint with the accepted Run 5C decision controls during the later final polish pass.
+- Run 5C has replaced the temporary read-only trusted handoff; its current decision presentation is accepted.
 
 ### 6. Mobile sparse-state sheets
 
 - Reconsider vertical sizing/composition for sparse truthful states beyond Right People.
 - Sheets should not occupy excessive empty space solely because future data is unavailable.
+
+## Run 5C decision experience
+
+These newly accepted polish items are NON-BLOCKING. Current presentation and recovery semantics are accepted. Do not implement these items now.
+
+### 1. Phone recorded-state duplication
+
+The phone Approval Recorded screen currently communicates Approval recorded, No application submitted, and Ready for next step in the main success surface and again in the persistent lower region.
+
+Later evaluate reducing duplicate informational copy. Likely direction:
+
+- The main success surface owns the detailed recorded-state explanation.
+- The persistent lower region focuses primarily on the next safe action.
+
+Do not change it now.
+
+### 2. Ambiguous vs conflict visual distinction
+
+AMBIGUOUS and CONFLICT correctly share a conservative stop-and-refresh pattern.
+
+Later evaluate a subtle visual distinction using heading, icon, or semantic status treatment without changing recovery semantics. Do not make either state more aggressive or encourage mutation replay.
+
+### 3. Reject / Revise dialog and sheet height
+
+Re-evaluate desktop dialog and phone sheet vertical rhythm using realistic short feedback, long feedback, long rejection detail, and validation errors.
+
+Current presentation is accepted. Do not shrink controls merely for compactness.
+
+### 4. Post-decision "outside loaded page" treatment
+
+The decided packet may correctly remain visible after the refreshed Needs Review queue no longer contains it.
+
+Later refine wording and visual emphasis so it is unmistakable that this is the just-decided historical packet and it is no longer an active Needs Review item. Do not alter authoritative queue behavior.
+
+### 5. Final decision-dock polish
+
+Re-evaluate desktop and phone decision-region sizing during the final cross-device polish pass after later workflows exist. Do not change Run 5C action semantics.
 
 ## Cross-device
 
@@ -112,3 +150,5 @@ Do not pre-fill or fake these states.
 - Do not interpret this backlog as authorization to invent unsupported data.
 - Do not implement Run 5C behavior merely to satisfy a visual item.
 - Do not sacrifice current security/data-truth guarantees for visual completeness.
+- All items remain NON-BLOCKING.
+- No item authorizes unsupported behavior, employer submission, revision generation, automatic decision replay, or broad redesign.

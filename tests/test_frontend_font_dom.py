@@ -13,7 +13,7 @@ from test_approvals import ready
 from test_packets import setup
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / 'docs/run5b/phone-implementation-evidence/font-proof'
+OUTPUT = Path('/tmp/job-pilot-run5c-font-regressions')
 
 
 def platform_fonts(page, selector):

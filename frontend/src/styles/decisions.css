@@ -1,0 +1,62 @@
+/* Run 5C decision surfaces use the accepted palette and type roles. */
+.decision-dock { flex-wrap:wrap; }
+.decision-dock .decision-context { flex:1; min-width:150px; }
+.decision-dock .decision-actions { display:flex; gap:8px; align-items:center; flex:0 1 auto; max-height:none; overflow:visible; flex-wrap:wrap; }
+.decision-revise { color:var(--warning); background:var(--warning-soft); border:1px solid rgba(240,180,92,.3); }
+.decision-reject { color:#ffb4b4; background:rgba(214,86,96,.09); border:1px solid rgba(240,140,145,.35); }
+.decision-reject:hover { background:rgba(214,86,96,.17); }
+.decision-dock button:disabled { opacity:.5; cursor:not-allowed; }
+.decision-dock .decision-context { max-height:22dvh; }
+.decision-queue-note { color:var(--muted); font-size:.75rem; max-width:26ch; }
+.decision-exact-context { padding:16px; background:rgba(94,208,194,.055); border:1px solid var(--border); border-radius:14px; }
+.decision-exact-context h3 { font-family:var(--display); font-size:1.25rem; line-height:1.3; margin:8px 0; overflow-wrap:anywhere; }
+.decision-exact-context>p:last-child { color:var(--muted); font-size:.8125rem; overflow-wrap:anywhere; }
+.decision-consent { font-size:.875rem; color:var(--secondary); line-height:1.65; margin:18px 0 22px; }
+.decision-field { margin-top:18px; }
+.decision-field label { display:block; font-size:.875rem; font-weight:600; margin-bottom:9px; }
+.decision-field select,.decision-field textarea { width:100%; min-height:48px; border:1px solid #42536a; border-radius:12px; background:#0a1425; color:var(--text); padding:12px 14px; font:inherit; font-size:1rem; line-height:1.5; }
+.decision-field textarea { resize:vertical; min-height:132px; max-height:40dvh; }
+.decision-field [aria-invalid="true"] { border-color:#ffb4b4; }
+.decision-count { color:var(--muted); font-family:var(--mono); font-size:.6875rem; text-align:right; margin-top:8px; }
+.decision-validation,.decision-count.over-limit { color:#ffb4b4; }
+.decision-validation { margin-top:14px; padding:12px; border:1px solid rgba(240,140,145,.35); border-radius:10px; font-size:.875rem; }
+.decision-pending { font-size:.8125rem; color:var(--warning); line-height:1.5; margin-top:16px; }
+.decision-pending:empty { display:none; }
+.decision-form-actions { display:flex; gap:10px; margin-top:22px; flex-wrap:wrap; }
+.decision-form-actions>button { min-height:48px; }
+.decision-form-actions>.button { flex:1; }
+.decision-form-actions>.quiet { padding:10px 18px; border-radius:12px; }
+.decision-desktop-modal .phone-sheet-backdrop { display:grid; place-items:center; padding:24px; }
+.decision-desktop-modal .phone-sheet { width:min(540px,100%); height:auto; max-height:calc(100dvh - 48px); border-radius:22px; }
+.decision-desktop-modal .phone-sheet-grabber { display:none; }
+.decision-desktop-modal .phone-sheet-scroll { padding:0 24px 24px; }
+.decision-desktop-modal .phone-sheet-header { padding:24px; }
+.decision-desktop-modal .phone-sheet-scroll:focus-visible { outline-offset:-3px; }
+.phone-sheet-decision-revise { border-color:rgba(240,180,92,.3); }
+.phone-sheet-decision-reject { border-color:rgba(240,140,145,.35); }
+.phone-decision-result { display:flex; flex-direction:column; align-items:center; text-align:center; gap:16px; min-height:calc(100dvh - 14rem); padding:48px 24px calc(14rem + env(safe-area-inset-bottom)); }
+.decision-record-symbol { width:104px; height:104px; display:grid; place-items:center; border-radius:50%; color:var(--teal); background:rgba(94,208,194,.08); border:2px solid #67c8d4; box-shadow:0 0 60px rgba(94,208,194,.1); }
+.phone-decision-result h1 { font-size:2.125rem; line-height:1.12; max-width:14ch; }
+.decision-result-boundary { color:var(--secondary); font-size:1rem; line-height:1.6; }
+.decision-result-packet { width:100%; padding:18px; border-block:1px solid var(--border); overflow-wrap:anywhere; }
+.decision-result-packet strong { font-size:1rem; }.decision-result-packet p { font-size:.875rem; color:var(--muted); margin-top:8px; }
+.decision-result-authorization { color:var(--teal); font-size:.875rem; }
+@media (max-width:599px) {
+  .phone-review-content { padding-bottom:calc(14rem + env(safe-area-inset-bottom)); }
+  .phone-decision-dock { display:block; padding:12px 16px calc(12px + env(safe-area-inset-bottom)); }
+  .phone-decision-dock .dock-icon { display:none; }
+  .phone-decision-dock .decision-context { max-height:18dvh; margin-bottom:10px; }
+  .phone-decision-dock .decision-context strong { font-size:.8125rem; }
+  .phone-decision-dock .decision-actions { display:grid; grid-template-columns:1.2fr 1fr 1fr; gap:8px; }
+  .phone-decision-dock .decision-actions .button { width:100%; padding:10px 8px; min-height:48px; font-size:.8125rem; gap:5px; }
+  .phone-decision-dock .decision-actions>.quiet,.phone-decision-dock .decision-actions>.button:only-child,.phone-decision-dock .decision-queue-note { grid-column:1/-1; min-height:44px; }
+  .decision-phone-modal .phone-sheet { height:auto; max-height:90dvh; }
+  .decision-phone-modal .phone-sheet-header { padding:18px 20px; }
+  .decision-phone-modal .phone-sheet-scroll { padding:0 20px calc(22px + env(safe-area-inset-bottom)); }
+  .decision-phone-modal .phone-sheet-header h2 { font-size:1.5rem; }
+  .decision-phone-modal .decision-exact-context h3 { font-size:1.125rem; }
+}
+@media (max-width:899px) and (min-width:600px) {
+  .decision-dock .decision-actions { width:100%; }
+  .decision-dock .decision-actions .button { flex:1; width:auto; }
+}

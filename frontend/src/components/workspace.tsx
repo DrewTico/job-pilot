@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { decisionLabel, sections, statusLabel } from '../lib/display';
 import { companyPresentation } from '../lib/review-presentation';
 import { useReviewWorkspace } from '../lib/use-review-workspace';
+import { useDecisions } from '../lib/use-decisions';
 import type { Reader } from '../lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { PacketInspector, CompanyMark, CompanyName } from './packet-inspector';
@@ -23,11 +24,13 @@ function AppRail() {
 }
 
 export function Workspace({reader = api, synthetic = false}: {reader?: Reader; synthetic?: boolean}) {
-  const state = useReviewWorkspace(reader);
+  const readState = useReviewWorkspace(reader);
+  const decisions = useDecisions(reader, readState, synthetic);
+  const state = {...readState, ...decisions.navigation};
   const phone = useSyncExternalStore(subscribePhone, phoneSnapshot, serverSnapshot);
-  if (phone) return <PhoneWorkspace state={state} reader={reader} synthetic={synthetic}/>;
+  if (phone) return <PhoneWorkspace state={state} reader={reader} synthetic={synthetic} decisions={decisions}/>;
   const {section, queue, queueError, selected, packet, packetError, offset, selectedButton, reload, select, back, changeSection, paginate} = state;
-  const emptyFirstPage = section === 'needs-review' && offset === 0 && queue?.items.length === 0 && !queueError;
+  const emptyFirstPage = !decisions.state.busy && !decisions.state.uncertain && section === 'needs-review' && offset === 0 && queue?.items.length === 0 && !queueError;
   const position = queue?.items.findIndex(item => item.packet_id === selected) ?? -1;
   return <div className="app" data-theme="dark">
     <Head><title>Job Pilot | Application review</title><meta name="viewport" content="width=device-width, initial-scale=1"/></Head>
@@ -46,10 +49,10 @@ export function Workspace({reader = api, synthetic = false}: {reader?: Reader; s
         </button></li>)}</ol>}
         <div className="pagination" aria-label="Queue pagination"><button className="quiet" aria-label="Previous queue page" disabled={offset === 0 || !queue} onClick={() => paginate(Math.max(0, offset - 25))}><ChevronLeft size={15} aria-hidden="true"/>Previous</button><span className="pagination-label">Page {Math.floor(offset / 25) + 1}</span><button className="quiet" aria-label="Next queue page" disabled={!queue || queue.items.length < 25 || offset + 25 > 1_000_000} onClick={() => paginate(offset + 25)}>Next<ChevronRight size={15} aria-hidden="true"/></button></div>
       </TabsContent>)}</Tabs>
-      <p className="queue-footer"><ClipboardCheck size={14} aria-hidden="true"/>Read-only review · Exact packet versions</p>
+      <p className="queue-footer"><ClipboardCheck size={14} aria-hidden="true"/>Human decisions · Exact packet versions</p>
     </section>
     <main id="main" className={`detail-pane ${selected ? 'has-selection' : ''}`} tabIndex={-1} aria-busy={Boolean(selected && !packet && !packetError)}>
-      {packet ? <PacketInspector key={packet.packet_id} packet={packet} reader={reader} onSelect={select} onBack={back} position={position >= 0 && queue ? `${position + 1} of ${queue.items.length} loaded` : 'Outside loaded page'}/> : <div className="detail-empty">{selected ? <><button className="quiet" onClick={back}><ChevronLeft size={16} aria-hidden="true"/>Back to queue</button><FileSearch aria-hidden="true" size={36}/><h2>{packetError ? 'Evidence unavailable' : 'Opening your packet'}</h2><p role={packetError ? 'alert' : 'status'}>{packetError || 'Loading packet evidence.'}</p>{packetError && <button className="quiet" onClick={reload}>Retry packet</button>}</> : emptyFirstPage ? <><div className="caught-up-symbol"><Check size={56} aria-hidden="true"/></div><p className="eyebrow">Review queue</p><h2>You’re all caught up</h2><p>No packets currently need review.</p><button className="button primary" onClick={reload}><RefreshCw size={16} aria-hidden="true"/>Reload queue</button></> : <><div className="empty-symbol"><FileSearch aria-hidden="true" size={36}/></div><p className="eyebrow">One application at a time</p><h2>Select an application</h2><p>Review the fit and evidence for one exact packet version.</p><a className="quiet" href="/">Open trusted decision UI<ChevronRight size={16} aria-hidden="true"/></a></>}</div>}
+      {packet ? <PacketInspector decisions={decisions} key={packet.packet_id} packet={packet} reader={reader} onSelect={select} onBack={back} position={position >= 0 && queue ? `${position + 1} of ${queue.items.length} loaded` : 'Outside loaded page'}/> : <div className="detail-empty">{selected ? <><button className="quiet" onClick={back}><ChevronLeft size={16} aria-hidden="true"/>Back to queue</button><FileSearch aria-hidden="true" size={36}/><h2>{packetError ? 'Evidence unavailable' : 'Opening your packet'}</h2><p role={packetError ? 'alert' : 'status'}>{packetError || 'Loading packet evidence.'}</p>{packetError && <button className="quiet" onClick={reload}>Retry packet</button>}</> : emptyFirstPage ? <><div className="caught-up-symbol"><Check size={56} aria-hidden="true"/></div><p className="eyebrow">Review queue</p><h2>You’re all caught up</h2><p>No packets currently need review.</p><button className="button primary" onClick={reload}><RefreshCw size={16} aria-hidden="true"/>Reload queue</button></> : <><div className="empty-symbol"><FileSearch aria-hidden="true" size={36}/></div><p className="eyebrow">One application at a time</p><h2>Select an application</h2><p>Review the fit and evidence for one exact packet version.</p></>}</div>}
     </main>
   </div>;
 }

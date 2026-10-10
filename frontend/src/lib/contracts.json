@@ -945,5 +945,157 @@
     ],
     "title": "PacketDiffResult",
     "type": "object"
+  },
+  "BootstrapResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "csrf_token": {
+        "title": "Csrf Token",
+        "type": "string"
+      },
+      "local_only": {
+        "default": true,
+        "title": "Local Only",
+        "type": "boolean"
+      },
+      "origin": {
+        "title": "Origin",
+        "type": "string"
+      }
+    },
+    "required": [
+      "csrf_token",
+      "origin"
+    ],
+    "title": "BootstrapResponse",
+    "type": "object"
+  },
+  "TailscaleBootstrapResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "csrf_token": {
+        "title": "Csrf Token",
+        "type": "string"
+      },
+      "local_only": {
+        "const": false,
+        "default": false,
+        "title": "Local Only",
+        "type": "boolean"
+      },
+      "access_mode": {
+        "const": "tailscale",
+        "default": "tailscale",
+        "title": "Access Mode",
+        "type": "string"
+      }
+    },
+    "required": [
+      "csrf_token"
+    ],
+    "title": "TailscaleBootstrapResponse",
+    "type": "object"
+  },
+  "DecisionResult": {
+    "additionalProperties": false,
+    "properties": {
+      "decision_id": {
+        "title": "Decision Id",
+        "type": "string"
+      },
+      "packet_id": {
+        "title": "Packet Id",
+        "type": "string"
+      },
+      "packet_version": {
+        "title": "Packet Version",
+        "type": "integer"
+      },
+      "decision": {
+        "enum": [
+          "approve",
+          "reject",
+          "revise"
+        ],
+        "title": "Decision",
+        "type": "string"
+      },
+      "created_at": {
+        "title": "Created At",
+        "type": "string"
+      },
+      "historical": {
+        "default": true,
+        "title": "Historical",
+        "type": "boolean"
+      },
+      "historical_state": {
+        "enum": [
+          "approved_historically",
+          "rejected",
+          "revision_requested"
+        ],
+        "title": "Historical State",
+        "type": "string"
+      },
+      "current_authorization": {
+        "enum": [
+          "not_approved",
+          "currently_valid",
+          "evidence_changed",
+          "integrity_failed",
+          "not_checked"
+        ],
+        "title": "Current Authorization",
+        "type": "string"
+      },
+      "current_authorization_checked_at": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Current Authorization Checked At"
+      },
+      "revision_status_uri": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Revision Status Uri"
+      },
+      "message": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Message"
+      }
+    },
+    "required": [
+      "decision_id",
+      "packet_id",
+      "packet_version",
+      "decision",
+      "created_at",
+      "historical_state",
+      "current_authorization"
+    ],
+    "title": "DecisionResult",
+    "type": "object"
   }
 }

@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 from job_agent.dashboard.approval_app import create_approval_app
-from job_agent.dashboard.approval_models import PacketDetail, QueueResponse, DecisionDetail, PacketDiffResult
+from job_agent.dashboard.approval_models import (PacketDetail, QueueResponse, DecisionDetail, PacketDiffResult,
+    BootstrapResponse, TailscaleBootstrapResponse, DecisionResult)
 from job_agent.dashboard.approval_security import SECURITY_HEADERS
 from job_agent.dashboard.frontend_delivery import BUILD, load_assets
 from test_approval_security import request
@@ -112,7 +113,8 @@ def test_auth_and_csrf_independent_on_frontend(remote):
 
 def test_contract_snapshots_and_synthetic_fixtures():
     contract = json.loads((ROOT / 'frontend/src/lib/contracts.json').read_text())
-    assert contract == {model.__name__: model.model_json_schema() for model in (QueueResponse, PacketDetail, DecisionDetail, PacketDiffResult)}
+    assert contract == {model.__name__: model.model_json_schema() for model in (QueueResponse, PacketDetail, DecisionDetail, PacketDiffResult,
+        BootstrapResponse, TailscaleBootstrapResponse, DecisionResult)}
     fixtures = json.loads((ROOT / 'frontend/src/fixtures/review.json').read_text())
     assert fixtures['synthetic'] is True
     for raw in fixtures['packets']:
