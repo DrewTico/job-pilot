@@ -1,8 +1,10 @@
 # Job Pilot durable integration matrix
 
-Status: documentation-only roadmap, awaiting Andrew's review. Run 5C is complete; Run 5D has not started. No entry authorizes installation, account setup, sending, employer submission, deployment, or a change to existing rules.
+Status: documentation-only roadmap and top-level Run Builder Skill Gate policy amendment, awaiting Andrew's review. Run 5 is the current top-level Run: milestones 5A, 5B and 5C are complete; 5D is NEXT, NOT STARTED. No entry authorizes installation, account setup, sending, employer submission, deployment, or a change to existing rules.
 
-Starting checkpoint verified on 2026-10-10: branch `main`; HEAD and local `origin/main` both `69fb88f60c56f5e3ec8ae88c29619b31993f2b47` (`feat: add trusted Run 5C decisions`); `git status --short` empty. No fetch or external account access was needed.
+Original roadmap starting checkpoint verified on 2026-10-10: branch `main`; HEAD and local `origin/main` both `69fb88f60c56f5e3ec8ae88c29619b31993f2b47` (`feat: add trusted Run 5C decisions`); `git status --short` empty. No fetch or external account access was needed.
+
+Policy amendment starting checkpoint verified on 2026-10-10: branch `main`; HEAD and local `origin/main` both `f4e2cf88105eee40214d127e439bac4b233e6660` (`docs: add Job Pilot integration roadmap`); worktree and index clean, with no untracked files. No fetch or external account access was needed.
 
 ## Purpose and priority
 
@@ -105,7 +107,7 @@ Skills guide builders, reviews, or Andrew's practice. They do not implement prod
 
 Frontend Design Pro is KEEP in the evidenced baseline above; it remains the accepted design instruction set. The following table contains the other skill decisions, each recorded once.
 
-| Skill / collection | Milestone / trigger | Decision | Builder value / integration approach | Gate, risk and limits |
+| Skill / collection | Relevant Run / capability trigger | Decision | Builder value / integration approach | Gate, risk and limits |
 | --- | --- | --- | --- | --- |
 | obra/superpowers | Before a substantial later implementation, if workflow gaps recur | EVALUATE | Planning, testing, implementation discipline and review | Compare with current process; select compatible instructions; not runtime functionality or a wholesale harness |
 | Playwright skill | Before Run 8 browser work or substantial later browser testing | EVALUATE | More disciplined browser development/test guidance | Choose ONE preferred instruction set; resolve provenance; no competing variants without need; no production authority from a skill |
@@ -126,69 +128,79 @@ Frontend Design Pro is KEEP in the evidenced baseline above; it remains the acce
 | Remotion skill | No planned milestone; only a concrete later video need | REJECT | Not needed for current product | Job-search workflow does not require a video stack |
 | caveman | No planned milestone; only materially new evidence | REJECT | Not needed for current product | Resolve identity/review before any reconsideration |
 
-## Builder Skill Gate
+## Run hierarchy
 
-**Before beginning EVERY major Job Pilot implementation milestone, perform a short, mandatory builder-skill review. This gate happens before implementation planning becomes locked.**
+A **TOP-LEVEL RUN** is a major product-development phase, such as Run 5, Run 6, Run 7, Run 8, Run 9, Run 10 or Run 11. A milestone/subphase is work inside one of those Runs. The current established structure is:
 
-**THIS GATE APPLIES TO BUILDER SKILLS.** Its purpose is to determine whether an existing or newly discovered development skill could materially improve planning, architecture review, implementation quality, testing, debugging, security review, browser automation, accessibility, performance, provider/API correctness, visual/product quality, consistency, or reduction of repetitive prompting.
+| Top-level Run | Milestone/subphase | Scope | Status |
+| --- | --- | --- | --- |
+| RUN 5 | 5A | Frontend architecture/foundation | COMPLETE |
+| RUN 5 | 5B | Desktop + phone review experience | COMPLETE |
+| RUN 5 | 5C | Trusted Approve / Reject / Revise decisions | COMPLETE |
+| RUN 5 | 5D | Revision execution + successor packet/version + change/diff review | NEXT / NOT STARTED |
 
-This recurring lightweight review is separate from the higher-bar Mandatory integration quality gate for production dependencies, runtime repositories, external services, and credentialed integrations. A builder skill does not acquire runtime or account authority. If its proposed use requires those capabilities, their applicable integration and approval gates still apply.
+**5A / 5B / 5C / 5D are not independent top-level Runs. 5D is the final currently planned milestone of Run 5.** Completing 5D completes Run 5 under the currently planned roadmap. An explicit future roadmap decision could amend that scope; this document does not claim the Run can never be amended.
 
-### Sufficiency-first rule
+## Run-level Builder Skill Gate
 
-**NO NEW SKILL REQUIRED is a valid, successful Builder Skill Gate result and may be the default outcome. The review gate is mandatory; discovery, evaluation, and installation of another skill are not.** No builder skill becomes mandatory merely because it is listed. Superpowers remains one candidate among the full inventory, with no privileged or mandatory status.
+**ONE BUILDER SKILL GATE PER TOP-LEVEL RUN.** The normal permanent policy begins with Run 6. Perform the gate at the start of each new top-level Run, before Run preflight/architecture and before implementation planning becomes locked. Inspect **ALL currently known work planned for the Run**, and map capabilities across all known milestones/subphases, rather than only the first milestone. Establish the stack once for the entire Run whenever reasonably possible.
 
-If currently approved/available builder skills already cover the milestone's engineering needs adequately, the gate passes without discovering, evaluating, or installing another skill. Consider a new skill only for a **specific, material gap** in planning quality, architecture review, implementation quality, testing, debugging, security, browser automation, accessibility, performance, provider/API correctness, visual/product quality, consistency, developer efficiency, or repetitive prompting/work.
+**THIS GATE APPLIES TO BUILDER SKILLS.** Its purpose is to determine whether the existing stack effectively supports the whole Run, or whether a justified development skill could materially improve planning, architecture review, implementation quality, testing, debugging, security review, browser automation, accessibility, performance, provider/API correctness, visual/product quality, consistency, or reduction of repetitive prompting.
 
-Starting a new milestone alone does not justify adding a skill. Do not search merely because a milestone started, replace an effective skill merely because a newer one exists, install overlapping skills "just in case," or optimize for the number of installed skills. Prefer **the smallest skill set that adequately supports the work**.
+This Run-level review is separate from the higher-bar **External Integration Quality Gate** (the Mandatory integration quality gate below) for runtime repositories, external services, production dependencies, credentialed integrations and consequential account behavior. A builder skill does not acquire runtime or account authority. If its proposed use requires those capabilities, their applicable integration and approval gates still apply. Do not merge the two gates.
 
-```text
-UPCOMING MILESTONE
-        ↓
-REVIEW CURRENT SKILLS
-        ↓
-ARE THEY SUFFICIENT?
-   YES          NO
-    ↓            ↓
-ADD NOTHING   IDENTIFY EXACT GAP
-    ↓            ↓
-PROCEED       CONSIDER A RELEVANT SKILL
-```
+### Effective sufficiency and anti-bloat
+
+**NO NEW SKILL REQUIRED is a valid, successful Run-level Builder Skill Gate result and may be the default outcome. The review gate is mandatory; discovery, evaluation, and installation of another skill are not.** No builder skill becomes mandatory merely because it is listed. Superpowers remains one candidate among the full inventory, with no privileged or mandatory status.
+
+Sufficient does not merely mean technically capable. The current builder stack is **effectively sufficient** only when it supports the whole known Run adequately across:
+
+- Capability.
+- Quality.
+- Reliability.
+- Efficiency.
+- Safety.
+- Testability.
+- Maintainability.
+
+A technically capable stack may still justify evaluation for a **specific, material deficiency**: substantially worse implementation quality, recurring mistakes, weak testing/review capability, security blind spots, excessive debugging, disproportionate repetitive prompting, significant workflow inefficiency, or poor consistency. Minor convenience improvements do not justify adding tooling.
+
+If the currently approved/available stack is effectively sufficient, pass the gate without discovering, evaluating, or installing another skill. Starting a Run or advancing to another already-planned milestone alone does not justify adding skills. Do not replace an effective skill merely because a newer one exists, install overlapping skills "just in case," or optimize for the number of installed skills. Establish **the smallest sufficient Run-level stack**.
 
 ### Cumulative skill inventory
 
-The existing **Developer skills: separate from runtime dependencies** section above is the **single durable Builder Skills inventory** in this integration matrix, including its reference to the accepted Frontend Design Pro baseline. Do not create `BUILDER_SKILL_REGISTRY.md` or another parallel registry.
+**docs/roadmap/INTEGRATION_MATRIX.md remains the single durable builder-skill inventory.** Its **Developer skills: separate from runtime dependencies** section above, including the reference to the accepted Frontend Design Pro baseline, holds the cumulative inventory. Do not create `BUILDER_SKILL_REGISTRY.md` or another parallel registry.
 
-When a Builder Skill Gate discovers a new skill with a plausible, concrete use case for a real current or future Job Pilot engineering gap, record it back into that inventory. Preserve:
+When a Run-level gate discovers a genuinely useful new skill for a concrete, relevant Job Pilot engineering gap, record it back into that inventory. Preserve:
 
 - Skill name.
 - Source/repository/provider, including unresolved provenance when applicable.
-- Capability it may help.
-- Relevant milestone(s).
+- Relevant capability.
+- Relevant Run(s), with milestone/subphase scope when useful.
 - Current status: **EVALUATE / KEEP / DEFER / REJECT**.
 - Brief reason for that status.
 - Important overlap, conflict, or provenance note when relevant.
 
-The known-skill inventory is cumulative across milestones. Future gates must consider relevant previously recorded skills before searching for new ones. Do not add every interesting skill encountered; this is an engineering decision inventory, not a catalog of AI skills. These recording requirements do not change existing entries or their decisions.
+The inventory is cumulative across Runs. Future Run-level gates begin with it and consider relevant previously recorded skills before searching for new ones. Do not add interesting-but-irrelevant skills merely to catalog them. These recording requirements do not change existing entries or their decisions.
 
-Useful future skills may come from official/vendor skill collections, trusted GitHub repositories, developer recommendations, relevant community recommendations, tools Andrew provides, or targeted research for a concrete milestone gap. Discovery is milestone-driven, not novelty-driven. A newer skill does not automatically outrank an effective existing skill; replacement requires meaningful improvement.
+Useful future skills may come from official/vendor collections, trusted GitHub repositories, developer recommendations, relevant community recommendations, tools Andrew provides, or targeted research for a concrete Run-level material gap. Discovery is capability-gap-driven, not novelty-driven. A newer skill does not automatically outrank an effective existing skill; replacement requires meaningful improvement.
 
-### Required lightweight review and discovery order
+### Required sufficiency-first review order
 
-**KNOWN SKILLS FIRST. NEW DISCOVERY SECOND. NO DISCOVERY WHEN THERE IS NO GAP.**
+**KNOWN SKILLS FIRST. NEW DISCOVERY SECOND. NO DISCOVERY WHEN THERE IS NO MATERIAL GAP.**
 
-1. Understand the upcoming milestone.
-2. Identify its actual engineering challenges.
-3. Read the current Builder Skills inventory in this matrix.
-4. Determine whether the currently approved/available skill set is already sufficient.
-5. If sufficient, record **NO NEW SKILL REQUIRED** and proceed with the milestone; no new discovery or candidate evaluation is required.
-6. If insufficient, identify the exact missing capability.
-7. Check whether an already-known **DEFER / EVALUATE** candidate addresses that gap.
-8. Only then perform targeted discovery for a new skill if necessary.
-9. Record worthwhile discoveries back into the same Builder Skills inventory.
-10. Evaluate only the strongest relevant candidate(s) for the identified gap, using the safeguards below.
-11. Record **KEEP / DEFER / REJECT**, with a short reason and any scope limits, in the same inventory. A bounded trial does not by itself change a candidate's matrix adoption decision.
-12. Proceed with the milestone only after this lightweight gate is complete.
+1. Understand the entire known Run, including all currently planned milestones/subphases.
+2. Identify the required capabilities across that whole scope.
+3. Read the existing cumulative skill inventory in this matrix.
+4. Determine whether the currently approved/available stack is effectively sufficient.
+5. If sufficient, record **NO NEW SKILL REQUIRED**; no new discovery or candidate evaluation is required.
+6. If not, identify the exact material gap.
+7. Check known candidates first, including relevant **DEFER / EVALUATE** entries.
+8. Perform targeted new discovery only if necessary to address that gap; record useful discoveries in the same inventory.
+9. Evaluate only the strongest justified candidate(s), using the safeguards below.
+10. Record **KEEP / DEFER / REJECT**, with a reason and scope limits. A bounded trial does not by itself change a candidate's matrix adoption decision.
+11. Obtain Andrew review and establish/lock the smallest sufficient Run-level builder stack, including any known conditional candidate evaluation and its trigger.
+12. Begin the Run only after the gate is complete and Andrew approves it, subject to applicable preflight and action-specific approval requirements.
 
 When candidate evaluation is needed:
 
@@ -200,52 +212,115 @@ When candidate evaluation is needed:
 - Evaluate whether it materially improves quality, speed, consistency, testing, review quality, or reduction of repetitive prompting.
 - Do not keep a skill merely because it is popular or interesting.
 
-**Repository/project instructions remain authoritative over generic skill instructions.** A skill must not redefine Job Pilot's architecture merely because it prefers another framework, workflow, or design philosophy. CLAUDE.md and Andrew's approval requirements remain binding; this gate authorizes neither installation nor a rule/architecture change.
+**Repository/project instructions remain authoritative over generic skill instructions.** A skill must not redefine Job Pilot's architecture merely because it prefers another framework, design philosophy, testing style, orchestration system, workflow, or architecture. Skills assist implementation; they do not become architecture authorities. CLAUDE.md and Andrew's approval requirements remain binding; this gate authorizes neither installation nor a rule/architecture change.
 
-### Proactive review, bounded scope
+### Approved stack and milestone inheritance
 
-The builder-skill review is proactive. Andrew should not need to remember or re-surface previously collected skills before each milestone. The engineering workflow must proactively read the durable inventory, match relevant known skills to the upcoming milestone, and identify genuine gaps as part of milestone planning.
+Once the Run-level gate is complete and Andrew approves it, the resulting builder stack becomes the expected working skill/tool set for that top-level Run. All milestones/subphases inside the Run inherit it. Known conditional evaluations, such as the RenderCV skill only after renderer adoption, must retain their recorded trigger and separate adoption review; they do not require another full Run-level gate.
 
-The gate must remain lightweight. Proactive responsibility means determining whether existing tooling is sufficient, not continually hunting for more skills. It must NOT become an excuse to delay useful work by continually collecting more skills. The default question is **"Are the current skills sufficient for THIS milestone?"** Review known guidance first; document a gap before looking for more.
+Do not repeat broad skill searches, reevaluate settled skills, install competing alternatives, or run another complete gate simply because work advances to another planned milestone/subphase. No repeated full skill gate is required before each milestone.
 
-### Milestone examples
+### Narrow mid-Run exception
 
-These are review candidates, not completed evaluations or installation approvals. Earlier review of a known candidate does not alter the existing skill-table decisions or authorize broader adoption.
+Reopen skill evaluation during a Run **ONLY for a material previously unanticipated capability or scope requirement**, including:
 
-| Milestone | Builder-skill review before implementation | Possible value / boundary |
+- A new provider/API class absent from the original Run scope.
+- A newly required browser-automation category.
+- An unforeseen security/integrity problem.
+- An approved major architecture change.
+- A previously unknown technology requirement.
+- Repeated evidence that the selected builder stack is materially deficient.
+
+Routine implementation difficulty, curiosity, a newly released skill, minor efficiency differences, advancing to the next already-planned milestone, or wanting to see whether something newer exists do not reopen the gate.
+
+Evaluate **the NEW GAP only**. Do not repeat the entire Run-level analysis unless the Run itself has been materially re-scoped. Andrew review remains required.
+
+### One-time current Run 5 transition
+
+The Builder Skill Gate policy was adopted **after 5A, 5B and 5C were already complete**. Do not retroactively redo those milestones or perform a full Run 5 gate.
+
+Instead, later perform **ONE-TIME RUN 5 CATCH-UP BUILDER SKILL GATE**, covering **ONLY the remaining known Run 5 scope: milestone 5D**. This is a historical transition caused by adopting the policy late in Run 5. It does not redefine 5D as a top-level Run and does not establish a precedent for gating every milestone.
+
+The future catch-up gate must inspect the entire currently known 5D scope at once. Potential capability areas, to be confirmed against repository evidence at that future gate, include:
+
+- Recorded Revise decision consumption and revision execution.
+- Revision worker/process behavior.
+- Successor/new packet version creation and predecessor/successor identity.
+- Packet/version integrity and packet fingerprints.
+- Approval-view fingerprints where relevant.
+- Idempotency, concurrency and retries.
+- Failure/recovery and crash/restart semantics.
+- LLM revision boundaries, evidence/provenance and unsupported factual-change prevention.
+- Before/after change representation and human diff/change review.
+- Subsequent independent decision flow.
+- Backend testing.
+- Frontend/browser validation if 5D actually includes it.
+- Production-data isolation and no accidental employer submission.
+
+Establish the skill stack for **ALL remaining 5D work** using the same effective-sufficiency, inventory, anti-bloat and Andrew-review requirements. No repeated full gate within 5D follows unless the narrow material-gap exception applies. After 5D, Run 5 is complete under the **currently planned** roadmap. Beginning with Run 6, use the normal one-gate-per-top-level-Run policy.
+
+**This documentation amendment neither performs the catch-up gate nor starts 5D. Andrew must review this policy amendment first.**
+
+### Proactive responsibility, bounded scope
+
+Andrew should not need to remember or manually re-surface previously collected skills. At the **START OF EACH TOP-LEVEL RUN**, the workflow proactively reads the cumulative inventory, maps relevant skills to all known Run capabilities, checks effective sufficiency, and identifies real gaps. The one-time Run 5 catch-up review applies that responsibility to the remaining 5D scope.
+
+Proactive does not mean continuously searching during a Run. The gate remains bounded and must not delay useful work by continually collecting skills. Ask **"Is the current stack effectively sufficient for this entire known Run?"** Review known guidance first; document an exact material gap before discovering more.
+
+### Run-level capability examples
+
+Review the entire known scope of each top-level Run, not merely its first milestone. These are review candidates, not completed evaluations or installation approvals. Earlier review of a known candidate does not alter the existing skill-table decisions or authorize broader adoption.
+
+| Top-level Run / transition scope | Run-level builder-skill capability review | Possible value / boundary |
 | --- | --- | --- |
-| RUN 5D: revision execution | First ask whether currently installed/available skills are sufficient for Run 5D. If yes, record NO NEW SKILL REQUIRED. Otherwise, initial candidates may include Superpowers, security-best-practices, and one Playwright skill if materially relevant; evaluate only candidates addressing the exact identified gap | Implementation planning, test-first discipline, successor-packet safety review, diff/review testing, and security/integrity checks. Candidates are not mandatory installations. Run 5D remains NEXT, NOT STARTED. |
-| RUN 6: discovery expansion | Review skills relevant to source adapters, API/data ingestion, normalization, deduplication, and robustness/testing | Do not invent a need for a skill if native implementation is already clear. |
-| RUN 7: application intelligence | Review skills relevant to model/provider APIs, prompt evaluation, structured generation, and deterministic artifact generation | If RenderCV is adopted, evaluate its skill then, not before. |
-| RUN 8: controlled application execution | High-value candidates: one Playwright skill, browser automation testing skill, and security-best-practices | Prefer one strong instruction set per capability; browser guidance and testing may overlap and do not confer employer-action authority. |
-| RUN 9: people / referrals / outreach | Review skills relevant to Gmail/API integration, privacy/security, external-account workflows, and controlled browser automation | The Builder Skill Gate does NOT override high-risk LinkedIn requirements or CLAUDE.md restrictions. Any policy conflict requires its own separately approved scoped policy/architecture decision BEFORE Run 9 implementation. |
+| CURRENT RUN 5 TRANSITION / REMAINING 5D | At the future one-time catch-up gate, first ask whether currently installed/available skills are effectively sufficient for all remaining 5D work. If yes, record NO NEW SKILL REQUIRED. Otherwise, initial candidates may include Superpowers, security-best-practices, and one Playwright skill if actual 5D UI/browser work materially benefits, plus any other relevant known skill supported by the capability analysis; evaluate only candidates addressing the exact identified gap | Implementation planning, test-first discipline, successor-packet safety review, diff/review testing, and security/integrity checks. Candidates are not mandatory installations. Milestone 5D remains NEXT, NOT STARTED; it is not a top-level Run. |
+| RUN 6: discovery expansion | Inspect all currently planned Run 6 discovery/source work; review skills relevant to source adapters, API/data ingestion, normalization, deduplication, and robustness/testing | Do not invent a need for a skill if native implementation is already clear. |
+| RUN 7: application intelligence | Inspect all currently planned Run 7 application-intelligence work; review skills relevant to model/provider APIs, prompt evaluation, structured generation, and deterministic artifact generation | If RenderCV is adopted, evaluate its skill then, not before. |
+| RUN 8: controlled application execution | Inspect all currently planned Run 8 controlled-application-execution work. Possible candidates: one Playwright skill, browser automation testing skill, and security-best-practices | Prefer one strong instruction set per capability; browser guidance and testing may overlap and do not confer employer-action authority. |
+| RUN 9: people / referrals / outreach | Inspect all currently planned Run 9 people/referral/outreach work; review skills relevant to Gmail/API integration, privacy/security, external-account workflows, and controlled browser automation | The Builder Skill Gate does NOT override high-risk LinkedIn requirements or CLAUDE.md restrictions. Any policy conflict requires its own separately approved scoped policy/architecture decision BEFORE Run 9 implementation. |
 | FINAL PRODUCT PASS | Frontend Design Pro: KEEP; Vercel react-best-practices: evaluate; Vercel web-design-guidelines: evaluate; targeted security/accessibility review skills | Preserve the accepted design and architecture; use targeted guidance for actual product quality gaps. |
 
-### Recurring milestone workflow
+For the final product pass, inspect the complete known pass scope once before locking its builder stack; its listed reviews do not create full gates for each polish task. Later major work uses a gate when it starts a new top-level Run, not merely because another milestone begins. No additional numbered Run or milestone is created here.
+
+### Normal top-level Run lifecycle, beginning with Run 6
 
 ```text
-MAJOR MILESTONE
-      ↓
-BUILDER SKILL GATE
-      ↓
-READ-ONLY PREFLIGHT / ARCHITECTURE REVIEW
-      ↓
-IMPLEMENTATION
-      ↓
-FOCUSED TESTS
-      ↓
-REGRESSION / SECURITY / UX REVIEW AS APPLICABLE
-      ↓
+NEW TOP-LEVEL RUN
+        ↓
+RUN-LEVEL BUILDER SKILL GATE
+        ↓
+INSPECT COMPLETE KNOWN RUN SCOPE
+        ↓
+MAP CAPABILITIES ACROSS ALL KNOWN MILESTONES/SUBPHASES
+        ↓
+REVIEW CUMULATIVE BUILDER SKILL INVENTORY
+        ↓
+ASSESS EFFECTIVE SUFFICIENCY
+        ↓
+EVALUATE ONLY JUSTIFIED SKILLS (IF A MATERIAL GAP EXISTS)
+        ↓
 ANDREW REVIEW
-      ↓
-CHECKPOINT
+        ↓
+ESTABLISH / LOCK RUN BUILDER STACK
+        ↓
+RUN PREFLIGHT / ARCHITECTURE
+        ↓
+MILESTONE A
+        ↓
+MILESTONE B
+        ↓
+MILESTONE C
+        ↓
+...
+        ↓
+RUN COMPLETE
 ```
 
-The gate informs planning before it becomes locked; applicable external integration gates and Andrew's approval requirements remain prerequisites to the actions they govern. Stop after each milestone for Andrew's review. Checkpoint only when authorized.
+The milestone letters illustrate sequence only; they do not invent additional roadmap milestones. Milestones inherit the approved Run stack and continue to require focused tests, applicable regression/security/UX review, and Andrew review. Stop after each milestone for Andrew's review; checkpoint only when authorized. Applicable external integration gates and action-specific approvals remain prerequisites to the actions they govern.
 
-## Run 5D: existing revision pipeline first
+## Run 5, milestone 5D: existing revision pipeline first
 
-Run 5D is NEXT and has not started. Its goal is:
+Milestone 5D is NEXT and has not started. It is the final currently planned milestone inside the current top-level Run 5, following completed 5A, 5B and 5C. The one-time catch-up gate above must occur later, before 5D implementation. Its goal is:
 
 **Recorded Revise decision → revision execution → successor/new packet version → exact diff → human review → independent approval.**
 
@@ -392,7 +467,7 @@ OpenCode, Aider and free-claude-code remain BACKUP ONLY for development/model ro
 
 ## Mandatory integration quality gate
 
-Every EVALUATE/INTEGRATE production dependency, runtime repository, external service, credentialed integration, and newly expanded KEEP capability in those categories must pass this gate before adoption. Deferred/reference/optional/fallback items must also undergo the applicable gate if promoted or actually reused. Builder skills use the separate recurring Builder Skill Gate above for instruction review; applicable requirements below still govern their adoption or reuse, and the full higher-bar gate applies if their use introduces production dependencies, runtime repositories, external services, or credentialed integrations. A roadmap entry is not a completed gate.
+Every EVALUATE/INTEGRATE production dependency, runtime repository, external service, credentialed integration, and newly expanded KEEP capability in those categories must pass this gate before adoption. Deferred/reference/optional/fallback items must also undergo the applicable gate if promoted or actually reused. Builder skills use the separate Run-level Builder Skill Gate above for instruction review, with the one-time Run 5 catch-up transition; applicable requirements below still govern their adoption or reuse, and the full higher-bar gate applies if their use introduces production dependencies, runtime repositories, external services, or credentialed integrations. A roadmap entry is not a completed gate.
 
 1. Identify the exact capability gap and its connection to interviews/jobs or reduced manual work.
 2. Record the current baseline, representative cohort, success measures and limits before comparing candidates.
@@ -413,7 +488,7 @@ Every EVALUATE/INTEGRATE production dependency, runtime repository, external ser
 
 A candidate fails if complexity increases without meaningful improvement. Keep evaluation fixtures/results and a decision record with pinned identity/version, baseline, measured result, risk/license findings, rollback plan and Andrew's applicable approvals. Promote EVALUATE only after proof; reconsider DEFER only at its trigger. Never treat REFERENCE as permission to execute/install an entire repository.
 
-For this documentation milestone, only matrix review, necessary documentation corrections, and explicit-path staging for Andrew's review are authorized. No candidate proof, installation, account connection, implementation, commit, push, or checkpoint action is authorized. Future dependency/OAuth/first-send/first-submission/calendar/rule changes retain CLAUDE.md's approval gates.
+For this documentation-only policy amendment, only matrix review and necessary corrections to this file are authorized. No staging, commit, push, candidate proof, skill installation/evaluation, account connection, Run 5 catch-up gate, 5D implementation, or checkpoint action is authorized. Stop for Andrew after the amendment. Future dependency/OAuth/first-send/first-submission/calendar/rule changes retain CLAUDE.md's approval gates.
 
 ## Source/provenance notes and durable claims
 
@@ -425,12 +500,16 @@ The decisions and expected-value hypotheses are Andrew's requested roadmap, info
 
 ## Roadmap summary
 
-**Every major implementation run below, from Run 5D onward, begins with the mandatory Builder Skill Gate before implementation planning becomes locked. This also applies to the final product pass and later major implementation milestones. Run 5D remains NEXT, NOT STARTED.**
+**Run 5 is CURRENT: 5A, 5B and 5C are COMPLETE; 5D is NEXT, NOT STARTED. One future catch-up gate covers only remaining 5D scope, without retroactively gating Run 5. After currently planned 5D, Run 5 is COMPLETE. Beginning with Run 6, ONE BUILDER SKILL GATE PER TOP-LEVEL RUN covers all known milestones/subphases; those milestones inherit the approved stack.**
 
-| Milestone | Status / scope | Components and boundary |
+| Top-level Run / milestone / later phase | Status / scope | Components and boundary |
 | --- | --- | --- |
-| RUN 5C | COMPLETE: trusted decision recording | Exact Approve/Reject/Revise records; approval is not submission; revision request is not generation |
-| RUN 5D | NEXT, NOT STARTED: revision execution, successor packet and diff review | Existing native pipeline first; independent successor approval; no forced external repository |
+| RUN 5 | CURRENT: frontend review and decisions through revision/change review | 5A / 5B / 5C / 5D are milestones/subphases within this top-level Run |
+| 5A (inside Run 5) | COMPLETE: frontend architecture/foundation | Established frontend architecture |
+| 5B (inside Run 5) | COMPLETE: desktop + phone review experience | Accepted desktop and phone review experience |
+| 5C (inside Run 5) | COMPLETE: trusted Approve / Reject / Revise decisions | Exact Approve/Reject/Revise records; approval is not submission; revision request is not generation |
+| 5D (inside Run 5) | NEXT, NOT STARTED: revision execution, successor packet/version and change/diff review | Final currently planned Run 5 milestone; future one-time catch-up gate; existing native pipeline first; independent successor approval; no forced external repository |
+| RUN 5 COMPLETION | After completing currently planned 5D | Proceed to top-level Run 6 under the normal Run-level gate policy |
 | RUN 6 | Discovery expansion | Integrate both SimplifyJobs sources; career-ops reference; JobSpy only after a demonstrated coverage gap |
 | RUN 7 | Application intelligence and stronger tailoring | Evaluate promptfoo and resume rendering; promote only on useful proof |
 | RUN 8 | Controlled application execution | Expand deterministic Playwright; evaluate Stagehand fallback; employer submission remains approval-gated |
