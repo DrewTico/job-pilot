@@ -1,0 +1,288 @@
+{
+  "scope": "Run 5B dedicated read-only phone presentation; visually accepted by Andrew pending checkpointing",
+  "git": {
+    "branch": "main",
+    "head": "46e8b2f1c94bc58bd575a77f1b8cb615fa2eddbd",
+    "origin_main": "46e8b2f1c94bc58bd575a77f1b8cb615fa2eddbd",
+    "starting_status_short": "",
+    "final_status_short": " M frontend/src/components/packet-inspector.tsx\n M frontend/src/components/workspace.tsx\n M frontend/src/pages/_app.tsx\n M tests/test_frontend_font_dom.py\n M tests/test_frontend_ui_dom.py\n?? docs/run5b/PHONE_IMPLEMENTATION_REPORT.md\n?? docs/run5b/phone-implementation-evidence/\n?? frontend/src/components/phone-workspace.tsx\n?? frontend/src/styles/phone.css\n?? tests/test_frontend_phone_dom.py",
+    "no_commit": true,
+    "no_push": true,
+    "run_5c_started": false
+  },
+  "production_database": {
+    "path": "data/job_pilot.sqlite3",
+    "before_sha256": "da1796bc37cd43868ed999c89a4f11c1c65bad7c1ce671f8d15552d7526994e2",
+    "after_sha256": "da1796bc37cd43868ed999c89a4f11c1c65bad7c1ce671f8d15552d7526994e2",
+    "byte_identical": true,
+    "writable_test_target": false
+  },
+  "static_export": {
+    "manifest_sha256": "6124b336a2bc8b7b2d32a3ae3b47073164bd50285ebc80a26ff754eae4c3edec",
+    "two_final_build_manifests_byte_identical": true,
+    "approved_asset_count": 17,
+    "font_asset_count": 4,
+    "source_maps": false
+  },
+  "desktop_comparison": {
+    "before": "docs/run5b/phone-implementation-evidence/desktop-before-1440x900.png",
+    "after": "docs/run5b/phone-implementation-evidence/desktop-regressions/first-review-1440x900.png",
+    "viewport": [
+      1440,
+      900
+    ],
+    "changed_pixels": 0,
+    "difference_bbox": null,
+    "visually_inspected": true,
+    "before_sha256": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+    "after_sha256": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+    "before_capture_retained": false,
+    "after_capture_retained": true,
+    "cleanup_existing_capture_bytes_identical": true
+  },
+  "validation": {
+    "lint": "passed",
+    "typecheck": "passed",
+    "npm_test": {
+      "passed": 11,
+      "failed": 0
+    },
+    "npm_audit": {
+      "vulnerabilities": 0,
+      "dependencies": 253
+    },
+    "frontend_browser_delivery_font_csp_trusted_ui": {
+      "passed": 148,
+      "failed": 0,
+      "seconds": 105.91,
+      "focused_phone_cases": 19
+    },
+    "approval_security_database_packet_application_scoring": {
+      "passed": 1544,
+      "failed": 0,
+      "seconds": 387.55
+    },
+    "prechange_desktop_capture": {
+      "passed": 2,
+      "deselected": 30
+    },
+    "phone_widths": [
+      360,
+      390,
+      430,
+      480
+    ],
+    "text_zoom_percent": 200,
+    "safe_area_emulation": {
+      "top": 20,
+      "bottom": 34,
+      "viewport": [
+        390,
+        700
+      ],
+      "cdp_method": "Emulation.setSafeAreaInsetsOverride"
+    },
+    "physical_phone_hardware_used": false,
+    "fixture_data": "isolated synthetic/demo, private API reads intercepted; no production DB writes"
+  },
+  "visual_comparisons": [
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p1-queue-390x844.png",
+      "approved": "docs/design/screens/phone/p1-queue.png",
+      "visually_inspected": true,
+      "notes": "Loaded context replaces unsupported daily totals; spacious queue cards and separate bottom navigation."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p2-review-top-390x844.png",
+      "approved": "docs/design/screens/phone/p2-review-top.png",
+      "visually_inspected": true,
+      "notes": "Dedicated wrapping hero above score; four must-see slots visible; unavailable predictions/contacts and relocation are explicit."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p3-review-scrolled-390x844.png",
+      "approved": "docs/design/screens/phone/p3-review-scrolled.png",
+      "visually_inspected": true,
+      "notes": "One main scroll with vertical Why/Watch and package rows; supported evidence replaces unsupported calendar."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p4-why-390x844.png",
+      "approved": "docs/design/screens/phone/p4-why.png",
+      "visually_inspected": true,
+      "notes": "Rounded mobile sheet with actual reasons/requirements/gaps; detailed weighting unavailable."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p5-people-unavailable-390x844.png",
+      "approved": "docs/design/screens/phone/p5-people.png",
+      "visually_inspected": true,
+      "notes": "Polished sheet; no contact identities or verification claims."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p8-letter-390x844.png",
+      "approved": "docs/design/screens/phone/p8-letter.png",
+      "visually_inspected": true,
+      "notes": "Authenticated text on Newsreader paper; exact version/job context; no annotation or revision controls."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p10-second-company-390x844.png",
+      "approved": "docs/design/screens/phone/p10-atlas.png",
+      "visually_inspected": true,
+      "notes": "Explicit next selection with real fixture Meridian Field Systems and deterministic purple theme; no fabricated Atlas record."
+    },
+    {
+      "implementation": "docs/run5b/phone-implementation-evidence/p11-caught-up-390x844.png",
+      "approved": "docs/design/screens/phone/p11-caught-up.png",
+      "visually_inspected": true,
+      "notes": "Successful empty first page only; no invented submission or weekly totals."
+    }
+  ],
+  "deferred_references": [
+    "p6-revise.png",
+    "p7-changes.png",
+    "p9-applied.png"
+  ],
+  "screenshots": [
+    {
+      "path": "docs/run5b/phone-implementation-evidence/desktop-regressions/first-review-1440x900.png",
+      "image_dimensions": [
+        1440,
+        900
+      ],
+      "sha256": "4022b2286726715f7ca04b8b4dce7a73077d425b9798f047b6c9a7c65037e9dc",
+      "capture_context": "desktop regression, font detail crop, or retained earlier capture; dimensions describe image"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/history-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "073e2be51a1fdadb34cfcebc9918c474a9a5cf96b6b20a7fe11df41ea9f26f60",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/integrity-failed-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "4443a6c0ae0dafa182e4d98872bfbe9edc51faf56825f6a3649e1acc5bd5c9c5",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p1-queue-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "96514f4a4ad1baab548098f12d21b5e9a1cdb868659775576f890046c6a527c3",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p10-second-company-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "e88de59e8ddb41a7d5a6774f1ef1e33db529cbf5df19e42df74bdd00061820ef",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p11-caught-up-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "6260afbd0b713d60b90bc2d56438db6303a3ad65d9bd172e25e43f1ef672f7c1",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p2-review-top-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "69ac7369104ff283b081f9f4089a97c3fd909940d3e73bb4dd93156ba578d7ed",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p3-review-scrolled-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "dbdba02bbd43b892a5b5d417a56b8d476a4fefda98bab0b03ff62bd2f6d78558",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p4-why-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "b3cfee087697748a0510ab739394a3ca3128d46a8fd87d94d67fa2db0c367fae",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p5-people-unavailable-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "e902cb83d22346da9887481bfc47e2e0e76550a94411faa6b922a4d804be2172",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/p8-letter-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "bc62285f5b3bce8103895be162ff162f4981ee5fa635419f2aa017ee6a31dc68",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/queue-error-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "edc8ecfbe5520a470108b262c4313d2e4978c7fc773ca81522f0153e53cec376",
+      "capture_context": "primary phone viewport 390x844"
+    },
+    {
+      "path": "docs/run5b/phone-implementation-evidence/queue-loading-390x844.png",
+      "image_dimensions": [
+        390,
+        844
+      ],
+      "sha256": "b1c517b352679881234eeb46b218056eba34bd0ccb66fa3fcbd628e3f99a6b1a",
+      "capture_context": "primary phone viewport 390x844"
+    }
+  ],
+  "implementation_completion_scope": "Run 5B dedicated read-only phone presentation; Andrew visual approval pending",
+  "cleanup": {
+    "phone_baseline_visually_accepted": true,
+    "checkpoint_pending": true,
+    "source_and_tests_changed": false,
+    "validation_counts_are_prior_implementation_results": true,
+    "original_modified_untracked_path_count": 49,
+    "original_commit_path_count": 23,
+    "original_ignore_path_count": 0,
+    "removed_redundant_evidence_count": 26,
+    "needs_andrew_decision_count": 0,
+    "new_backlog": "docs/run5b/DEFERRED_CROSS_DEVICE_POLISH.md",
+    "retained_screenshot_count": 13,
+    "retained_phone_screenshot_count": 12,
+    "retained_desktop_screenshot_count": 1,
+    "removed_evidence_scopes": [
+      "desktop-before-1440x900.png",
+      "desktop-regressions/ except first-review-1440x900.png",
+      "earlier-captures/",
+      "font-proof/"
+    ],
+    "deferred_polish_implemented": false,
+    "run_5c_started": false,
+    "no_commit": true,
+    "no_push": true
+  }
+}

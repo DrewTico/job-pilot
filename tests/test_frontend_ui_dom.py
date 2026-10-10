@@ -36,6 +36,7 @@ def review(ui):
     yield ui
     assert not ui[4], 'Read-only workspace issued POST'
     assert all(method == 'GET' for method in methods), 'Read-only workspace issued a non-GET request'
+    assert not any('/api/bootstrap' in url for url in ui[5]), 'Read-only workspace bootstrapped CSRF'
     assert not ui[0].evaluate('window.cspViolations'), 'CSP changed or incompatible runtime styling'
 
 
@@ -45,8 +46,18 @@ def open_review(review):
     return page
 
 
+def close_phone_sheet(page):
+    if page.locator('.phone-app').count() and page.get_by_role('dialog').count():
+        page.get_by_role('button', name='Close sheet', exact=True).click()
+
+
 def evidence(page, name):
-    page.get_by_role('tablist', name='Evidence tabs').get_by_role('tab', name=name, exact=True).click()
+    if page.locator('.phone-app').count():
+        close_phone_sheet(page)
+        title = {'Package': 'Packet evidence', 'Screening': 'Screening'}.get(name, name)
+        page.locator('.phone-package-row').filter(has=page.get_by_text(title, exact=True)).click()
+    else:
+        page.get_by_role('tablist', name='Evidence tabs').get_by_role('tab', name=name, exact=True).click()
 
 
 def select(review, index=1):
@@ -63,6 +74,7 @@ def test_responsive_review_exact_evidence_and_no_actions(review, size):
     evidence(page, 'Cover letter'); expect(page.locator('.cover-text')).to_have_text(PACKETS[f'{1:032x}']['cover_text'])
     evidence(page, 'History'); expect(page.locator('.fingerprint').first).to_have_text('a' * 64)
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+    close_phone_sheet(page)
     assert page.get_by_role('link', name='Open trusted decision UI').get_attribute('href') == '/'
     assert not page.get_by_role('button', name='Approve', exact=True).count()
     assert not page.get_by_role('button', name='Reject', exact=True).count()
@@ -86,6 +98,7 @@ def test_keyboard_tabs_skip_focus_and_touch_targets(review):
     page.get_by_role('tab', name='Needs review', exact=True).click(); expect(page.locator('.queue-row')).to_have_count(4)
     page.locator('.queue-row').first.focus(); page.keyboard.press('Enter'); expect(page.locator('#packet-title')).to_be_focused()
     page.set_viewport_size({'width': 390, 'height': 844})
+    expect(page.locator('.phone-app .phone-hero')).to_be_visible()
     for node in page.locator('button:visible, a.button:visible').all(): assert node.bounding_box()['height'] >= 44
 
 
@@ -107,7 +120,7 @@ def test_system_schemes_preserve_approved_dark_reduced_motion_contrast_and_scree
         assert ratio >= 4.5, (selector, theme, ratio)
     for selector in ('.muted', '.row-title', '.row-evidence', '.nav-current', '.eyebrow', '.manual-badge'):
         assert_contrast(selector)
-    output = ROOT / 'docs/run5b/font-packaging-evidence'; output.mkdir(parents=True, exist_ok=True)
+    output = ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions'; output.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(output / f'desktop-queue-{theme}.png'), full_page=True)
     select(review)
     assert page.locator('.ring-value').evaluate('n=>getComputedStyle(n).animationName') == 'none'
@@ -220,7 +233,11 @@ def test_mobile_text_zoom_reflow(review, width):
     assert box['y'] >= 0 and box['y'] + box['height'] <= 900
     evidence(page, 'History'); page.locator('.fingerprint').first.scroll_into_view_if_needed()
     identity = page.locator('.fingerprint').first.bounding_box()
-    assert identity['y'] + identity['height'] <= handoff.bounding_box()['y']
+    if page.locator('.phone-app').count():
+        assert identity['y'] + identity['height'] <= page.locator('.phone-sheet').bounding_box()['y'] + page.locator('.phone-sheet').bounding_box()['height']
+        close_phone_sheet(page)
+    else:
+        assert identity['y'] + identity['height'] <= handoff.bounding_box()['y']
     page.get_by_role('button', name='Back to queue', exact=True).click()
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
 
@@ -243,12 +260,15 @@ def test_summary_uses_packet_evidence_and_handoff_stays_reachable(review, size):
     open_review(review); select(review)
     meter = page.get_by_role('meter', name='Job fit score')
     expect(meter).to_have_attribute('aria-valuenow', str(PACKETS[f'{1:032x}']['score']))
+    if page.locator('.phone-app').count():
+        evidence(page, 'Package')
     expect(page.locator('.packet-signals')).to_contain_text('Resume PDFAvailable')
     expect(page.locator('.packet-signals')).to_contain_text('Latest ready')
     expect(page.locator('.packet-signals')).to_contain_text('0 to review')
     evidence(page, 'History'); expect(page.locator('.history-current')).to_contain_text('Viewing')
     handoff = page.get_by_role('link', name='Open trusted decision UI')
     def in_viewport():
+        close_phone_sheet(page)
         box = handoff.bounding_box()
         assert box['y'] >= 0 and box['y'] + box['height'] <= size[1]
         assert handoff.evaluate('n => {const r=n.getBoundingClientRect();return n.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))}')
@@ -258,6 +278,8 @@ def test_summary_uses_packet_evidence_and_handoff_stays_reachable(review, size):
     page.get_by_role('button', name='Back to queue', exact=True).click()
     expect(page.locator('.queue-row').first).to_be_focused()
     select(review, 3)
+    if page.locator('.phone-app').count():
+        evidence(page, 'Package')
     expect(page.locator('.packet-signals')).to_contain_text('Resume PDFUnavailable')
     expect(page.locator('.packet-signals')).to_contain_text('Cover unavailable')
 
@@ -267,7 +289,7 @@ def test_approved_desktop_composition_and_capture(review, width):
     page = review[0]; page.set_viewport_size({'width': width, 'height': 900})
     page.emulate_media(reduced_motion='reduce')
     open_review(review); select(review)
-    output = ROOT / 'docs/run5b/font-packaging-evidence'; output.mkdir(parents=True, exist_ok=True)
+    output = ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions'; output.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(output / f'first-review-{width}x900.png'))
     assert page.evaluate('document.documentElement.scrollHeight <= innerHeight')
     assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
@@ -287,7 +309,7 @@ def test_approved_desktop_composition_and_capture(review, width):
     assert hero['y'] + hero['height'] <= panes['y']
     assert panes['y'] + panes['height'] <= dock['y']
     assert dock['y'] + dock['height'] <= 900
-    output = ROOT / 'docs/run5b/font-packaging-evidence'; output.mkdir(parents=True, exist_ok=True)
+    output = ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions'; output.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(output / f'review-{width}x900.png'))
     if width == 1440:
         page.get_by_role('button', name='Why this score', exact=False).click()
@@ -308,7 +330,8 @@ def test_read_only_reader_keyboard_focus_exact_text_and_selection_reset(review):
     expect(page.get_by_role('button', name='Close reader')).to_be_focused()
     page.keyboard.press('Shift+Tab'); expect(dialog.locator('.reader-scroll')).to_be_focused()
     page.keyboard.press('Tab'); expect(page.get_by_role('button', name='Close reader')).to_be_focused()
-    page.screenshot(path=str(ROOT / 'docs/run5b/font-packaging-evidence/reader-1440x900.png'))
+    (ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions').mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions/reader-1440x900.png'))
     page.keyboard.press('Escape'); expect(opener).to_be_focused()
     assert not dialog.count()
     select(review, 2)
@@ -324,7 +347,8 @@ def test_successful_empty_first_page_has_no_invented_outcomes(review):
     expect(page.get_by_role('heading', name='You’re all caught up')).to_be_visible()
     expect(page.get_by_text('No packets currently need review.', exact=True)).to_be_visible()
     assert not page.locator('.decision-handoff').count()
-    page.screenshot(path=str(ROOT / 'docs/run5b/font-packaging-evidence/empty-1440x900.png'))
+    (ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions').mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(ROOT / 'docs/run5b/phone-implementation-evidence/desktop-regressions/empty-1440x900.png'))
 
 
 def test_pending_old_selection_cannot_replace_current_packet(review):

@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+import { PhoneWorkspace } from './phone-workspace';
 import Head from 'next/head';
 import { Check, ChevronLeft, ChevronRight, ClipboardCheck, Compass, FileSearch, LayoutGrid, BarChart3, CalendarDays, Users, Send, Settings, RefreshCw, MapPin, CircleDot } from 'lucide-react';
 import { api } from '../lib/api';
@@ -8,12 +10,22 @@ import type { Reader } from '../lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { PacketInspector, CompanyMark, CompanyName } from './packet-inspector';
 
+function subscribePhone(listener: () => void) {
+  const media = window.matchMedia('(max-width: 599px)');
+  media.addEventListener('change', listener);
+  return () => media.removeEventListener('change', listener);
+}
+const phoneSnapshot = () => window.matchMedia('(max-width: 599px)').matches;
+const serverSnapshot = () => false;
+
 function AppRail() {
   return <aside className="app-rail"><a className="pilot-mark" href="/ui" aria-label="Job Pilot"><Send size={23} aria-hidden="true"/></a><nav aria-label="Workspace"><button disabled className="rail-item" aria-label="Overview unavailable" title="Overview: not available yet"><LayoutGrid/></button><button disabled className="rail-item" aria-label="Opportunities unavailable" title="Opportunities: not available yet"><Compass/></button><a className="rail-item nav-current" href="/ui" aria-current="page" aria-label="Applications" title="Applications"><ClipboardCheck/></a><button disabled className="rail-item" aria-label="Contacts unavailable" title="Contacts: not available yet"><Users/></button><button disabled className="rail-item" aria-label="Calendar unavailable" title="Calendar: not available yet"><CalendarDays/></button><button disabled className="rail-item" aria-label="Analytics unavailable" title="Analytics: not available yet"><BarChart3/></button></nav><div className="rail-bottom"><button disabled className="rail-item" aria-label="Settings unavailable" title="Settings: not available yet"><Settings/></button><span className="profile-mark" aria-label="Private workspace"><Check size={18}/></span></div></aside>;
 }
 
 export function Workspace({reader = api, synthetic = false}: {reader?: Reader; synthetic?: boolean}) {
   const state = useReviewWorkspace(reader);
+  const phone = useSyncExternalStore(subscribePhone, phoneSnapshot, serverSnapshot);
+  if (phone) return <PhoneWorkspace state={state} reader={reader} synthetic={synthetic}/>;
   const {section, queue, queueError, selected, packet, packetError, offset, selectedButton, reload, select, back, changeSection, paginate} = state;
   const emptyFirstPage = section === 'needs-review' && offset === 0 && queue?.items.length === 0 && !queueError;
   const position = queue?.items.findIndex(item => item.packet_id === selected) ?? -1;
