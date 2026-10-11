@@ -790,3 +790,102 @@ def test_http_c_read_routes_provider_isolation(app, ready):
         assert status == 200, body
         assert "evidence_json" not in body.decode() and str(ready[4]).encode() not in body
         if not path.endswith("decision-detail"): assert b"EXACT_PRIVATE_FEEDBACK" not in body
+
+
+def test_http_revise_separate_execution_and_successor_authorization(ready, setup, monkeypatch):
+    from job_agent.database import PacketRevisionWork, WritingWorkItem, StyleMemorySnapshot
+    from job_agent.revisions import RevisionProcessor
+    from job_agent.packets import verify_packet_integrity
+    from test_packets import NOW
+    from test_revisions import source_state
+    approvals, builder, source, row, directory = ready
+    calls = setup[1]
+    application = create_approval_app(engine=builder.engine, settings=builder.settings)
+    def forbidden(*args, **kwargs):
+        raise AssertionError("revision_must_not_perform_external_or_application_action")
+    for path in ("socket.socket.connect", "socket.getaddrinfo", "httpx.Client.send",
+                 "httpx.AsyncClient.send", "anthropic.Anthropic",
+                 "job_agent.tavily_research.TavilyCompanyResearcher.__init__",
+                 "job_agent.tavily_research.TavilyCompanyResearcher.research",
+                 "job_agent.apply.runner.run_apply", "job_agent.apply.runner._run_flow",
+                 "job_agent.cli.cmd_apply", "job_agent.application_state.record_attempt",
+                 "job_agent.application_state.update_status", "job_agent.application_state.upsert_job_state"):
+        monkeypatch.setattr(path, forbidden)
+    def historical_evidence():
+        with Session(builder.engine) as session:
+            return ([session.get(WritingWorkItem, fp).model_dump() for fp in source.writing_fingerprints.values()],
+                    session.get(StyleMemorySnapshot, source.style_memory_hash).model_dump(),
+                    [session.get(CompanyFactRecord, fid).model_dump() for fid in source.company_fact_ids],
+                    session.get(SearchResult, row.id).model_dump())
+    evidence = historical_evidence()
+    def side_effects():
+        with builder.engine.connect() as connection:
+            assert connection.exec_driver_sql("SELECT count(*) FROM application_events").scalar() == 0
+            assert connection.exec_driver_sql("SELECT count(*) FROM jobs WHERE application_status IS NOT NULL").scalar() == 0
+    side_effects()
+    preview = approvals.preview_approval(source.id, source.fingerprint)
+    packet_before = source.model_dump()
+    with monkeypatch.context() as intent_only:
+        intent_only.setattr(RevisionProcessor, "process_revision", forbidden)
+        intent_only.setattr(builder.executor, "create", forbidden)
+        intent_only.setattr("job_agent.packets.PacketService.build_one", forbidden)
+        status, _, body, _ = mutate(application, source, "revise", {
+            "expected_packet_fingerprint": source.fingerprint, "feedback": "Use specific plain wording."})
+        assert status == 200, body
+    decision_id = json.loads(body)["decision_id"]
+    with Session(builder.engine) as session:
+        decisions = session.exec(select(PacketDecision)).all()
+        assert len(decisions) == 1 and decisions[0].id == decision_id and decisions[0].decision == "revise"
+        assert session.get(ApplicationPacket, source.id).model_dump() == packet_before
+        assert len(session.exec(select(ApplicationPacket)).all()) == 1
+        assert not session.exec(select(PacketRevisionWork)).all()
+    assert not (directory / "style_memory.md").exists()
+    assert len(calls) == 2
+    side_effects()
+    assert historical_evidence() == evidence
+    before = source_state(builder, source, directory)
+    processor = RevisionProcessor(builder.engine, builder.settings, executor=builder.executor, clock=lambda: NOW)
+    work = processor.process_revision(decision_id)
+    assert work.state == "succeeded", work.failure_code
+    assert len(calls) == 4
+    with Session(builder.engine) as session:
+        child = session.get(ApplicationPacket, work.successor_packet_id)
+        assert child.id != source.id and child.version == source.version + 1
+        assert child.fingerprint != source.fingerprint and child.revision_decision_id == decision_id
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+        assert len(session.exec(select(PacketRevisionWork)).all()) == 1
+        assert session.exec(select(PacketDecision).where(PacketDecision.packet_id == child.id)).first() is None
+        verify_packet_integrity(session, builder.settings, child)
+    assert source_state(builder, source, directory) == before and historical_evidence() == evidence
+    side_effects()
+    assert len(calls) == 4
+    status, _, body, _ = request(application, f"/api/packets/{child.id}")
+    assert status == 200, body
+    detail = json.loads(body)
+    assert detail["decision"] is None and detail["current_authorization"] == "not_approved"
+    assert detail["integrity"] == "passed" and detail["cover_text"] == child.cover_letter
+    child_preview = detail["approval_preview"]
+    assert child_preview["expected_packet_fingerprint"] == child.fingerprint
+    assert child_preview["expected_approval_view_fingerprint"] != preview.approval_view_fingerprint
+    for fingerprint, view, code in (
+        (source.fingerprint, preview.approval_view_fingerprint, "stale_packet"),
+        (child.fingerprint, preview.approval_view_fingerprint, "stale_approval_view"),
+    ):
+        status, _, body, _ = mutate(application, child, "approve", {
+            "expected_packet_fingerprint": fingerprint, "expected_approval_view_fingerprint": view})
+        assert status == 409 and json.loads(body)["error"]["code"] == code
+    assert ApprovalQueueService(builder.engine, builder.settings).application_destination(child.id).authorization == "not_approved"
+    status, _, body, _ = mutate(application, child, "approve", {
+        "expected_packet_fingerprint": child_preview["expected_packet_fingerprint"],
+        "expected_approval_view_fingerprint": child_preview["expected_approval_view_fingerprint"]})
+    assert status == 200, body
+    result = json.loads(body)
+    assert result["packet_id"] == child.id and result["current_authorization"] == "currently_valid"
+    assert result["decision_id"] != decision_id
+    assert approvals.validate_approval_for_packet(child.id, child.fingerprint).decision_id == result["decision_id"]
+    assert processor.process_revision(decision_id).successor_packet_id == child.id
+    assert source_state(builder, source, directory) == before and historical_evidence() == evidence
+    side_effects()
+    assert len(calls) == 4
+    with Session(builder.engine) as session:
+        assert len(session.exec(select(PacketDecision)).all()) == 2

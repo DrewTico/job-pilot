@@ -1066,6 +1066,10 @@ apply or submit flags. It reports safe decision/successor IDs, state and sanitiz
 failure code. Exit 0 means succeeded, 2 means work needs review, and 1 means a
 sanitized operation failure. Production writing may use the existing Anthropic
 executor when needed; there is no research refresh or submission capability.
+Storage must already contain `job_pilot.sqlite3` at the supported current schema
+version. The revision command never creates or initializes a database, migrates
+schema, imports legacy JSON, or selects an alternate database. Rejected storage
+is left unchanged; use the established storage-management paths separately.
 
 `packet_history.list_packet_versions(engine, packet_id=...)` also accepts exactly
 one `job_key=...` or `canonical_job_id=...` selector. It follows stored packet

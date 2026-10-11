@@ -1,9 +1,9 @@
 """Local-only historical views/diffs and narrow revision CLI; never authorization."""
-from contextlib import contextmanager
 import hashlib
 import io
 import json
 import os
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -302,14 +302,17 @@ def test_resume_diff_terminal_newline_is_not_hidden(history_pair):
     assert "\\ No newline at end of file" in result.diff
 
 
-def cli_environment(service, monkeypatch):
+def cli_environment(service, monkeypatch, request):
     from job_agent.cli import _build_parser, cmd_revision_process
+    from job_agent.dashboard.approval_app import _existing_engine
     from job_agent.revisions import process_revision
-    @contextmanager
-    def database(data_dir):
-        assert data_dir == service.settings.data_dir
-        yield service.engine
-    monkeypatch.setattr("job_agent.cli.search_database", database)
+    # Use the actual CLI storage boundary, including its required filename.
+    with sqlite3.connect(service.engine.url.database) as source:
+        with sqlite3.connect(service.settings.data_dir / "job_pilot.sqlite3") as target:
+            source.backup(target)
+    engine = _existing_engine(service.settings)
+    request.addfinalizer(engine.dispose)
+    monkeypatch.setattr(service, "engine", engine)
     monkeypatch.setattr("job_agent.cli.load_settings", lambda: service.settings)
     def local(engine, settings, decision_id):
         return process_revision(engine, settings, decision_id, executor=service.executor, clock=lambda: NOW)
@@ -317,9 +320,63 @@ def cli_environment(service, monkeypatch):
     return _build_parser(), cmd_revision_process
 
 
-def test_revision_cli_processes_only_immutable_id_and_reports_safe_metadata(revision_setup, monkeypatch):
+def test_revision_cli_storage_opener_import_failure_is_sanitized(tmp_path, monkeypatch, capsys):
+    import builtins
+    from job_agent.cli import main
+    original = builtins.__import__
+    def unavailable(name, *args, **kwargs):
+        if name == "job_agent.dashboard.approval_app":
+            raise ImportError("PRIVATE_STORAGE_OPENER_IMPORT")
+        return original(name, *args, **kwargs)
+    monkeypatch.setattr(builtins, "__import__", unavailable)
+    assert main(["revision-process", "--decision-id", "a" * 32, "--data-dir", str(tmp_path)]) == 1
+    assert capsys.readouterr().out.strip() == "Revision operation failed; details omitted."
+    assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize("shape", ["missing", "missing_parent", "empty", "v8", "future", "legacy", "alternate"])
+def test_revision_cli_real_entry_rejects_storage_without_changing_it(tmp_path, monkeypatch, capsys, shape):
+    from job_agent.cli import main
+    from job_agent.config import Settings
+    directory = tmp_path / "storage"
+    if shape != "missing_parent":
+        directory.mkdir()
+    path = directory / "job_pilot.sqlite3"
+    if shape == "empty":
+        path.touch()
+    elif shape == "v8":
+        with sqlite3.connect(path) as connection:
+            connection.executescript((Path(__file__).parent / "fixtures/schema_v8.sql").read_text())
+    elif shape == "future":
+        with sqlite3.connect(path) as connection:
+            connection.execute("PRAGMA user_version=99")
+    elif shape == "legacy":
+        (directory / "last_search.json").write_text(json.dumps({"jobs": [], "meta": {}}))
+        (directory / "seen.json").write_text("{}")
+    elif shape == "alternate":
+        from job_agent.database import initialize_database
+        initialize_database(directory / "alternate.sqlite3").dispose()
+    def snapshot():
+        return {str(p.relative_to(tmp_path)): p.read_bytes() if p.is_file() else None
+                for p in tmp_path.rglob("*")}
+    before = snapshot()
+    entered = []
+    def forbidden(*args, **kwargs):
+        entered.append(True)
+        raise AssertionError("rejected_storage_must_not_reach_processor")
+    monkeypatch.setattr("job_agent.cli.load_settings", lambda: Settings(data_dir=directory))
+    monkeypatch.setattr("job_agent.revisions.process_revision", forbidden)
+    assert main(["revision-process", "--decision-id", "a" * 32, "--data-dir", str(directory)]) == 1
+    output = capsys.readouterr().out
+    assert output.strip() == "Revision operation failed; details omitted."
+    assert str(directory) not in output
+    assert snapshot() == before
+    assert not entered
+
+
+def test_revision_cli_processes_only_immutable_id_and_reports_safe_metadata(revision_setup, monkeypatch, request):
     processor, service, calls, directory, source, decision = revision_setup
-    parser, handler = cli_environment(service, monkeypatch)
+    parser, handler = cli_environment(service, monkeypatch, request)
     args = parser.parse_args(["revision-process", "--decision-id", decision.id, "--data-dir", str(directory)])
     output = io.StringIO()
     console = Console(file=output, width=200, color_system=None)
@@ -331,6 +388,31 @@ def test_revision_cli_processes_only_immutable_id_and_reports_safe_metadata(revi
     with Session(service.engine) as session:
         assert len(session.exec(select(ApplicationPacket)).all()) == 2
         assert session.exec(select(PacketDecision).where(PacketDecision.packet_id != source.id)).first() is None
+
+
+def test_revision_cli_main_current_storage_does_not_import_legacy(revision_setup, monkeypatch, request, capsys):
+    from job_agent.cli import main
+    processor, service, calls, directory, source, decision = revision_setup
+    cli_environment(service, monkeypatch, request)
+    legacy = directory / "last_search.json"
+    legacy.write_text('{"jobs": [], "meta": {}}')
+    before = legacy.read_bytes()
+    with service.engine.connect() as connection:
+        schema = connection.exec_driver_sql("SELECT name,sql FROM sqlite_master ORDER BY name").all()
+    for _ in range(2):
+        assert main(["revision-process", "--decision-id", decision.id, "--data-dir", str(directory)]) == 0
+    with Session(service.engine) as session:
+        work = session.get(PacketRevisionWork, decision.id)
+        child = session.get(ApplicationPacket, work.successor_packet_id)
+        assert work.state == "succeeded" and child.status == "packet_ready"
+        assert child.id != source.id and child.revision_decision_id == decision.id
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+    with service.engine.connect() as connection:
+        assert connection.exec_driver_sql("SELECT name,sql FROM sqlite_master ORDER BY name").all() == schema
+        assert connection.exec_driver_sql("PRAGMA user_version").scalar() == 9
+    assert legacy.read_bytes() == before and len(calls) == 4
+    output = capsys.readouterr().out
+    assert "succeeded" in output and decision.detail not in output and str(directory) not in output
 
 
 @pytest.mark.parametrize("flag", ["--feedback", "--bypass-capacity", "--packet-id", "--provider-url", "--apply", "--submit"])
@@ -348,9 +430,9 @@ def test_revision_cli_requires_decision_id():
     assert error.value.code == 2
 
 
-def test_revision_cli_invalid_decision_is_sanitized(revision_setup, monkeypatch):
+def test_revision_cli_invalid_decision_is_sanitized(revision_setup, monkeypatch, request):
     processor, service, calls, directory, source, decision = revision_setup
-    parser, handler = cli_environment(service, monkeypatch)
+    parser, handler = cli_environment(service, monkeypatch, request)
     args = parser.parse_args(["revision-process", "--decision-id", "f" * 32])
     output = io.StringIO()
     assert handler(Console(file=output), args) == 1
@@ -358,11 +440,11 @@ def test_revision_cli_invalid_decision_is_sanitized(revision_setup, monkeypatch)
     assert decision.detail not in output.getvalue() and len(calls) == 2
 
 
-def test_revision_cli_blocked_returns_review_state(revision_setup, monkeypatch):
+def test_revision_cli_blocked_returns_review_state(revision_setup, monkeypatch, request):
     processor, service, calls, directory, source, decision = revision_setup
     with service.engine.begin() as connection:
         connection.exec_driver_sql("DELETE FROM company_facts WHERE id=?", (source.company_fact_ids[0],))
-    parser, handler = cli_environment(service, monkeypatch)
+    parser, handler = cli_environment(service, monkeypatch, request)
     args = parser.parse_args(["revision-process", "--decision-id", decision.id])
     output = io.StringIO()
     assert handler(Console(file=output, width=200), args) == 2

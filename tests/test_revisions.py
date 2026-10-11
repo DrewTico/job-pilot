@@ -49,6 +49,10 @@ def offline_only(monkeypatch):
     monkeypatch.setattr("job_agent.tavily_research.TavilyCompanyResearcher.__init__", forbidden)
     monkeypatch.setattr("job_agent.tavily_research.TavilyCompanyResearcher.research", forbidden)
     monkeypatch.setattr("anthropic.Anthropic", forbidden)
+    for target in ("job_agent.apply.runner.run_apply", "job_agent.apply.runner._run_flow",
+                   "job_agent.cli.cmd_apply", "job_agent.application_state.record_attempt",
+                   "job_agent.application_state.update_status", "job_agent.application_state.upsert_job_state"):
+        monkeypatch.setattr(target, forbidden)
 
 
 def private_file(path, text):
@@ -1242,7 +1246,17 @@ def source_state(service, source, directory):
     with Session(service.engine) as session:
         row = session.get(ApplicationPacket, source.id).model_dump()
         decision = session.exec(select(PacketDecision).where(PacketDecision.packet_id == source.id)).one().model_dump()
-    return row, decision, {name: (directory / "packets" / source.id / name).read_bytes() for name in source.artifacts}
+        retained = (
+            [session.get(WritingWorkItem, fp).model_dump() for fp in source.writing_fingerprints.values()],
+            session.get(StyleMemorySnapshot, source.style_memory_hash).model_dump(),
+            [session.get(CompanyFactRecord, fid).model_dump() for fid in source.company_fact_ids],
+        )
+    with service.engine.connect() as connection:
+        application_state = (connection.exec_driver_sql("SELECT * FROM application_events ORDER BY id").all(),
+                             connection.exec_driver_sql("SELECT * FROM jobs ORDER BY id").all())
+    return (row, decision,
+            {name: (directory / "packets" / source.id / name).read_bytes() for name in source.artifacts},
+            retained, application_state)
 
 
 def test_revision_single_successor_feedback_and_independent_approval(revision_setup):
@@ -1915,3 +1929,157 @@ def test_revision_unsafe_build_lock_error_is_sanitized(revision_setup):
         processor.process_revision(decision.id)
     assert not (directory / "style_memory.md").exists()
     assert len(calls) == 2
+
+
+def test_revision_source_fingerprint_mismatch_creates_no_work(revision_setup):
+    processor, service, calls, directory, source, decision = revision_setup
+    # Model externally damaged retained source identity without editing its decision.
+    with service.engine.begin() as connection:
+        connection.exec_driver_sql("UPDATE application_packets SET fingerprint=? WHERE id=?", ("f" * 64, source.id))
+    before = source_state(service, source, directory)
+    for _ in range(2):
+        with pytest.raises(RevisionError, match="^invalid_revision_decision$"):
+            processor.process_revision(decision.id)
+    with Session(service.engine) as session:
+        assert not session.exec(select(PacketRevisionWork)).all()
+        assert len(session.exec(select(ApplicationPacket)).all()) == 1
+    assert source_state(service, source, directory) == before
+    assert not (directory / "style_memory.md").exists() and len(calls) == 2
+
+
+@pytest.mark.parametrize("evidence", ["not-json", "{}", '{"packet_version":2,"packet_status":"packet_ready"}'])
+def test_revision_invalid_retained_decision_authority_is_not_consumed(packet_setup, evidence):
+    service, calls, directory = packet_setup
+    source = service.build_one(add_job(service))
+    with database_session(service.engine) as session:
+        decision = PacketDecision(packet_id=source.id, packet_fingerprint=source.fingerprint,
+            decision="revise", detail="Plain wording.", evidence_json=evidence)
+        session.add(decision)
+        session.flush()
+    before = source_state(service, source, directory)
+    with pytest.raises(RevisionError, match="^invalid_revision_decision$"):
+        process_revision(service.engine, service.settings, decision.id, executor=service.executor)
+    with Session(service.engine) as session:
+        assert not session.exec(select(PacketRevisionWork)).all()
+        assert len(session.exec(select(ApplicationPacket)).all()) == 1
+    assert source_state(service, source, directory) == before and len(calls) == 2
+    assert not (directory / "style_memory.md").exists()
+
+
+@pytest.mark.parametrize("case", ["resume_malformed", "resume_claim", "cover_json", "cover_shape", "cover_claim"])
+@pytest.mark.parametrize("checkpoint_restart", [False, True], ids=["direct", "authenticated_output_restart"])
+def test_revision_invalid_output_retains_checkpoint_without_paid_retry(revision_setup, case, checkpoint_restart):
+    from test_packets import RESUME
+    processor, service, calls, directory, source, decision = revision_setup
+    before = source_state(service, source, directory)
+    task = "tailor_resume" if case.startswith("resume") else "cover_letter"
+    original = service.executor.create
+    attempts = []
+    def output(**request):
+        attempts.append(request["task"])
+        response = original(**request)
+        if request["task"] == task:
+            if case == "resume_malformed": text = "PRIVATE_MALFORMED_RESUME"
+            elif case == "resume_claim": text = RESUME.replace("Built Python software.", "Used QuantumTool.")
+            elif case == "cover_json": text = "PRIVATE_NOT_JSON"
+            elif case == "cover_shape": text = '{"candidate_lines": "PRIVATE_WRONG_TYPE"}'
+            else:
+                draft = json.loads(response.content[0].text)
+                draft["candidate_lines"] = ["Used QuantumTool."]
+                text = json.dumps(draft)
+            response.content[0].text = text
+        return response
+    processor.executor = SimpleNamespace(create=output)
+    if checkpoint_restart:
+        def crash(name):
+            if name == "after_writing_checkpoint" and attempts[-1] == task:
+                raise SystemExit("authenticated_output_before_parsing")
+        processor._boundary = crash
+        with pytest.raises(SystemExit): processor.process_revision(decision.id)
+        processor._boundary = lambda name: None
+    work = processor.process_revision(decision.id)
+    assert work.state == "blocked" and work.failure_code == "successor_generation_failed"
+    child = revision_successor(processor, work)
+    assert child.status == "generation_failed" and child.ready_at is None
+    assert "PRIVATE" not in child.failure_reason and "QuantumTool" not in child.failure_reason
+    assert not (directory / "packets" / child.id).exists()
+    with Session(service.engine) as session:
+        writes = [session.get(WritingWorkItem, fp).model_dump() for fp in child.writing_fingerprints.values()]
+        assert all(w["state"] == "succeeded" and digest(w["output"]) == w["output_hash"] for w in writes)
+        assert session.exec(select(PacketDecision).where(PacketDecision.packet_id == child.id)).first() is None
+    expected = ["tailor_resume"] if task == "tailor_resume" else ["tailor_resume", "cover_letter"]
+    assert attempts == expected
+    assert processor.process_revision(decision.id).model_dump() == work.model_dump()
+    assert attempts == expected and source_state(service, source, directory) == before
+    with Session(service.engine) as session:
+        assert [session.get(WritingWorkItem, fp).model_dump() for fp in child.writing_fingerprints.values()] == writes
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+
+
+def test_revision_partial_render_exception_keeps_staging_private(revision_setup, monkeypatch):
+    processor, service, calls, directory, source, decision = revision_setup
+    before = source_state(service, source, directory)
+    def partial(console, checked, staging, *args):
+        (staging / "resume.pdf").write_bytes(b"PRIVATE_INCOMPLETE_RENDER")
+        raise RuntimeError("PRIVATE_RENDER_ERROR")
+    monkeypatch.setattr("job_agent.cli._write", partial)
+    work = processor.process_revision(decision.id)
+    child = revision_successor(processor, work)
+    assert work.state == "blocked" and work.failure_code == "successor_generation_failed"
+    assert child.ready_at is None and child.status == "generation_failed"
+    assert "PRIVATE" not in child.failure_reason
+    assert not (directory / "packets" / child.id).exists()
+    assert not list((directory / "packets" / ".staging").iterdir())
+    assert processor.process_revision(decision.id).model_dump() == work.model_dump()
+    assert len(calls) == 4 and source_state(service, source, directory) == before
+
+
+def test_revision_invalid_existing_final_directory_never_overwritten(revision_setup):
+    processor, service, calls, directory, source, decision = revision_setup
+    before = source_state(service, source, directory)
+    def crash(name):
+        if name == "after_successor_allocation": raise SystemExit()
+    processor._boundary = crash
+    with pytest.raises(SystemExit): processor.process_revision(decision.id)
+    with Session(service.engine) as session:
+        allocated = session.get(PacketRevisionWork, decision.id)
+        final = directory / "packets" / allocated.successor_packet_id
+    final.mkdir()
+    (final / "resume.pdf").write_bytes(b"UNTRUSTED_PREEXISTING_OUTPUT")
+    contents = {p.name: p.read_bytes() for p in final.iterdir()}
+    processor._boundary = lambda name: None
+    work = processor.process_revision(decision.id)
+    assert work.state == "recovery_required" and work.failure_code == "writing_recovery_required"
+    child = revision_successor(processor, work)
+    assert child.id == allocated.successor_packet_id and child.ready_at is None
+    assert {p.name: p.read_bytes() for p in final.iterdir()} == contents
+    assert processor.process_revision(decision.id).model_dump() == work.model_dump()
+    assert len(calls) == 2 and source_state(service, source, directory) == before
+
+
+@pytest.mark.parametrize("phase", ["after_verification", "after_atomic_rename", "after_ready_commit"])
+def test_revision_cli_restart_preserves_publication_identity(revision_setup, monkeypatch, request, phase):
+    from job_agent.cli import main
+    from test_packet_history import cli_environment
+    processor, service, calls, directory, source, decision = revision_setup
+    cli_environment(service, monkeypatch, request)
+    before = source_state(service, source, directory)
+    def crash(self, name):
+        if name == phase: raise SystemExit()
+    monkeypatch.setattr(RevisionProcessor, "_boundary", crash)
+    with pytest.raises(SystemExit): main(["revision-process", "--decision-id", decision.id])
+    with Session(service.engine) as session:
+        allocated = session.get(PacketRevisionWork, decision.id)
+        child = session.get(ApplicationPacket, allocated.successor_packet_id)
+        writes = [session.get(WritingWorkItem, fp).model_dump() for fp in child.writing_fingerprints.values()]
+    assert len(calls) == 4 and allocated.state == "building"
+    monkeypatch.setattr(RevisionProcessor, "_boundary", lambda self, name: None)
+    assert main(["revision-process", "--decision-id", decision.id]) == 0
+    assert main(["revision-process", "--decision-id", decision.id]) == 0
+    with Session(service.engine) as session:
+        work = session.get(PacketRevisionWork, decision.id)
+        assert work.state == "succeeded" and work.successor_packet_id == child.id
+        assert len(session.exec(select(ApplicationPacket)).all()) == 2
+        verify_packet_integrity(session, service.settings, session.get(ApplicationPacket, child.id))
+        assert [session.get(WritingWorkItem, fp).model_dump() for fp in child.writing_fingerprints.values()] == writes
+    assert len(calls) == 4 and source_state(service, source, directory) == before

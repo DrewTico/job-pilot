@@ -769,15 +769,20 @@ def cmd_revision_process(console, args):
     from job_agent.revisions import process_revision
     from job_agent.packets import private_packet_logs
     try:
+        from job_agent.dashboard.approval_app import _existing_engine
         settings = load_settings()
         if args.data_dir:
             settings = settings.model_copy(update={"data_dir": Path(args.data_dir)})
-        with private_packet_logs(), search_database(settings.data_dir) as engine:
-            work = process_revision(engine, settings, args.decision_id)
-            console.print({"decision_id": work.decision_id, "state": work.state,
-                           "successor_packet_id": work.successor_packet_id,
-                           "failure_code": work.failure_code})
-            return 0 if work.state == "succeeded" else 2
+        with private_packet_logs():
+            engine = _existing_engine(settings)
+            try:
+                work = process_revision(engine, settings, args.decision_id)
+                console.print({"decision_id": work.decision_id, "state": work.state,
+                               "successor_packet_id": work.successor_packet_id,
+                               "failure_code": work.failure_code})
+                return 0 if work.state == "succeeded" else 2
+            finally:
+                engine.dispose()
     except Exception:
         console.print("Revision operation failed; details omitted.")
         return 1

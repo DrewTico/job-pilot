@@ -531,3 +531,124 @@ def test_revision_worker_process_death_releases_lock_and_preserves_provider_chec
         assert len(session.exec(select(ApplicationPacket)).all()) == 2
         assert session.exec(select(PacketDecision).where(PacketDecision.packet_id == status.successor_packet_id)).first() is None
     assert RevisionOperations(service.engine, restart).run() and paid.value == 2
+
+
+def test_revision_cli_and_scheduler_process_consumers_converge(revision_setup, monkeypatch, request):
+    from contextlib import contextmanager
+    import sqlite3
+    from job_agent.cli import main
+    from job_agent.dashboard.approval_app import _existing_engine
+    from job_agent.database import WritingWorkItem, StyleMemorySnapshot
+    from job_agent.llm import AnthropicExecutor
+    from job_agent.packets import PacketService, verify_packet_integrity
+    from job_agent.revisions import RevisionProcessor, process_revision
+    from job_agent.style_memory import LockedStyleMemory, read_style_memory
+    from test_revisions import source_state
+    processor, service, calls, directory, source, decision = revision_setup
+    with sqlite3.connect(service.engine.url.database) as old:
+        with sqlite3.connect(directory / "job_pilot.sqlite3") as target:
+            old.backup(target)
+    engine = _existing_engine(service.settings)
+    request.addfinalizer(engine.dispose)
+    monkeypatch.setattr(service, "engine", engine)
+    before = source_state(service, source, directory)
+    context = multiprocessing.get_context("fork")
+    start = context.Barrier(3)
+    attempts, results = context.Queue(), context.Queue()
+    allocated, release = context.Event(), context.Event()
+    paid = context.Value("i", 0)
+    publications = context.Value("i", 0)
+    original_publish = LockedStyleMemory.publish
+    def counted_publish(locked, *args, **kwargs):
+        result = original_publish(locked, *args, **kwargs)
+        with publications.get_lock(): publications.value += 1
+        return result
+    monkeypatch.setattr(LockedStyleMemory, "publish", counted_publish)
+    original = service.executor.create
+    class Provider:
+        def __init__(self): self.messages = self
+        def create(self, **kwargs):
+            with paid.get_lock():
+                paid.value += 1
+                number = paid.value
+            assert number <= 2, "duplicate_provider_work"
+            response = original(task="tailor_resume" if number == 1 else "cover_letter", **kwargs)
+            response.usage = NS(input_tokens=10, output_tokens=20,
+                cache_read_input_tokens=30, cache_creation_input_tokens=40)
+            return response
+    original_lock = PacketService._build_lock
+    @contextmanager
+    def observed_lock(owner, **kwargs):
+        attempts.put(True)
+        with original_lock(owner, **kwargs):
+            yield
+    monkeypatch.setattr(PacketService, "_build_lock", observed_lock)
+    def boundary(name):
+        if name == "after_successor_allocation":
+            allocated.set()
+            assert release.wait(15), "contention_release_timeout"
+    monkeypatch.setattr(RevisionProcessor, "_boundary", lambda self, name: boundary(name))
+    monkeypatch.setattr("job_agent.cli.load_settings", lambda: service.settings)
+    def local(cli_engine, settings, decision_id):
+        executor = AnthropicExecutor(Provider(), settings, engine=cli_engine, clock=lambda: NOW)
+        return process_revision(cli_engine, settings, decision_id, executor=executor, clock=lambda: NOW)
+    monkeypatch.setattr("job_agent.revisions.process_revision", local)
+    def consumer(kind):
+        # Discard inherited pooled handles; each process opens its own engine.
+        service.engine.dispose()
+        child_engine = _existing_engine(service.settings)
+        try:
+            start.wait(timeout=15)
+            if kind == "cli":
+                result = main(["revision-process", "--decision-id", decision.id, "--data-dir", str(directory)])
+                assert result == 0
+            else:
+                executor = AnthropicExecutor(Provider(), service.settings, engine=child_engine, clock=lambda: NOW)
+                worker = RevisionProcessor(child_engine, service.settings, executor=executor, clock=lambda: NOW)
+                assert RevisionOperations(child_engine, worker).run()
+            results.put(kind)
+        finally:
+            child_engine.dispose()
+    children = [context.Process(target=consumer, args=(kind,)) for kind in ("cli", "scheduler")]
+    for child in children: child.start()
+    try:
+        start.wait(timeout=15)
+        assert attempts.get(timeout=15) and attempts.get(timeout=15)
+        assert allocated.wait(15)
+        # Both consumers reached the real build lock while the winner holds it.
+        assert paid.value == 0
+        release.set()
+        for child in children:
+            child.join(20)
+            assert not child.is_alive() and child.exitcode == 0
+        assert {results.get(timeout=5), results.get(timeout=5)} == {"cli", "scheduler"}
+    finally:
+        release.set()
+        for child in children:
+            if child.is_alive(): child.terminate(); child.join(5)
+        attempts.close(); results.close()
+    with Session(service.engine) as session:
+        works = session.exec(select(PacketRevisionWork)).all()
+        assert len(works) == 1 and works[0].decision_id == decision.id and works[0].state == "succeeded"
+        successor = session.get(ApplicationPacket, works[0].successor_packet_id)
+        assert successor.revision_decision_id == decision.id and successor.version == source.version + 1
+        packets = session.exec(select(ApplicationPacket)).all()
+        assert len(packets) == 2 and len({p.version for p in packets}) == 2
+        assert len({p.fingerprint for p in packets}) == 2
+        assert len(session.exec(select(PacketDecision)).all()) == 1
+        assert session.exec(select(PacketDecision).where(PacketDecision.packet_id == successor.id)).first() is None
+        assert len(session.exec(select(StyleMemorySnapshot)).all()) == 2
+        writes = session.exec(select(WritingWorkItem).where(WritingWorkItem.packet_id == successor.id)).all()
+        accounting = session.exec(select(LLMCall)).all()
+        assert len(writes) == len(accounting) == paid.value == 2
+        assert all(w.state == "succeeded" for w in writes)
+        assert {call.task for call in accounting} == {"tailor_resume", "cover_letter"}
+        assert all(call.status == "succeeded" and call.cache_read_input_tokens == 30 for call in accounting)
+        verify_packet_integrity(session, service.settings, successor)
+    assert source_state(service, source, directory) == before
+    assert read_style_memory(directory).hash == works[0].target_style_hash
+    assert read_style_memory(directory).canonical_content.count(decision.id) == 1
+    assert publications.value == 1
+    with service.engine.connect() as connection:
+        assert connection.exec_driver_sql("SELECT count(*) FROM application_events").scalar() == 0
+        assert connection.exec_driver_sql("SELECT count(*) FROM jobs WHERE application_status IS NOT NULL").scalar() == 0
