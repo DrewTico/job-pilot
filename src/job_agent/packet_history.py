@@ -16,11 +16,11 @@ import zipfile
 
 from sqlmodel import Session, select
 
-from job_agent.database import (ApplicationPacket, PacketDecision, WritingWorkItem, JobIdentity,
+from job_agent.database import (ApplicationPacket, PacketDecision, PacketRevisionWork, WritingWorkItem, JobIdentity,
     LEGACY_WRITING_PROMPT_VERSION, STYLE_WRITING_PROMPT_VERSION)
 from job_agent.packet_verify import CoverLetterDraft
 from job_agent.packets import (PacketService, WRITING_LIMITS, digest, writing_fingerprint,
-    private_packet_logs)
+    private_packet_logs, _revision_source)
 
 ARTIFACT_NAMES = frozenset({"resume.pdf", "resume.docx", "resume.face.txt"})
 MAX_ARTIFACT_BYTES = 20_000_000
@@ -96,6 +96,28 @@ def _timestamp(value):
     return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z") if value is not None else None
 
 
+def _revision_lineage(session, successor):
+    """Authenticate durable relationship only, independent of current inputs."""
+    try:
+        decision, source = _revision_source(session, successor.revision_decision_id)
+        work = session.get(PacketRevisionWork, decision.id)
+        if (work is None or work.successor_packet_id != successor.id
+                or work.target_style_hash != successor.style_memory_hash
+                or work.state not in {"building", "succeeded", "blocked", "recovery_required"}
+                or successor.writing_prompt_version != STYLE_WRITING_PROMPT_VERSION
+                or not _id(successor.id) or not _hash(successor.fingerprint)
+                or type(source.version) is not int or type(successor.version) is not int
+                or not 0 < source.version < successor.version
+                or source.job_key != successor.job_key
+                or source.canonical_job_id != successor.canonical_job_id
+                or source.search_result_id != successor.search_result_id):
+            raise ValueError()
+        PacketService._bound_style(session, successor)
+        return source, decision, work
+    except Exception:
+        raise _ContentError("integrity_failed") from None
+
+
 @private_packet_logs()
 def list_packet_versions(engine, *, packet_id=None, job_key=None, canonical_job_id=None):
     """Select by exactly one stored packet/job relationship; no authorization check.
@@ -111,6 +133,7 @@ def list_packet_versions(engine, *, packet_id=None, job_key=None, canonical_job_
         raise HistoryError("invalid_history_reference")
     try:
         with Session(engine) as session:
+            session.connection().exec_driver_sql("BEGIN")
             packets = list(session.exec(select(ApplicationPacket)).all())
             mapping = _job_mapping(session)
             seeds = [p for p in packets if (p.id == packet_id if packet_id is not None else
@@ -123,13 +146,14 @@ def list_packet_versions(engine, *, packet_id=None, job_key=None, canonical_job_
                 canonical.add(mapping[job_key])
             rows = sorted((p for p in packets if p.job_key in keys or _canonical(p, mapping) in canonical),
                           key=lambda p: (p.version, p.id))
-            # Only decision metadata is read; never feedback/evidence bodies.
+            # Public projection contains decision metadata only. Revision
+            # validation below reads retained audit evidence without emitting it.
             decisions = session.exec(select(PacketDecision.id, PacketDecision.packet_id,
                 PacketDecision.decision, PacketDecision.packet_fingerprint)).all()
             if any(not _id(d.id) or not _id(d.packet_id) or not _hash(d.packet_fingerprint)
                    or d.decision not in {"approve", "reject", "revise"} for d in decisions):
                 raise HistoryError("history_integrity_failed")
-            by_id, by_packet = {d.id: d for d in decisions}, {d.packet_id: d for d in decisions}
+            by_packet = {d.packet_id: d for d in decisions}
             latest = rows[-1].id if rows else None
             ready = [p for p in rows if p.status == "packet_ready" and p.ready_at is not None]
             latest_ready = ready[-1].id if ready else None
@@ -146,11 +170,11 @@ def list_packet_versions(engine, *, packet_id=None, job_key=None, canonical_job_
                     raise HistoryError("history_integrity_failed")
                 predecessor, kind = None, "unlinked"
                 if packet.revision_decision_id is not None:
-                    decision = by_id.get(packet.revision_decision_id)
-                    source = next((p for p in rows if decision and p.id == decision.packet_id), None)
-                    if (decision and decision.decision == "revise" and source and _same_job(source, packet, mapping)
-                            and source.version < packet.version and source.fingerprint == decision.packet_fingerprint):
-                        predecessor, kind = source.id, "revision"
+                    try:
+                        source, _, _ = _revision_lineage(session, packet)
+                    except _ContentError:
+                        raise HistoryError("history_integrity_failed") from None
+                    predecessor, kind = source.id, "revision"
                 else:
                     matches = [p for p in rows if p.job_key == packet.job_key and p.version < packet.version
                         and p.ready_at is not None and packet.fingerprint == digest({
@@ -179,6 +203,13 @@ def _cover_text(session, packet):
     PacketService._bound_style(session, packet)  # Retained binding only, never current file.
     reference = packet.writing_fingerprints.get("cover_letter")
     work = session.get(WritingWorkItem, reference) if _hash(reference) else None
+    # A fresh paid claim is durably unique for this packet/task. Its reference
+    # cannot be replaced with another checkpoint, even if the text is identical.
+    # Cache reuse legitimately has no owned claim and retains the shared pointer.
+    owned = session.exec(select(WritingWorkItem.fingerprint).where(
+        WritingWorkItem.packet_id == packet.id, WritingWorkItem.task == "cover_letter")).one_or_none()
+    if owned is not None and owned != reference:
+        raise _ContentError("integrity_failed")
     if work is None or work.output is None:
         raise _ContentError("unavailable")
     if (work.task != "cover_letter" or work.state != "succeeded" or not isinstance(work.output, str)
@@ -328,3 +359,72 @@ def diff_resume(engine, settings, left_packet_id, right_packet_id):
 
 def diff_cover(engine, settings, left_packet_id, right_packet_id):
     return _diff(engine, settings, left_packet_id, right_packet_id, "cover")
+
+
+def _historical_content(session, settings, packet, kind):
+    if packet.ready_at is None:
+        return "unavailable", None
+    try:
+        value = _resume_text(settings, packet) if kind == "resume" else _cover_text(session, packet)
+        return "available", value
+    except _ContentError as exc:
+        return str(exc), None
+    except Exception:
+        return "integrity_failed", None
+
+
+def _revision_content_diff(session, settings, before, after, kind):
+    left_status, left = _historical_content(session, settings, before, kind)
+    right_status, right = _historical_content(session, settings, after, kind)
+    status = ("integrity_failed" if "integrity_failed" in (left_status, right_status) else
+              "unavailable" if "unavailable" in (left_status, right_status) else "available")
+    return {"status": status, "before_status": left_status, "after_status": right_status,
+            "changed": left != right if status == "available" else None,
+            "diff": _unified(left, right, before, after) if status == "available" else None}
+
+
+@private_packet_logs()
+def compare_revision(engine, settings, before_packet_id, after_packet_id):
+    """Exact BEFORE -> AFTER revision read. Never infer or reverse lineage.
+
+    One explicit SQLite read snapshot binds identities, decision, work and stored
+    checkpoints. Artifact readers capture/authenticate bytes without repair.
+    Available historical evidence confers no current readiness or authorization.
+    """
+    result = {"status": "invalid_request",
+              "before": {"packet_id": before_packet_id, "version": None, "fingerprint": None},
+              "after": {"packet_id": after_packet_id, "version": None, "fingerprint": None},
+              "revision_decision_id": None, "revision_state": None, "resume": None, "cover": None}
+    if not _id(before_packet_id) or not _id(after_packet_id):
+        return result
+    try:
+        with Session(engine) as session:
+            session.connection().exec_driver_sql("BEGIN")
+            before = session.get(ApplicationPacket, before_packet_id)
+            after = session.get(ApplicationPacket, after_packet_id)
+            for key, packet in (("before", before), ("after", after)):
+                if packet is not None:
+                    if type(packet.version) is not int or packet.version < 1 or not _hash(packet.fingerprint):
+                        result["status"] = "integrity_failed"
+                        return result
+                    result[key].update(version=packet.version, fingerprint=packet.fingerprint)
+            if before is None or after is None:
+                result["status"] = "unavailable"
+                return result
+            if before.id == after.id or after.revision_decision_id is None:
+                return result
+            source, decision, work = _revision_lineage(session, after)
+            if source.id != before.id:
+                return result
+            result.update(revision_decision_id=decision.id, revision_state=work.state)
+            for kind in ("resume", "cover"):
+                result[kind] = _revision_content_diff(session, settings, before, after, kind)
+            statuses = {result[kind]["status"] for kind in ("resume", "cover")}
+            result["status"] = ("integrity_failed" if "integrity_failed" in statuses else
+                                "unavailable" if "unavailable" in statuses else "available")
+            return result
+    except _ContentError:
+        result["status"] = "integrity_failed"
+        return result
+    except Exception:
+        raise HistoryError("history_storage_error") from None

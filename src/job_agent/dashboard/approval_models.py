@@ -186,6 +186,30 @@ class PacketDiffResult(DTO):
     diff: str | None = None
 
 
+class HistoricalPacketIdentity(DTO):
+    packet_id: str
+    version: int | None
+    fingerprint: Fingerprint | None
+
+
+class RevisionContentDiff(DTO):
+    status: Literal["available", "unavailable", "integrity_failed"]
+    before_status: Literal["available", "unavailable", "integrity_failed"]
+    after_status: Literal["available", "unavailable", "integrity_failed"]
+    changed: bool | None
+    diff: str | None
+
+
+class RevisionComparison(DTO):
+    status: Literal["available", "unavailable", "integrity_failed", "invalid_request"]
+    before: HistoricalPacketIdentity
+    after: HistoricalPacketIdentity
+    revision_decision_id: str | None
+    revision_state: Literal["building", "succeeded", "blocked", "recovery_required"] | None
+    resume: RevisionContentDiff | None
+    cover: RevisionContentDiff | None
+
+
 class ErrorDetail(DTO):
     code: str
 

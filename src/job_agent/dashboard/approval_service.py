@@ -9,13 +9,13 @@ from job_agent.approvals import ApprovalService, DecisionError
 from job_agent.database import (ApplicationPacket, CompanyFactRecord, PacketDecision,
                                 PacketRevisionWork, SearchResult)
 from job_agent.packet_history import (authenticated_cover_text, authenticated_resume_pdf,
-                                     diff_cover, diff_resume, list_packet_versions)
+                                     compare_revision, diff_cover, diff_resume, list_packet_versions)
 from job_agent.packets import _validate_application_url, private_packet_logs
 from job_agent.store import resolve_apply_url
 from job_agent.dashboard.approval_models import (
     ApplicationDestination, ApprovalPreview, ArtifactMetadata, CompanyFact,
     DecisionDetail, DecisionResult, HistoryItem, PacketDetail, PacketDiffResult,
-    QueueItem, QueueResponse, RevisionStatus, Screening,
+    QueueItem, QueueResponse, RevisionComparison, RevisionStatus, Screening,
     ScreeningAnswer,
 )
 from job_agent.dashboard.approval_security import AdapterError, probe_packet_lock
@@ -107,6 +107,9 @@ class ApprovalQueueService:
             raise AdapterError("not_found", 404)
         return PacketDiffResult(kind=kind, left_packet_id=left_id, left_version=versions[left_id],
             right_packet_id=right_id, right_version=versions[right_id], status=result.status, diff=result.diff)
+
+    def revision_comparison(self, before_id, after_id):
+        return RevisionComparison(**compare_revision(self.engine, self.settings, before_id, after_id))
 
     def resume_pdf(self, packet_id):
         return authenticated_resume_pdf(self.engine, self.settings, packet_id)

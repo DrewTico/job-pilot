@@ -19,7 +19,7 @@ from job_agent.packet_history import HistoryError
 from job_agent.packets import private_packet_logs
 from job_agent.dashboard.approval_models import (ApproveRequest, BootstrapResponse,
     ApplicationDestination, DecisionDetail, DecisionResult, HistoryItem, PacketDetail, PacketDiffResult,
-    QueueQuery, QueueResponse, RejectRequest, ReviseRequest, RevisionStatus, TailscaleBootstrapResponse)
+    QueueQuery, QueueResponse, RejectRequest, ReviseRequest, RevisionComparison, RevisionStatus, TailscaleBootstrapResponse)
 from job_agent.dashboard.approval_security import (
     AdapterError, LocalBoundaryMiddleware, ProcessCSRF, approval_access, error_response, validate_port,
 )
@@ -176,6 +176,12 @@ def create_approval_app(*, settings: Settings | None = None, engine=None, port: 
     @app.get("/api/packets/{left_id}/diff/cover/{right_id}", response_model=PacketDiffResult)
     def cover_diff(left_id: PacketID, right_id: PacketID):
         return service.packet_diff(left_id, right_id, "cover")
+
+    @app.get("/api/packets/{before_id}/revision-comparison/{after_id}", response_model=RevisionComparison)
+    def revision_comparison(before_id: PacketID, after_id: PacketID, request: Request):
+        if request.query_params:
+            raise AdapterError("invalid_request", 422)
+        return service.revision_comparison(before_id, after_id)
 
     @app.get("/api/packets/{packet_id}/artifacts/resume.pdf")
     def resume_pdf(packet_id: PacketID, request: Request):

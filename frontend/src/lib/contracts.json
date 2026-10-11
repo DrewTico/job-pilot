@@ -1097,5 +1097,189 @@
     ],
     "title": "DecisionResult",
     "type": "object"
+  },
+  "RevisionComparison": {
+    "$defs": {
+      "HistoricalPacketIdentity": {
+        "additionalProperties": false,
+        "properties": {
+          "packet_id": {
+            "title": "Packet Id",
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "fingerprint": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fingerprint"
+          }
+        },
+        "required": [
+          "packet_id",
+          "version",
+          "fingerprint"
+        ],
+        "title": "HistoricalPacketIdentity",
+        "type": "object"
+      },
+      "RevisionContentDiff": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "enum": [
+              "available",
+              "unavailable",
+              "integrity_failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "before_status": {
+            "enum": [
+              "available",
+              "unavailable",
+              "integrity_failed"
+            ],
+            "title": "Before Status",
+            "type": "string"
+          },
+          "after_status": {
+            "enum": [
+              "available",
+              "unavailable",
+              "integrity_failed"
+            ],
+            "title": "After Status",
+            "type": "string"
+          },
+          "changed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changed"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff"
+          }
+        },
+        "required": [
+          "status",
+          "before_status",
+          "after_status",
+          "changed",
+          "diff"
+        ],
+        "title": "RevisionContentDiff",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "status": {
+        "enum": [
+          "available",
+          "unavailable",
+          "integrity_failed",
+          "invalid_request"
+        ],
+        "title": "Status",
+        "type": "string"
+      },
+      "before": {
+        "$ref": "#/$defs/HistoricalPacketIdentity"
+      },
+      "after": {
+        "$ref": "#/$defs/HistoricalPacketIdentity"
+      },
+      "revision_decision_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Revision Decision Id"
+      },
+      "revision_state": {
+        "anyOf": [
+          {
+            "enum": [
+              "building",
+              "succeeded",
+              "blocked",
+              "recovery_required"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Revision State"
+      },
+      "resume": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RevisionContentDiff"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "cover": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/RevisionContentDiff"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      }
+    },
+    "required": [
+      "status",
+      "before",
+      "after",
+      "revision_decision_id",
+      "revision_state",
+      "resume",
+      "cover"
+    ],
+    "title": "RevisionComparison",
+    "type": "object"
   }
 }
