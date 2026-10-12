@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { packetId } from './api';
 import { errorMessage } from './display';
@@ -45,6 +45,9 @@ export function useReviewWorkspace(reader: Reader) {
     window.addEventListener('pagehide', clear); window.addEventListener('pageshow', restore);
     return () => { window.removeEventListener('pagehide', clear); window.removeEventListener('pageshow', restore); };
   }, []);
+  const refreshQueue = useCallback(() => {
+    queueRequest.current?.abort(); setQueue(null); setQueueError(''); setQueueGeneration(value => value + 1);
+  }, []);
   function reload() { queueRequest.current?.abort(); packetRequest.current?.abort(); setQueue(null); setPacket(null); setQueueError(''); setPacketError(''); setGeneration(value => value + 1); }
   function select(id: string) {
     current.current.selected = id;
@@ -72,5 +75,5 @@ export function useReviewWorkspace(reader: Reader) {
     setSection('needs-review'); setOffsets(values => ({...values, 'needs-review': 0}));
     setQueue(null); setQueueError(''); setSelected(id); setPacket(null); setPacketError(''); setQueueGeneration(value => value + 1);
   }
-  return {section, queue, queueError, selected, packet, packetError, offset, selectedButton, reload, select, back, changeSection, paginate, applyDecisionRefresh, nextQueued};
+  return {section, queue, queueError, selected, packet, packetError, offset, selectedButton, refreshQueue, reload, select, back, changeSection, paginate, applyDecisionRefresh, nextQueued};
 }

@@ -1,3 +1,5 @@
+import type { RevisionReview } from '../lib/use-revision-review';
+import { RevisionSummary } from './revision-review';
 import Head from 'next/head';
 import { useEffect, useRef, useState } from 'react';
 import { CalendarDays, Check, ChevronLeft, ChevronRight, ClipboardCheck, FileSearch, FileText, History, LayoutGrid, ListChecks, MapPin, RefreshCw, ShieldAlert, ShieldCheck, Users } from 'lucide-react';
@@ -18,7 +20,7 @@ function PhoneNavigation() {
   return <nav className="phone-bottom-nav" aria-label="Workspace"><button disabled aria-label="Overview unavailable"><LayoutGrid size={21}/><span>Overview</span></button><a href="/ui" aria-current="page"><ClipboardCheck size={21}/><span>Review</span></a><button disabled aria-label="People unavailable"><Users size={21}/><span>People</span></button><button disabled aria-label="Calendar unavailable"><CalendarDays size={21}/><span>Calendar</span></button></nav>;
 }
 
-function PhoneReview({packet, reader, state, decisions}: {packet: Packet; reader: Reader; state: WorkspaceState; decisions: Decisions}) {
+function PhoneReview({revision, packet, reader, state, decisions}: {revision: RevisionReview; packet: Packet; reader: Reader; state: WorkspaceState; decisions: Decisions}) {
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
   const {queue, select, back} = state;
@@ -34,7 +36,9 @@ function PhoneReview({packet, reader, state, decisions}: {packet: Packet; reader
   const titles: Record<Sheet, string> = {why: `Why ${packet.score}?`, people: 'Right people', cover: 'Cover letter', resume: 'Resume', screening: 'Screening answers', history: 'History', package: 'Packet evidence'};
   return <article className={`phone-review theme-${theme}`} aria-labelledby="packet-title">
     <div className="phone-review-page" inert={sheet || ['CONFIRMING', 'PENDING'].includes(decisions.state.phase) ? true : undefined}>
+      <div className="phone-review-scroll">
       <header className="phone-review-nav"><button className="quiet" aria-label="Back to queue" onClick={back}><ChevronLeft size={19}/>Queue</button><span>{position >= 0 ? `${position + 1} of ${total} loaded` : 'Outside loaded page'}</span><button className="quiet" aria-label="Next loaded job" disabled={position < 0 || position + 1 >= total} onClick={() => navigate(position + 1)}>Next<ChevronRight size={19}/></button></header>
+      <RevisionSummary packet={packet} review={revision} decisions={decisions} onChanges={() => setSheet('history')} onSelect={select}/>
       <PhoneDecisionResult packet={packet} decisions={decisions} onHistory={() => setSheet('history')}/>
       <div className="phone-review-content" hidden={decisions.state.phase === 'RECORDED' && decisions.state.target?.packetId === packet.packet_id}>
         <header className="phone-hero"><HeroTopography/><div className="phone-company"><CompanyMark company={packet.company} packetId={packet.packet_id}/><div><p className="company-label"><CompanyName company={packet.company} packetId={packet.packet_id}/></p><p className="hero-version">Packet v{packet.version} · {statusLabel[packet.status]}</p></div></div>
@@ -61,23 +65,24 @@ function PhoneReview({packet, reader, state, decisions}: {packet: Packet; reader
         <section className={`integrity-strip ${packet.integrity === 'failed' || packet.current_authorization === 'evidence_changed' ? 'attention' : ''}`} aria-label="Authorization and integrity">{packet.integrity === 'failed' ? <ShieldAlert size={22}/> : <ShieldCheck size={22}/>}<div><strong>{authorizationLabel[packet.current_authorization]}</strong><p>Integrity {packet.integrity.replaceAll('_', ' ')} · Cover accepted: {packet.cover_letter_acceptance}</p></div></section>
         <nav className="phone-progression" aria-label="Loaded review navigation"><button className="quiet outlined" aria-label="Previous loaded job" disabled={position <= 0} onClick={() => navigate(position - 1)}><ChevronLeft size={16}/>Previous job</button><button className="quiet outlined" aria-label="Next loaded job at end" disabled={position < 0 || position + 1 >= total} onClick={() => navigate(position + 1)}>Next job<ChevronRight size={16}/></button></nav>
       </div>
+      </div>
       <DecisionDock phone packet={packet} decisions={decisions}/>
     </div>
     <DecisionConfirmation phone decisions={decisions}/>
     {sheet && <MobileSheet title={titles[sheet]} kind={sheet} subtitle={sheet === 'cover' && cover ? `${wordCount(packet.cover_text!)} words · Packet v${packet.version}` : `Packet v${packet.version} · ${companyPresentation(packet.company, packet.packet_id).name}`} onClose={() => setSheet(null)}>
       {sheet === 'why' ? <section className="phone-why-detail"><p className="muted">Detailed score breakdown not available yet.</p><div className="strengths"><h3 className="eyebrow">Fit reasons</h3><EvidenceList items={packet.reasons} empty="Match reasons unavailable."/></div><div><h3 className="eyebrow">Matched requirements</h3><EvidenceList items={packet.matched_requirements} empty="No matched requirements provided."/></div><div className="gaps"><h3 className="eyebrow">Listed gaps</h3><EvidenceList items={packet.missing_requirements} empty="No missing requirements provided."/></div><p className="score-note">Job fit is not an interview prediction.</p></section>
         : sheet === 'cover' && cover ? <article className="reader-paper phone-letter-paper"><p className="paper-label">COVER LETTER · PACKET V{packet.version}</p><p className="phone-letter-company"><CompanyName company={packet.company} packetId={packet.packet_id}/> · {packet.title}<span className="sr-only"> · Packet {packet.packet_id}</span></p><div className="exact-text reader-text cover-text">{packet.cover_text}</div></article>
-        : <PacketEvidence packet={packet} reader={reader} onSelect={select} setTab={open} onReaderOpen={() => setSheet('cover')} active={sheet}/>}
+        : <PacketEvidence revision={revision} packet={packet} reader={reader} onSelect={select} setTab={open} onReaderOpen={() => setSheet('cover')} active={sheet}/>}
     </MobileSheet>}
   </article>;
 }
 
-export function PhoneWorkspace({state, reader, synthetic, decisions}: {state: WorkspaceState; reader: Reader; synthetic: boolean; decisions: Decisions}) {
+export function PhoneWorkspace({revision, state, reader, synthetic, decisions}: {revision: RevisionReview; state: WorkspaceState; reader: Reader; synthetic: boolean; decisions: Decisions}) {
   const {section, queue, queueError, selected, packet, packetError, offset, selectedButton, reload, select, back, changeSection, paginate} = state;
   const caughtUp = !decisions.state.busy && !decisions.state.uncertain && section === 'needs-review' && offset === 0 && queue?.items.length === 0 && !queueError;
   return <div className="app phone-app" data-theme="dark"><Head><title>Job Pilot | Application review</title><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/></Head><a className="skip-link" href="#main">Skip to approval queue</a>{synthetic && <div className="demo-banner">Synthetic demo · Fictional packets only · No decision actions</div>}
     <main id="main" tabIndex={-1} aria-busy={Boolean(selected && !packet && !packetError)}>
-      {selected ? packet ? <PhoneReview key={packet.packet_id} packet={packet} reader={reader} state={state} decisions={decisions}/> : <section className="phone-state phone-packet-state"><button className="quiet" aria-label="Back to queue" onClick={back}><ChevronLeft size={18}/>Queue</button><FileSearch size={38}/><h1>{packetError ? 'Evidence unavailable' : 'Opening your packet'}</h1><p role={packetError ? 'alert' : 'status'}>{packetError || 'Loading packet evidence.'}</p>{packetError && <button className="button primary" onClick={reload}>Retry packet</button>}</section>
+      {selected ? packet ? <PhoneReview revision={revision} key={packet.packet_id} packet={packet} reader={reader} state={state} decisions={decisions}/> : <section className="phone-state phone-packet-state"><button className="quiet" aria-label="Back to queue" onClick={back}><ChevronLeft size={18}/>Queue</button><FileSearch size={38}/><h1>{packetError ? 'Evidence unavailable' : 'Opening your packet'}</h1><p role={packetError ? 'alert' : 'status'}>{packetError || 'Loading packet evidence.'}</p>{packetError && <button className="button primary" onClick={reload}>Retry packet</button>}</section>
         : <div className="phone-home"><header className="phone-home-header"><div><p className="phone-context">Application review</p>{!caughtUp && <h1>Ready for you</h1>}</div><button className="icon-button phone-reload" aria-label="Reload evidence" onClick={reload}><RefreshCw size={20}/></button></header>
           {caughtUp ? <section className="phone-state phone-caught-up"><div className="caught-up-symbol"><Check size={56}/></div><h1>You’re all caught up</h1><p>No packets currently need review.</p><button className="button primary" onClick={reload}><RefreshCw size={16}/>Reload queue</button><button className="quiet" onClick={() => changeSection('history')}>View packet history</button></section> : <>
             <section className="phone-loaded" aria-label="Loaded queue context"><div><strong>{queue ? `${queue.items.length} packets loaded` : 'Awaiting your queue'}</strong><span>Page {Math.floor(offset / 25) + 1}</span></div><div className="phone-loaded-track" aria-hidden="true">{queue?.items.map(item => <span key={item.packet_id}/>)}</div><div className="phone-loaded-section"><select aria-label="Queue section" value={section} onChange={event => changeSection(event.target.value)}>{Object.entries(sections).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><span>{queue?.items.length ? `${offset + 1} to ${offset + queue.items.length}` : 'Current page'}</span></div></section>

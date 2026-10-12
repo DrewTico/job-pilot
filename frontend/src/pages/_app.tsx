@@ -3,4 +3,5 @@ import '../styles/fonts.css';
 import '../styles/globals.css';
 import '../styles/phone.css';
 import '../styles/decisions.css';
+import '../styles/revisions.css';
 export default function App({ Component, pageProps }: AppProps) { return <Component {...pageProps} />; }

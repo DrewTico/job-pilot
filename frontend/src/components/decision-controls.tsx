@@ -18,6 +18,12 @@ export function PhoneDecisionResult({packet, decisions, onHistory}: {packet: Pac
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { if (state.phase === 'RECORDED') heading.current?.focus({preventScroll: true}); }, [state.phase]);
   if (state.phase !== 'RECORDED' || target?.packetId !== packet.packet_id) return null;
+  if (target.action === 'revise' && packet.decision === 'revise') return <section className="phone-revision-packet" aria-label="Recorded decision">
+    <p className="eyebrow">Exact packet v{target.version}</p>
+    <strong>{target.company}</strong>
+    <h1 tabIndex={-1} ref={heading}>{target.title}</h1>
+    <button className="quiet outlined" onClick={onHistory}>View packet history</button>
+  </section>;
   return <section className="phone-decision-result" aria-label="Recorded decision">
     <div className="decision-record-symbol" aria-hidden="true"><Check size={42}/></div>
     <p className="eyebrow">Exact packet v{target.version}</p>
@@ -34,12 +40,15 @@ export function DecisionDock({packet, decisions, phone = false}: {packet: Packet
   const target = state.target?.packetId === packet.packet_id ? state.target : null;
   const isRecorded = target && state.phase === 'RECORDED';
   const barrier = target && ['AMBIGUOUS', 'FAILED'].includes(state.phase);
-  const disabled = synthetic || !state.ready || state.busy || Boolean(packet.decision) || ['CONFIRMING', 'PENDING', 'RECORDED', 'AMBIGUOUS', 'FAILED'].includes(state.phase);
+  // The revision module owns passive status and recorded-state recovery.
+  // Keep unresolved decision barriers in the decision surface.
+  if (packet.decision === 'revise' && !barrier) return null;
+  const disabled = decisions.evidenceBlocked || synthetic || !state.ready || state.busy || Boolean(packet.decision) || ['CONFIRMING', 'PENDING', 'RECORDED', 'AMBIGUOUS', 'FAILED'].includes(state.phase);
   return <footer className={`decision-handoff decision-dock ${phone ? 'phone-handoff phone-decision-dock' : ''}`} aria-label="Packet decisions">
     <span className="dock-icon" aria-hidden="true">{isRecorded ? <Check size={21}/> : <ShieldCheck size={21}/>}</span>
     <div className="decision-context" tabIndex={0} aria-label="Current packet context">
       <strong>{isRecorded ? recorded[target.action] : `Reviewing packet v${packet.version}`} {!isRecorded && <> · <CompanyName company={packet.company} packetId={packet.packet_id}/></>}</strong>
-      <p role="status" aria-live="polite">{isRecorded ? supporting[target.action] : state.busy ? target ? 'Recording decision. Please wait.' : 'A decision for another packet is being confirmed.' : barrier ? state.error : synthetic ? 'Demo decisions unavailable.' : !state.ready ? state.error || 'Enabling trusted decisions.' : packet.decision ? `${recorded[packet.decision]} · Immutable decision` : 'Exact packet only · No application submitted'}</p>
+      <p role="status" aria-live="polite">{isRecorded ? supporting[target.action] : decisions.evidenceBlocked ? 'Successor evidence is being checked or is unavailable. Check status before deciding.' : state.busy ? target ? 'Recording decision. Please wait.' : 'A decision for another packet is being confirmed.' : barrier ? state.error : synthetic ? 'Demo decisions unavailable.' : !state.ready ? state.error || 'Enabling trusted decisions.' : packet.decision ? `${recorded[packet.decision]} · Immutable decision` : 'Exact packet only · No application submitted'}</p>
       {isRecorded && target.action === 'approve' && <p>{state.authorization === 'currently_valid' ? 'Ready for next step' : authorizationLabel[state.authorization]}</p>}
       {isRecorded && state.error && <p role="alert">{state.error}</p>}
       {!isRecorded && !barrier && state.ready && !packet.decision && !canDecide(packet, 'approve') && <p>Approval evidence unavailable. Reject or Revise may still be available.</p>}
@@ -48,7 +57,7 @@ export function DecisionDock({packet, decisions, phone = false}: {packet: Packet
       {!synthetic && !state.ready && <button className="quiet outlined" disabled={state.busy} onClick={() => void controller.bootstrap()}>Enable decisions</button>}
       {(barrier || isRecorded && !state.refreshed) && <button className="quiet outlined" disabled={state.busy} onClick={() => void controller.recover()}>Refresh this packet</button>}
       {isRecorded && state.refreshed && state.next && <button className="button primary" onClick={() => decisions.nextQueued(state.next!.packet_id)}>Next queued job<ChevronRight size={16}/></button>}
-      {isRecorded && state.refreshed && !state.next && <span className="decision-queue-note">No queued job on the refreshed first page.</span>}
+      {isRecorded && state.refreshed && !state.next && !decisions.successorAvailable && <span className="decision-queue-note">No queued job on the refreshed first page.</span>}
       {!packet.decision && !isRecorded && !barrier && <>
         <button className="button primary" disabled={disabled || !canDecide(packet, 'approve')} onClick={() => controller.begin(packet, 'approve')}><Check size={16}/>Approve</button>
         <button className="button decision-revise" disabled={disabled || !canDecide(packet, 'revise')} onClick={() => controller.begin(packet, 'revise')}><MessageSquare size={16}/>Revise</button>

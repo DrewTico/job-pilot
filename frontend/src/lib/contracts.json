@@ -1281,5 +1281,108 @@
     ],
     "title": "RevisionComparison",
     "type": "object"
+  },
+  "RevisionStatus": {
+    "additionalProperties": false,
+    "properties": {
+      "source_packet_id": {
+        "title": "Source Packet Id",
+        "type": "string"
+      },
+      "decision_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "title": "Decision Id"
+      },
+      "state": {
+        "title": "State",
+        "type": "string"
+      },
+      "label": {
+        "title": "Label",
+        "type": "string"
+      },
+      "updated_at": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Updated At"
+      },
+      "successor_packet_id": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Successor Packet Id"
+      },
+      "successor_version": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Successor Version"
+      },
+      "successor_status": {
+        "anyOf": [
+          {
+            "enum": [
+              "building",
+              "packet_ready",
+              "generation_failed",
+              "research_incomplete",
+              "recovery_required"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Successor Status"
+      },
+      "failure_category": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Failure Category"
+      }
+    },
+    "required": [
+      "source_packet_id",
+      "decision_id",
+      "state",
+      "label"
+    ],
+    "title": "RevisionStatus",
+    "type": "object"
   }
 }

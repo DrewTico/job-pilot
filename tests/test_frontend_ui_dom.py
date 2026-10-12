@@ -32,6 +32,7 @@ def review(ui):
     ui[3]['/api/queue'] = queue
     for identity, packet in PACKETS.items():
         ui[3][f'/api/packets/{identity}'] = copy.deepcopy(packet)
+        ui[3][f'/api/packets/{identity}/revision-status'] = copy.deepcopy(packet['revision'])
         ui[3][f'/api/packets/{identity}/decision-detail'] = {'decision_id': 'synthetic-record', 'decision': packet['decision'] or 'reject', 'created_at': '2026-10-01T14:10:00Z', 'reason_code': None, 'detail': None, 'feedback': 'Synthetic feedback' if packet['decision'] == 'revise' else None}
     ui[0].add_init_script("window.cspViolations=[];document.addEventListener('securitypolicyviolation',e=>window.cspViolations.push(e.violatedDirective))")
     yield ui
@@ -154,7 +155,7 @@ def test_historical_stale_current_revision_unavailable_and_long_states(review):
     expect(page.locator('.integrity-strip')).to_contain_text('Current authorization valid')
     page.get_by_role('button', name='Back to queue', exact=True).click()
     page.get_by_role('tab', name='Processing', exact=True).click(); expect(page.locator('.queue-row')).to_have_count(1)
-    select(review, 4); evidence(page, 'History'); expect(page.get_by_text('Revision request recorded. Revision generation is a separate step.', exact=True)).to_be_visible()
+    select(review, 4); evidence(page, 'History'); expect(page.get_by_role('region', name='Revision review')).to_contain_text('Generation is a separate step. Waiting for revision processing.')
     page.get_by_role('button', name='Back to queue', exact=True).click()
     page.get_by_role('tab', name='Needs attention', exact=True).click(); expect(page.locator('.queue-row')).to_have_count(1)
     select(review, 5); evidence(page, 'Cover letter'); expect(page.get_by_text('Cover integrity failed. Text withheld.', exact=True)).to_be_visible()

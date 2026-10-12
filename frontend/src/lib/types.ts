@@ -22,9 +22,7 @@ export interface Packet extends Omit<QueueItem, 'integrity' | 'manual_needed_cou
   screening: { answers: {question: string; answer: string | boolean | number | null}[]; manual_needed: string[] };
   company_facts: {text: string; source_title: string; source_url: string | null}[];
   history: History[];
-  revision: {source_packet_id: string; decision_id: string | null; state: string; label: string;
-    updated_at: string | null; successor_packet_id: string | null; successor_version: number | null;
-    successor_status: Status | null; failure_category: string | null};
+  revision: RevisionStatus;
   artifacts: {kind: 'resume_pdf'; available: boolean; size: number | null}[];
   application_destination: {url: string | null; domain: string | null; authorization: Authorization};
   approval_preview: {packet_id: string; packet_version: number; expected_packet_fingerprint: string;
@@ -39,8 +37,27 @@ export interface DecisionResult {
 }
 export interface Diff { kind: 'resume' | 'cover'; left_packet_id: string; left_version: number; right_packet_id: string; right_version: number; status: 'available' | 'unavailable' | 'integrity_failed'; diff: string | null }
 export interface Reader {
+  revision(id: string, signal: AbortSignal): Promise<RevisionStatus>;
+  comparison(before: string, after: string, signal: AbortSignal): Promise<RevisionComparison>;
   queue(section: Section, offset: number, signal: AbortSignal): Promise<Queue>;
   packet(id: string, signal: AbortSignal): Promise<Packet>;
   decision(id: string, signal: AbortSignal): Promise<DecisionDetail>;
   diff(left: string, right: string, kind: 'resume' | 'cover', signal: AbortSignal): Promise<Diff>;
+}
+
+export interface RevisionStatus {
+  source_packet_id: string; decision_id: string | null; state: string; label: string;
+  updated_at: string | null; successor_packet_id: string | null; successor_version: number | null;
+  successor_status: Status | null; failure_category: string | null;
+}
+export interface HistoricalIdentity { packet_id: string; version: number | null; fingerprint: string | null }
+export interface RevisionContentDiff {
+  status: 'available' | 'unavailable' | 'integrity_failed'; before_status: 'available' | 'unavailable' | 'integrity_failed';
+  after_status: 'available' | 'unavailable' | 'integrity_failed'; changed: boolean | null; diff: string | null;
+}
+export interface RevisionComparison {
+  status: 'available' | 'unavailable' | 'integrity_failed' | 'invalid_request';
+  before: HistoricalIdentity; after: HistoricalIdentity; revision_decision_id: string | null;
+  revision_state: 'building' | 'succeeded' | 'blocked' | 'recovery_required' | null;
+  resume: RevisionContentDiff | null; cover: RevisionContentDiff | null;
 }

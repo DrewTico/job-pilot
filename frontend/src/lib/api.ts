@@ -32,7 +32,7 @@ export function valid(value: unknown, schema: Schema, root = schema): boolean {
 }
 export function packetId(id: string) { if (!/^[0-9a-f]{32}$/.test(id)) throw new Error('invalid_request'); return id; }
 async function read<T>(path: string, contract: keyof typeof contracts, signal: AbortSignal): Promise<T> {
-  if (!/^\/api\/(?:queue\?section=(?:needs-review|processing|needs-attention|history)&limit=25&offset=\d+|packets\/[0-9a-f]{32}(?:\/decision-detail|\/diff\/(?:resume|cover)\/[0-9a-f]{32})?)$/.test(path)) throw new Error('invalid_request');
+  if (!/^\/api\/(?:queue\?section=(?:needs-review|processing|needs-attention|history)&limit=25&offset=\d+|packets\/[0-9a-f]{32}(?:\/revision-status|\/revision-comparison\/[0-9a-f]{32}|\/decision-detail|\/diff\/(?:resume|cover)\/[0-9a-f]{32})?)$/.test(path)) throw new Error('invalid_request');
   const response = await fetch(path, { method: 'GET', credentials: 'same-origin', cache: 'no-store', redirect: 'error', signal, headers: { Accept: 'application/json' } });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
@@ -47,6 +47,8 @@ async function read<T>(path: string, contract: keyof typeof contracts, signal: A
   return data as T;
 }
 export const api: Reader = {
+  revision: (id, signal) => read(`/api/packets/${packetId(id)}/revision-status`, 'RevisionStatus', signal),
+  comparison: (before, after, signal) => read(`/api/packets/${packetId(before)}/revision-comparison/${packetId(after)}`, 'RevisionComparison', signal),
   queue: (section, offset, signal) => read(`/api/queue?section=${section}&limit=25&offset=${offset}`, 'QueueResponse', signal),
   packet: (id, signal) => read(`/api/packets/${packetId(id)}`, 'PacketDetail', signal),
   decision: (id, signal) => read(`/api/packets/${packetId(id)}/decision-detail`, 'DecisionDetail', signal),

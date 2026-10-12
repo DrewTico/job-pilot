@@ -5,11 +5,11 @@ import { decisionClient } from './decision-client';
 import type { useReviewWorkspace } from './use-review-workspace';
 import type { Reader } from './types';
 
-export function useDecisions(reader: Reader, workspace: ReturnType<typeof useReviewWorkspace>, synthetic: boolean) {
+export function useDecisions(reader: Reader, workspace: ReturnType<typeof useReviewWorkspace>, synthetic: boolean, evidenceBlocked = false, successorAvailable = false) {
   const [controller] = useState(() => new DecisionController(reader, decisionClient, workspace.applyDecisionRefresh));
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot, controller.snapshot);
   useEffect(() => { controller.select(workspace.selected); }, [controller, workspace.selected]);
-  useEffect(() => { controller.observe(workspace.packet); }, [controller, workspace.packet]);
+  useEffect(() => { controller.observe(evidenceBlocked ? null : workspace.packet); }, [controller, workspace.packet, evidenceBlocked]);
   useEffect(() => {
     if (synthetic) return;
     void controller.bootstrap();
@@ -28,6 +28,6 @@ export function useDecisions(reader: Reader, workspace: ReturnType<typeof useRev
     reload: () => { controller.cancel(); workspace.reload(); },
   };
   const nextQueued = (id: string) => { controller.select(id); workspace.nextQueued(id); };
-  return {controller, state, synthetic, navigation, nextQueued};
+  return {controller, state, synthetic, evidenceBlocked, successorAvailable, navigation, nextQueued};
 }
 export type Decisions = ReturnType<typeof useDecisions>;

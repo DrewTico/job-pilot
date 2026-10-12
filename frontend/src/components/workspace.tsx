@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { PhoneWorkspace } from './phone-workspace';
 import Head from 'next/head';
 import { Check, ChevronLeft, ChevronRight, ClipboardCheck, Compass, FileSearch, LayoutGrid, BarChart3, CalendarDays, Users, Send, Settings, RefreshCw, MapPin, CircleDot } from 'lucide-react';
@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { decisionLabel, sections, statusLabel } from '../lib/display';
 import { companyPresentation } from '../lib/review-presentation';
 import { useReviewWorkspace } from '../lib/use-review-workspace';
+import { useRevisionReview } from '../lib/use-revision-review';
 import { useDecisions } from '../lib/use-decisions';
 import type { Reader } from '../lib/types';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
@@ -25,10 +26,21 @@ function AppRail() {
 
 export function Workspace({reader = api, synthetic = false}: {reader?: Reader; synthetic?: boolean}) {
   const readState = useReviewWorkspace(reader);
-  const decisions = useDecisions(reader, readState, synthetic);
-  const state = {...readState, ...decisions.navigation};
+  const revision = useRevisionReview(readState.packet, reader);
+  const {refreshQueue} = readState;
+  const successorId = revision.state?.successor?.packet_id;
+  useEffect(() => {if (successorId) refreshQueue();}, [successorId, refreshQueue]);
+  const incomingRevision = readState.packet?.decision !== 'revise' && readState.packet?.history.some(item => item.packet_id === readState.packet?.packet_id && item.lineage_kind === 'revision');
+  const decisions = useDecisions(reader, readState, synthetic, Boolean(incomingRevision && !revision.state?.currentVerified), Boolean(successorId));
+  const state = {...readState, ...decisions.navigation,
+    select: (id: string) => {revision.clear(); decisions.navigation.select(id);},
+    back: () => {revision.clear(); decisions.navigation.back();},
+    changeSection: (value: string) => {revision.clear(); decisions.navigation.changeSection(value);},
+    paginate: (offset: number) => {revision.clear(); decisions.navigation.paginate(offset);},
+    reload: () => {revision.clear(); decisions.navigation.reload();},
+  };
   const phone = useSyncExternalStore(subscribePhone, phoneSnapshot, serverSnapshot);
-  if (phone) return <PhoneWorkspace state={state} reader={reader} synthetic={synthetic} decisions={decisions}/>;
+  if (phone) return <PhoneWorkspace state={state} reader={reader} synthetic={synthetic} decisions={decisions} revision={revision}/>;
   const {section, queue, queueError, selected, packet, packetError, offset, selectedButton, reload, select, back, changeSection, paginate} = state;
   const emptyFirstPage = !decisions.state.busy && !decisions.state.uncertain && section === 'needs-review' && offset === 0 && queue?.items.length === 0 && !queueError;
   const position = queue?.items.findIndex(item => item.packet_id === selected) ?? -1;
@@ -52,7 +64,7 @@ export function Workspace({reader = api, synthetic = false}: {reader?: Reader; s
       <p className="queue-footer"><ClipboardCheck size={14} aria-hidden="true"/>Human decisions · Exact packet versions</p>
     </section>
     <main id="main" className={`detail-pane ${selected ? 'has-selection' : ''}`} tabIndex={-1} aria-busy={Boolean(selected && !packet && !packetError)}>
-      {packet ? <PacketInspector decisions={decisions} key={packet.packet_id} packet={packet} reader={reader} onSelect={select} onBack={back} position={position >= 0 && queue ? `${position + 1} of ${queue.items.length} loaded` : 'Outside loaded page'}/> : <div className="detail-empty">{selected ? <><button className="quiet" onClick={back}><ChevronLeft size={16} aria-hidden="true"/>Back to queue</button><FileSearch aria-hidden="true" size={36}/><h2>{packetError ? 'Evidence unavailable' : 'Opening your packet'}</h2><p role={packetError ? 'alert' : 'status'}>{packetError || 'Loading packet evidence.'}</p>{packetError && <button className="quiet" onClick={reload}>Retry packet</button>}</> : emptyFirstPage ? <><div className="caught-up-symbol"><Check size={56} aria-hidden="true"/></div><p className="eyebrow">Review queue</p><h2>You’re all caught up</h2><p>No packets currently need review.</p><button className="button primary" onClick={reload}><RefreshCw size={16} aria-hidden="true"/>Reload queue</button></> : <><div className="empty-symbol"><FileSearch aria-hidden="true" size={36}/></div><p className="eyebrow">One application at a time</p><h2>Select an application</h2><p>Review the fit and evidence for one exact packet version.</p></>}</div>}
+      {packet ? <PacketInspector revision={revision} decisions={decisions} key={packet.packet_id} packet={packet} reader={reader} onSelect={select} onBack={back} position={position >= 0 && queue ? `${position + 1} of ${queue.items.length} loaded` : 'Outside loaded page'}/> : <div className="detail-empty">{selected ? <><button className="quiet" onClick={back}><ChevronLeft size={16} aria-hidden="true"/>Back to queue</button><FileSearch aria-hidden="true" size={36}/><h2>{packetError ? 'Evidence unavailable' : 'Opening your packet'}</h2><p role={packetError ? 'alert' : 'status'}>{packetError || 'Loading packet evidence.'}</p>{packetError && <button className="quiet" onClick={reload}>Retry packet</button>}</> : emptyFirstPage ? <><div className="caught-up-symbol"><Check size={56} aria-hidden="true"/></div><p className="eyebrow">Review queue</p><h2>You’re all caught up</h2><p>No packets currently need review.</p><button className="button primary" onClick={reload}><RefreshCw size={16} aria-hidden="true"/>Reload queue</button></> : <><div className="empty-symbol"><FileSearch aria-hidden="true" size={36}/></div><p className="eyebrow">One application at a time</p><h2>Select an application</h2><p>Review the fit and evidence for one exact packet version.</p></>}</div>}
     </main>
   </div>;
 }

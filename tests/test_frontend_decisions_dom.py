@@ -51,7 +51,7 @@ def decisions(ui, ready, monkeypatch):
     allowed = {f'/api/packets/{id}/{action}' for id in before['packet_ids'] for action in ('approve', 'reject', 'revise')}
     assert all(path in allowed for path, _, _ in ui[4])
     assert all(not any(name.startswith('tailscale-') or name in ('authorization', 'x-forwarded-user') for name in headers) for _, _, headers in ui[4])
-    assert not any('/apply' in url or '/submit' in url or '/application-destination' in url or '/revision-status' in url for url in ui[5])
+    assert not any('/apply' in url or '/submit' in url or '/application-destination' in url for url in ui[5])
     after = db_state(ready)
     assert after['packets'] == before['packets']
     assert after['events'] == before['events']
@@ -149,7 +149,8 @@ def test_real_decisions_write_one_immutable_record_only_and_refresh_history(deci
     button = {'approve': 'Record approval', 'reject': 'Record rejection', 'revise': 'Record revision request'}[action]
     page.get_by_role('button', name=button, exact=True).click()
     title = {'approve': 'Approval recorded', 'reject': 'Rejection recorded', 'revise': 'Revision request recorded'}[action]
-    expect(page.locator('.decision-dock')).to_contain_text(title)
+    surface = page.get_by_role('region', name='Revision review') if action == 'revise' else page.locator('.decision-dock')
+    expect(surface).to_contain_text(title)
     if width == 1440: expect(page.locator('.queue-row')).to_have_count(1)
     refreshed_queue = decisions[1].request.get(decisions[2] + '/api/queue?section=needs-review&limit=25&offset=0').json()
     assert len(refreshed_queue['items']) == 1 and all(item['packet_id'] != ready[2].id for item in refreshed_queue['items'])
@@ -161,8 +162,9 @@ def test_real_decisions_write_one_immutable_record_only_and_refresh_history(deci
         expect(page.locator('.decision-dock')).to_contain_text('Ready for next step')
         assert decisions[4][0][1] == {'expected_packet_fingerprint': ready[2].fingerprint, 'expected_approval_view_fingerprint': preview.approval_view_fingerprint}
     if action == 'revise':
-        expect(page.locator('.decision-dock')).to_contain_text('Revision generation is a separate step.')
-        assert 'Creates a new packet version' not in page.locator('.decision-dock').inner_text()
+        expect(page.get_by_role('region', name='Revision review')).to_contain_text('Generation is a separate step.')
+        expect(page.locator('.decision-dock')).to_have_count(0)
+        assert 'Creates a new packet version' not in page.get_by_role('region', name='Revision review').inner_text()
     if action in ('reject', 'revise'):
         capture(page, f'{"desktop" if width == 1440 else "phone"}-{action}-recorded-{"1440x900" if width == 1440 else "390x844"}')
     if width == 1440: page.get_by_role('tablist', name='Evidence tabs').get_by_role('tab', name='History', exact=True).click()
@@ -204,7 +206,8 @@ def test_damaged_artifact_keeps_recovery_decisions_available(decisions, ready, a
     if action == 'reject': page.get_by_label('Reason (required)').select_option('other')
     else: page.get_by_label('Revision feedback (required)').fill('Review this synthetic artifact.')
     page.get_by_role('button', name='Record rejection' if action == 'reject' else 'Record revision request', exact=True).click()
-    expect(page.locator('.decision-dock')).to_contain_text('recorded')
+    surface = page.get_by_role('region', name='Revision review') if action == 'revise' else page.locator('.decision-dock')
+    expect(surface).to_contain_text('recorded')
 
 
 def test_bootstrap_unavailable_and_csrf_explicit_retry_without_post_replay(decisions, ready):
@@ -269,7 +272,8 @@ def test_transport_ambiguity_uses_safe_gets_and_never_replays(decisions, ready, 
     if action == 'revise': page.get_by_label('Revision feedback (required)').fill(' Exact synthetic 😀 feedback ')
     page.get_by_role('button', name='Record approval' if action == 'approve' else 'Record revision request', exact=True).click()
     expected = {'committed': 'Revision request recorded', 'no_commit': 'No decision was found', 'unknown': 'Decision status could not be confirmed', 'approve_unknown': 'original approval evidence could not be confirmed'}[mode]
-    expect(page.locator('.decision-dock')).to_contain_text(expected)
+    surface = page.get_by_role('region', name='Revision review') if mode == 'committed' else page.locator('.decision-dock')
+    expect(surface).to_contain_text(expected)
     assert len(transmitted) == 1
     assert not page.locator('.phone-caught-up').count()
     if mode == 'unknown': capture(page, 'phone-ambiguous-390x844')
