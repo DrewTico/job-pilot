@@ -11,6 +11,7 @@ Two things live here:
 from __future__ import annotations
 
 import os
+import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Literal
@@ -34,6 +35,14 @@ class SourceRef(BaseModel):
     board: str
 
     model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def simplify_offline_lane(self):
+        if self.ats in ("simplify-newgrad", "simplify-internships") and not re.fullmatch(
+            r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", self.board
+        ):
+            raise ValueError("Simplify board must be a bounded lane token")
+        return self
 
 
 class LocationRule(BaseModel):
@@ -61,7 +70,8 @@ class SearchProfile(BaseModel):
 
     _KNOWN_ATS = {"greenhouse", "lever", "ashby", "smartrecruiters",
                   # cross-company search sources: board = keyword query / tag
-                  "sr-search", "remotive", "remoteok", "freehire", "freehire-relocation"}
+                  "sr-search", "remotive", "remoteok", "freehire", "freehire-relocation",
+                  "simplify-newgrad", "simplify-internships"}
 
     @field_validator("max_seniority")
     @classmethod

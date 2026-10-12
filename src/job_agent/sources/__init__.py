@@ -11,6 +11,7 @@ from job_agent.sources.remoteok import RemoteOKSource
 from job_agent.sources.remotive import RemotiveSource
 from job_agent.sources.smartrecruiters import SmartRecruitersSource
 from job_agent.sources.sr_search import SmartRecruitersSearchSource
+from job_agent.sources.simplify import SimplifyNewGradSource, SimplifyInternshipsSource
 
 _REGISTRY: dict[str, type[JobSource]] = {
     GreenhouseSource.ats: GreenhouseSource,
@@ -23,6 +24,9 @@ _REGISTRY: dict[str, type[JobSource]] = {
     RemoteOKSource.ats: RemoteOKSource,
     FreeHireSource.ats: FreeHireSource,
     FreeHireRelocationSource.ats: FreeHireRelocationSource,
+    # Offline snapshots only. No transport or production configuration in 6A.
+    SimplifyNewGradSource.ats: SimplifyNewGradSource,
+    SimplifyInternshipsSource.ats: SimplifyInternshipsSource,
 }
 
 
@@ -42,5 +46,7 @@ __all__ = [
     "RemoteOKSource",
     "FreeHireSource",
     "FreeHireRelocationSource",
+    "SimplifyNewGradSource",
+    "SimplifyInternshipsSource",
     "build_source",
 ]

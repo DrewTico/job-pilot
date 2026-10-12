@@ -13,6 +13,7 @@ from job_agent.database import (
     database_session, initialize_database,
 )
 from job_agent.search_import import import_search_state
+from job_agent.models import IntakeEvidence, Job
 
 
 def database_path(data_dir: str | Path) -> Path:
@@ -93,9 +94,24 @@ class SearchRepository:
         self.session = session
         self.jobs = JobRepository(session)
 
-    def record_search(self, scored, boards, *, cache, baseline, sources_queried=None, deferred_profile=None, scoring_model=None):
+    def record_search(self, scored, boards, *, cache, baseline, sources_queried=None, deferred_profile=None, scoring_model=None, intake_evidence=None):
         if len(scored) != len(boards):
             raise ValueError('Each search result requires a board token')
+        evidence_payload = {}
+        for key, value in (intake_evidence or {}).items():
+            evidence = IntakeEvidence.model_validate(value)
+            if key != f'{evidence.source_namespace}:{evidence.source_external_id}':
+                raise ValueError('Intake evidence identity mismatch')
+            evidence_payload[key] = evidence.model_dump(mode='json')
+        for item in scored:
+            job = item.job
+            key = f'{job.source}:{job.id}'
+            if job.source in ('simplify-newgrad', 'simplify-internships') and key not in evidence_payload:
+                raise ValueError('Simplify result requires intake evidence')
+            if key in evidence_payload:
+                normalized = evidence_payload[key]['normalized_fields']
+                if Job.model_validate({**normalized, 'location': normalized['location'] or 'Unknown'}) != job:
+                    raise ValueError('Intake evidence normalized fields mismatch')
         now = datetime.now(timezone.utc)
         run_id = str(uuid4())
         records = {}
@@ -108,7 +124,7 @@ class SearchRepository:
                 identity = self.jobs.get_identity(job.source, job.id)
             previous = self.session.exec(select(SearchResult).where(
                 SearchResult.identity_id == identity.id)).all()
-            if job.source not in ('sr-search', 'remotive', 'remoteok', 'freehire') and any(
+            if job.source not in ('sr-search', 'remotive', 'remoteok', 'freehire', 'simplify-newgrad', 'simplify-internships') and any(
                 r.payload.get('board') not in (None, '', board) for r in previous
             ):
                 raise ValueError(f'Conflicting board for source identity {job.source}:{job.id}')
@@ -129,6 +145,8 @@ class SearchRepository:
                           first_seen=identity.first_seen.replace(tzinfo=timezone.utc).isoformat(),
                           first_seen_this_scan=not baseline and (job.source, job.id) in cache.inserted)
             key = f'{job.source}:{job.id}'
+            if key in evidence_payload:
+                record['intake_evidence'] = evidence_payload[key]
             records[key] = record
             results.append(SearchResult(run_id=run_id, legacy_key=key,
                                         identity_id=identity.id, payload=record))
@@ -137,6 +155,8 @@ class SearchRepository:
         if sources_queried is not None:
             meta['sources_queried'] = sources_queried
         payload = dict(generated_at=now.isoformat(), meta=meta, jobs=records)
+        if evidence_payload:
+            payload['intake_evidence'] = evidence_payload
         self.session.add(SearchRun(id=run_id, generated_at=now.isoformat(),
                                    total=meta['total'], new_count=meta['new_count'],
                                    sources_queried=sources_queried, payload=payload))

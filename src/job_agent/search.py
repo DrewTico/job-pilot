@@ -17,7 +17,7 @@ from job_agent.config import SearchProfile
 from job_agent.eligibility import passes_eligibility
 from job_agent.experience import required_years
 from job_agent.geo import infer_country
-from job_agent.models import Job
+from job_agent.models import IntakeEvidence, Job
 from job_agent.seen_cache import SeenCache
 from job_agent.seniority import LEVEL_NAMES, seniority_rank
 from job_agent.sources import JobSource, build_source
@@ -61,6 +61,7 @@ class SearchOutcome(BaseModel):
     first_seen: dict[str, str] = {}      # survivor job id -> first-observed ISO time
     new_job_ids: tuple[str, ...] = ()    # ids whose first-seen was recorded THIS scan
     baseline_scan: bool = False          # the seen cache was empty when the scan began
+    intake_evidence: dict[str, IntakeEvidence] = {}  # source:id, including filtered observations
 
 
 def matches_keywords(title: str, keywords: list[str]) -> bool:
@@ -158,6 +159,7 @@ def run(
     all_jobs: list[tuple[Job, str]] = []  # (job, "ats/board" label)
     # Keep one source instance per board so we can enrich() survivors later.
     sources: dict[str, JobSource] = {}
+    intake_evidence: dict[str, IntakeEvidence] = {}
 
     for ref in profile.sources:
         label = f"{ref.ats}/{ref.board}"
@@ -174,6 +176,13 @@ def run(
             per_source[label] = 0
             continue
         per_source[label] = len(fetched)
+        for evidence in getattr(source, "intake_evidence", ()):
+            key = f"{evidence.source_namespace}:{evidence.source_external_id}"
+            previous = intake_evidence.get(key)
+            intake_evidence[key] = previous.merge_occurrences(evidence) if previous else evidence
+        parsed = getattr(source, "parse_result", None)
+        if parsed is not None and parsed.completeness == "partial":
+            warnings.append(f"{label}: partial snapshot ({len(parsed.issues)} rejected rows)")
         all_jobs.extend((job, label) for job in fetched)
 
     # Stage 1: keyword pre-filter (cheap, biggest reduction).
@@ -256,4 +265,5 @@ def run(
         first_seen=first_seen,
         new_job_ids=tuple(new_ids),
         baseline_scan=baseline_scan,
+        intake_evidence=intake_evidence,
     )
