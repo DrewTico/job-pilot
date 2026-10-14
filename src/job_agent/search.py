@@ -12,12 +12,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from pydantic import BaseModel, ConfigDict
+import hashlib
+import json
 
 from job_agent.config import SearchProfile
 from job_agent.eligibility import passes_eligibility
 from job_agent.experience import required_years
 from job_agent.geo import infer_country
-from job_agent.models import IntakeEvidence, Job
+from job_agent.models import (IntakeEvidence, Job, DurableObservation,
+                              ObservationOccurrence, SourceSnapshot)
 from job_agent.seen_cache import SeenCache
 from job_agent.seniority import LEVEL_NAMES, seniority_rank
 from job_agent.sources import JobSource, build_source
@@ -62,6 +65,15 @@ class SearchOutcome(BaseModel):
     new_job_ids: tuple[str, ...] = ()    # ids whose first-seen was recorded THIS scan
     baseline_scan: bool = False          # the seen cache was empty when the scan began
     intake_evidence: dict[str, IntakeEvidence] = {}  # source:id, including filtered observations
+    observations: dict[str, DurableObservation] = {}
+    source_snapshots: dict[str, SourceSnapshot] = {}
+    observed_at: datetime | None = None
+
+    @property
+    def publishable(self):
+        # An incomplete empty response cannot establish a useful empty search.
+        return bool(self.jobs) or bool(self.source_snapshots) and all(
+            s.status == 'complete' for s in self.source_snapshots.values())
 
 
 def matches_keywords(title: str, keywords: list[str]) -> bool:
@@ -141,6 +153,31 @@ def is_fresh(job: Job, now: datetime, cache: SeenCache,
     return (now - reference) <= window
 
 
+def validate_observed_job(value):
+    """Offline admission boundary for every normalized adapter result."""
+    from job_agent.sources.simplify import _url, _bad_controls
+    try:
+        job = Job.model_validate(value.model_dump() if isinstance(value, Job) else value)
+        for field, limit in (('id', 128), ('title', 512), ('company', 512),
+                             ('location', 2048), ('country', 128), ('description', 16384)):
+            text = getattr(job, field)
+            if text is not None and (len(text) > limit or _bad_controls(text)):
+                raise ValueError('field_limit')
+        if not job.id or not job.title or not job.company:
+            raise ValueError('missing_field')
+        # Demo has no production authority and existing synthetic fixtures use
+        # short hosts. All production namespaces use the Run 6A URL boundary.
+        if job.source != 'demo':
+            _url(job.url)
+            if job.apply_url is not None:
+                _url(job.apply_url)
+        if job.posted_at is not None and job.posted_at.utcoffset() is None:
+            raise ValueError('invalid_timestamp')
+        return job
+    except Exception:
+        raise ValueError('invalid_source_observation; details_omitted') from None
+
+
 def run(
     profile: SearchProfile,
     *,
@@ -149,121 +186,180 @@ def run(
     fresh_window: timedelta = FRESH_WINDOW,
     source_factory=build_source,
 ) -> SearchOutcome:
-    """Execute the pipeline for a profile and return survivors + stage counts."""
+    """Prepare validated observations; production uses a buffered SQLite cache."""
+    from job_agent.research import packet_content_flags
     now = now or datetime.now(timezone.utc)
-    # Captured BEFORE anything is recorded: an empty cache means there is no
-    # earlier scan to be "new since" — the baseline rule downstream.
+    if now.utcoffset() is None or fresh_window.total_seconds() < 0:
+        raise ValueError('Invalid intake clock or freshness window')
     baseline_scan = len(seen_cache) == 0
-    warnings: list[str] = []
-    per_source: dict[str, int] = {}
-    all_jobs: list[tuple[Job, str]] = []  # (job, "ats/board" label)
-    # Keep one source instance per board so we can enrich() survivors later.
-    sources: dict[str, JobSource] = {}
-    intake_evidence: dict[str, IntakeEvidence] = {}
+    warnings, per_source, sources = [], {}, {}
+    all_jobs, observations, intake_evidence, snapshots = [], {}, {}, {}
 
     for ref in profile.sources:
         label = f"{ref.ats}/{ref.board}"
         try:
             source = source_factory(ref.ats, ref.board)
-        except KeyError:
-            warnings.append(f"{label}: unknown ATS, skipped")
-            continue
-        sources[label] = source
-        try:
             fetched = source.fetch()
-        except Exception as exc:  # SourceError or unexpected — one board must never break the run
-            warnings.append(f"{label}: fetch failed ({type(exc).__name__}: {exc})")
+            if not isinstance(fetched, (list, tuple)) or len(fetched) > 10000:
+                raise ValueError('snapshot_limit')
+            fetched = [validate_observed_job(j) for j in fetched]
+            unique = {}
+            for job in fetched:
+                key = job.dedup_key()
+                if key in unique and unique[key] != job:
+                    raise ValueError('identity_conflict')
+                unique[key] = job
+            parsed = getattr(source, 'parse_result', None)
+            coverage = parsed.completeness if parsed is not None else getattr(
+                source, 'snapshot_completeness', 'unknown')
+            if coverage not in ('complete', 'partial', 'unknown'):
+                raise ValueError('invalid_completeness')
+            source_evidence = {f'{e.source_namespace}:{e.source_external_id}': e
+                               for e in getattr(source, 'intake_evidence', ())}
+            snapshot_hash = (parsed.snapshot_sha256 if parsed is not None else
+                getattr(source, 'snapshot_sha256', None) or hashlib.sha256(json.dumps(
+                    [j.model_dump(mode='json') for j in fetched], sort_keys=True).encode()).hexdigest())
+            markers = getattr(source, 'source_states', {})
+            if any(value not in ('unknown', 'closed', 'inactive') for value in markers.values()):
+                raise ValueError('invalid_source_state')
+            observation_time = getattr(getattr(source, 'snapshot', None), 'observed_at', now)
+            if observation_time > now:
+                raise ValueError('future_observation')
+            snapshot = SourceSnapshot(status=coverage, observed_at=observation_time, count=len(fetched),
+                rejected_rows=len(parsed.issues) if parsed is not None else getattr(source, 'rejected_rows', 0),
+                issues=parsed.issues if parsed is not None else tuple(getattr(source, 'issues', ())),
+                snapshot_sha256=snapshot_hash, coverage_reason=getattr(source, 'coverage_reason',
+                    'validated_offline_snapshot' if parsed is not None else 'adapter_did_not_assert_completeness'))
+        except Exception as exc:
+            # Never include exception bodies, source text or credential URLs.
+            from job_agent.sources.simplify import SimplifyFailure, FailureCode
+            from typing import get_args
+            reason = exc.code if isinstance(exc, SimplifyFailure) and exc.code in get_args(FailureCode) else ('identity_conflict' if isinstance(exc, ValueError) and str(exc) == 'identity_conflict' else type(exc).__name__)
+            warnings.append(f"{label}: fetch failed ({reason}; details omitted)")
+            snapshots[label] = SourceSnapshot(status='unavailable', observed_at=now,
+                                             count=0, failure=reason)
             per_source[label] = 0
             continue
+        sources[label] = source
+        snapshots[label] = snapshot
         per_source[label] = len(fetched)
-        for evidence in getattr(source, "intake_evidence", ()):
-            key = f"{evidence.source_namespace}:{evidence.source_external_id}"
-            previous = intake_evidence.get(key)
-            intake_evidence[key] = previous.merge_occurrences(evidence) if previous else evidence
-        parsed = getattr(source, "parse_result", None)
-        if parsed is not None and parsed.completeness == "partial":
-            warnings.append(f"{label}: partial snapshot ({len(parsed.issues)} rejected rows)")
+        if coverage != 'complete':
+            warnings.append(f'{label}: {coverage} snapshot; coverage incomplete' +
+                (f' ({len(parsed.issues)} rejected rows)' if parsed is not None else ''))
+        for index, job in enumerate(fetched):
+            key = job.dedup_key()
+            previous = observations.get(key)
+            if previous and (previous.job != job or previous.source_state != markers.get(job.id, 'unknown')):
+                raise ValueError('Conflicting source identity across query lanes; details omitted')
+            original = getattr(source, 'original_records', {}).get(index)
+            if job.source == 'freehire' and previous and original and previous.occurrences[0].original_record:
+                # Query metadata can differ; full source listing claims cannot
+                # be resolved by a truncated description or first-row wins.
+                if json.loads(original)['fields'] != json.loads(previous.occurrences[0].original_record)['fields']:
+                    raise ValueError('Conflicting source identity across query lanes; details omitted')
+            evidence = source_evidence.get(key)
+            if evidence and key not in intake_evidence:
+                intake_evidence[key] = evidence
+            elif evidence and not any(o.lane == evidence.lane for o in intake_evidence[key].occurrences):
+                intake_evidence[key] = intake_evidence[key].merge_occurrences(evidence)
+            occurrence = ObservationOccurrence(lane=label, locator=str(index), observed_at=observation_time,
+                snapshot_sha256=snapshot_hash,
+                original_record=original)
+            observations[key] = DurableObservation(job=job, observed_at=max(previous.observed_at, observation_time) if previous else observation_time,
+                occurrences=(*previous.occurrences, occurrence) if previous else (occurrence,),
+                source_state=markers.get(job.id, 'unknown'), intake_evidence=intake_evidence.get(key),
+                freshness_basis='posted_at' if job.posted_at else 'first_observed',
+                content_flags=tuple(sorted(set(packet_content_flags(job)) |
+                    set(packet_content_flags(job.model_copy(update={'description': occurrence.original_record or ''}))) |
+                    set(previous.content_flags if previous else ()) |
+                    set(evidence.content_flags if evidence else ()))))
         all_jobs.extend((job, label) for job in fetched)
+    if len(all_jobs) > 10000:
+        raise ValueError('Intake observation limit exceeded')
 
-    # Stage 1: keyword pre-filter (cheap, biggest reduction).
-    kept = [(j, lbl) for (j, lbl) in all_jobs if matches_keywords(j.title, profile.keywords)]
-    after_keyword = len(kept)
+    def filter_stage(pairs, predicate, reason):
+        kept = []
+        for job, label in pairs:
+            key = job.dedup_key()
+            observation = observations[key]
+            checks = tuple(dict.fromkeys((*observation.filter_checks, reason)))
+            if predicate(job):
+                kept.append((job, label))
+                observations[key] = observation.model_copy(update={'filter_checks': checks})
+            else:
+                observations[key] = observation.model_copy(update={'filter_checks': checks,
+                    'filter_disposition': 'rejected', 'filter_reasons': (reason,)})
+        return kept
 
-    # Stage 2: freshness (default 14 days).
-    kept = [(j, lbl) for (j, lbl) in kept if is_fresh(j, now, seen_cache, fresh_window)]
-    after_fresh = len(kept)
-    seen_cache.save()
-
-    # Stage 3: location rule.
-    kept = [(j, lbl) for (j, lbl) in kept if passes_location(j, profile)]
-    after_location = len(kept)
-
-    # Stage 4: seniority ceiling (title-only, so it runs before enrichment).
-    kept = [(j, lbl) for (j, lbl) in kept if passes_seniority(j, profile)]
-    after_seniority = len(kept)
-
-    # Stage 5: dedup (first occurrence wins).
-    seen_keys: set[str] = set()
-    deduped: list[tuple[Job, str]] = []
-    for job, lbl in kept:
-        key = job.dedup_key()
-        if key not in seen_keys:
-            seen_keys.add(key)
-            deduped.append((job, lbl))
-    after_dedup = len(deduped)
-
-    # Enrich only the final survivors (e.g. SmartRecruiters detail fetch), so the
-    # eligibility and experience filters see every source's full JD.
-    enriched_pairs: list[tuple[Job, str]] = []
-    for job, lbl in deduped:
-        board = lbl.split("/", 1)[1] if "/" in lbl else lbl
-        try:
-            enriched_pairs.append((sources[lbl].enrich(job), board))
-        except Exception as exc:  # enrichment is best-effort
-            warnings.append(f"{lbl}: enrich failed for {job.id} ({exc})")
-            enriched_pairs.append((job, board))
-
-    # Stage 6: clear eligibility restrictions (needs the enriched JD).
-    enriched_pairs = [(j, b) for (j, b) in enriched_pairs if passes_eligibility(j)]
-    after_eligibility = len(enriched_pairs)
-
-    # Stage 7: experience gap (needs the full JD, hence after enrichment).
-    enriched_pairs = [(j, b) for (j, b) in enriched_pairs if passes_experience(j, profile)]
-    after_experience = len(enriched_pairs)
-    jobs = [j for j, _ in enriched_pairs]
-    boards = [b for _, b in enriched_pairs]
-
-    # Record when each SURVIVOR was first observed (get-or-record). Runs after
-    # every filter stage, so no freshness decision in this run is affected —
-    # and dated jobs never read these entries anyway (is_fresh short-circuits
-    # on posted_at). Newness is the explicit boolean from first_seen(), never
-    # a timestamp comparison.
-    first_seen: dict[str, str] = {}
-    new_ids: list[str] = []
-    for job in jobs:
-        ts, newly = seen_cache.first_seen(job.source, job.id, now)
-        first_seen[str(job.id)] = ts.isoformat()
+    kept = filter_stage(all_jobs, lambda j: matches_keywords(j.title, profile.keywords), 'keyword')
+    first_seen, newly_seen = {}, set()
+    for j, _ in kept:
+        key = j.dedup_key()
+        stamp, newly = seen_cache.first_seen(j.source, j.id, observations[key].observed_at)
+        first_seen[key] = stamp.isoformat()
         if newly:
-            new_ids.append(str(job.id))
-    seen_cache.save()
+            newly_seen.add(key)
 
-    return SearchOutcome(
-        jobs=jobs,
-        boards=boards,
-        counts=StageCounts(
-            fetched=len(all_jobs),
-            after_keyword=after_keyword,
-            after_fresh=after_fresh,
-            after_location=after_location,
-            after_seniority=after_seniority,
-            after_dedup=after_dedup,
-            after_eligibility=after_eligibility,
-            after_experience=after_experience,
-        ),
-        per_source=per_source,
-        warnings=warnings,
-        first_seen=first_seen,
-        new_job_ids=tuple(new_ids),
-        baseline_scan=baseline_scan,
-        intake_evidence=intake_evidence,
-    )
+    after_keyword = len(kept)
+    kept = filter_stage(kept, lambda j: is_fresh(j, now, seen_cache, fresh_window), 'freshness')
+    after_fresh = len(kept)
+    kept = filter_stage(kept, lambda j: passes_location(j, profile), 'location')
+    after_location = len(kept)
+    kept = filter_stage(kept, lambda j: passes_seniority(j, profile), 'seniority')
+    after_seniority = len(kept)
+    unique_pairs = {}
+    for j, lbl in kept:
+        unique_pairs.setdefault(j.dedup_key(), (j, lbl))
+    deduped = list(unique_pairs.values())
+    after_dedup = len(deduped)
+    enriched = []
+    for job, label in deduped:
+        key = job.dedup_key()
+        try:
+            candidate = validate_observed_job(sources[label].enrich(job))
+            if candidate.dedup_key() != key:
+                raise ValueError('Enrichment identity changed')
+            enriched.append((candidate, label))
+            observations[key] = observations[key].model_copy(update={'job': candidate,
+                'content_flags': tuple(sorted(set(observations[key].content_flags) | set(packet_content_flags(candidate))))})
+        except Exception:
+            warnings.append(f'{label}: enrich failed (details omitted)')
+            enriched.append((job, label))
+            observations[key] = observations[key].model_copy(update={'filter_reasons': ('enrichment_unavailable',)})
+    def filter_job(job):
+        # Deterministic gates use the bounded full description when retained.
+        # Keep the normalized Job/scoring input cap and fingerprints unchanged.
+        if job.source == 'freehire':
+            for occurrence in observations[job.dedup_key()].occurrences:
+                if occurrence.original_record:
+                    description = json.loads(occurrence.original_record)['fields'].get('description')
+                    if isinstance(description, str):
+                        return job.model_copy(update={'description': description})
+        return job
+
+    enriched = filter_stage(enriched, lambda j: passes_eligibility(filter_job(j)), 'eligibility_restriction')
+    after_eligibility = len(enriched)
+    enriched = filter_stage(enriched, lambda j: passes_experience(filter_job(j), profile), 'experience')
+    after_experience = len(enriched)
+    enriched = filter_stage(enriched, lambda j: observations[j.dedup_key()].source_state == 'unknown', 'source_inactive')
+    for job, _ in enriched:
+        key = job.dedup_key()
+        o = observations[key]
+        unresolved = bool(o.content_flags or o.filter_reasons)
+        observations[key] = o.model_copy(update={'filter_disposition': 'unresolved' if unresolved else 'accepted',
+            'filter_reasons': o.filter_reasons or (('untrusted_content_review',) if o.content_flags else ('deterministic_filters_passed',))})
+    for key, evidence in intake_evidence.items():
+        o = observations[key]
+        intake_evidence[key] = evidence.model_copy(update={
+            'filter_disposition': 'rejected' if o.filter_disposition == 'rejected' else 'kept',
+            'filter_reasons': o.filter_reasons})
+        observations[key] = o.model_copy(update={'intake_evidence': intake_evidence[key]})
+    seen_cache.save()
+    jobs = [j for j, _ in enriched]
+    return SearchOutcome(jobs=jobs, boards=[lbl.split('/', 1)[1] for _, lbl in enriched],
+        counts=StageCounts(fetched=len(all_jobs), after_keyword=after_keyword, after_fresh=after_fresh,
+            after_location=after_location, after_seniority=after_seniority, after_dedup=after_dedup,
+            after_eligibility=after_eligibility, after_experience=after_experience),
+        per_source=per_source, warnings=warnings, first_seen={j.id: first_seen[j.dedup_key()] for j in jobs},
+        new_job_ids=tuple(j.id for j in jobs if j.dedup_key() in newly_seen), baseline_scan=baseline_scan,
+        intake_evidence=intake_evidence, observations=observations, source_snapshots=snapshots, observed_at=now)

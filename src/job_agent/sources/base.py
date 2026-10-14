@@ -36,8 +36,8 @@ class JobSource(ABC):
 
     @abstractmethod
     def fetch(self) -> list[Job]:
-        """Return all postings on the board, normalized. Never raises for an
-        expected fetch failure — return ``[]`` and let the caller log it."""
+        """Return normalized postings. For an expected fetch failure, raise SourceError so discovery can
+        distinguish unavailability from a successful empty response."""
 
     def enrich(self, job: Job) -> Job:
         """Optionally fetch extra detail for a single job (default: no-op)."""

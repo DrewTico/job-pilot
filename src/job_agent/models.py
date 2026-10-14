@@ -47,13 +47,8 @@ class Job(BaseModel):
     description: str = ""
 
     def dedup_key(self) -> str:
-        """Canonical identity used to drop duplicates across boards/re-runs."""
-        # README resemblance is not a verified canonical relationship. Keep
-        # these offline adapters source-scoped until Run 6B durable dedupe.
-        if self.source in ("simplify-newgrad", "simplify-internships"):
-            return f"{self.source}:{self.id}"
-        return "|".join([self.company.strip().lower(), self.title.strip().lower(),
-                          self.location.strip().lower()])
+        """Only exact source identities prove duplicate observations."""
+        return f"{self.source}:{self.id}"
 
 
 class ScoredJob(BaseModel):
@@ -192,3 +187,44 @@ class IntakeParseResult(IntakeModel):
     completeness: Literal["complete", "partial"]
     rows_observed: int
     snapshot_sha256: str
+
+
+class SourceSnapshot(IntakeModel):
+    """Coverage of one configured lane, never inferred from a row count."""
+    status: Literal['complete', 'partial', 'unknown', 'unavailable']
+    observed_at: datetime
+    count: int = Field(ge=0, le=10000)
+    rejected_rows: int = Field(default=0, ge=0, le=10000)
+    issues: tuple[IntakeIssue, ...] = Field(default=(), max_length=10000)
+    failure: str | None = Field(default=None, max_length=64)
+    snapshot_sha256: str | None = Field(default=None, pattern=r'^[0-9a-f]{64}$')
+    # Diagnostic coverage is not a claim about the employer's vacancy state.
+    coverage_reason: str = Field(default='adapter_did_not_assert_completeness', max_length=128)
+
+    _aware = field_validator('observed_at')(IntakeEvidence.aware_observation.__func__)
+
+
+class ObservationOccurrence(IntakeModel):
+    lane: str = Field(min_length=1, max_length=512)
+    locator: str = Field(max_length=128)
+    observed_at: datetime
+    snapshot_sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
+    original_record: str | None = Field(default=None, max_length=16384)
+    _aware = field_validator('observed_at')(IntakeEvidence.aware_observation.__func__)
+
+
+class DurableObservation(IntakeModel):
+    """Intake-owned evidence. It carries no candidate eligibility or approval."""
+    version: Literal['durable-intake-v1'] = 'durable-intake-v1'
+    job: Job
+    observed_at: datetime
+    occurrences: tuple[ObservationOccurrence, ...] = Field(min_length=1, max_length=10000)
+    intake_evidence: IntakeEvidence | None = None
+    source_state: Literal['unknown', 'inactive', 'closed'] = 'unknown'
+    filter_disposition: Literal['accepted', 'rejected', 'unresolved'] = 'unresolved'
+    filter_reasons: tuple[str, ...] = ()
+    filter_checks: tuple[str, ...] = ()
+    freshness_basis: Literal['posted_at', 'first_observed']
+    eligibility: None = None
+    content_flags: tuple[str, ...] = ()
+    _aware = field_validator('observed_at')(IntakeEvidence.aware_observation.__func__)

@@ -578,3 +578,96 @@ def test_poisoned_company_opening_fails_generation(setup, opening):
     packet = current.build_one(add_job(current))
     assert packet.status == "generation_failed"
     assert packet.verifier_status != "passed"
+
+
+def test_reappeared_rejected_opportunity_cannot_create_fresh_packet(setup):
+    from job_agent.database import PacketDecision
+    service, calls, _ = setup
+    row = add_job(service)
+    packet = service.build_one(row)
+    paid_calls = len(calls)
+    with database_session(service.engine) as session:
+        session.add(PacketDecision(packet_id=packet.id, packet_fingerprint=packet.fingerprint,
+            decision='reject', reason_code='not_interested', evidence_json='{}'))
+    assert service.select(ranked_all=True) == []
+    service.researcher.research = lambda *a: pytest.fail('rejected source reached research')
+    with pytest.raises(ValueError, match='job_no_longer_eligible'):
+        service.build_one(row)
+    assert len(calls) == paid_calls
+    with database_session(service.engine) as session:
+        assert len(session.exec(select(ApplicationPacket)).all()) == 1
+
+
+def test_latest_intake_rejection_blocks_old_historical_score(setup):
+    from job_agent.search import run
+    from job_agent.config import SearchProfile
+    from job_agent.search_state import SQLiteSeenCache, persist_intake
+    service, calls, _ = setup
+    row = add_job(service)
+    j = Job.model_validate(row.payload)
+    class Source:
+        snapshot_completeness = 'complete'
+        def fetch(self): return [j]
+        def enrich(self, value): return value
+    profile = SearchProfile(keywords=['Accountant'], sources=[dict(ats='demo', board='offline')])
+    with database_session(service.engine) as session:
+        outcome = run(profile, seen_cache=SQLiteSeenCache(session, defer_writes=True), now=NOW,
+            source_factory=lambda *a: Source())
+    persist_intake(service.engine, outcome, [])
+    assert service.select(ranked_all=True) == []
+    service.researcher.research = lambda *a: pytest.fail('filtered job reached research')
+    with pytest.raises(ValueError, match='job_no_longer_eligible'):
+        service.build_one(row)
+    assert calls == []
+
+
+def test_explicit_rejected_artifact_repair_reuses_paid_outputs(setup):
+    from job_agent.database import PacketDecision
+    service, calls, directory = setup
+    row = add_job(service)
+    predecessor = service.build_one(row)
+    paid = len(calls)
+    with database_session(service.engine) as s:
+        s.add(PacketDecision(packet_id=predecessor.id, packet_fingerprint=predecessor.fingerprint,
+            decision='reject', reason_code='other', evidence_json='{}'))
+    (directory / 'packets' / predecessor.id / 'resume.pdf').unlink()
+    service.researcher.research = lambda *a: pytest.fail('artifact repair invoked research')
+    assert service.select(ranked_all=True) == []
+    assert service.build_one(row).status == 'recovery_required'
+    successor = service.build_one(row)
+    assert successor.status == 'packet_ready' and successor.version == 2
+    assert successor.fingerprint != predecessor.fingerprint
+    assert len(calls) == paid
+    with database_session(service.engine) as s:
+        assert s.exec(select(PacketDecision)).one().packet_id == predecessor.id
+    assert service.select(ranked_all=True) == []
+
+
+@pytest.mark.parametrize('change', ['replayed_row', 'style', 'inputs'])
+def test_rejected_artifact_repair_cannot_admit_replay_or_new_paid_inputs(setup, change):
+    from job_agent.database import PacketDecision
+    service, calls, directory = setup
+    row = add_job(service)
+    p = service.build_one(row)
+    paid = len(calls)
+    with database_session(service.engine) as s:
+        s.add(PacketDecision(packet_id=p.id, packet_fingerprint=p.fingerprint,
+            decision='reject', reason_code='other', evidence_json='{}'))
+    (directory / 'packets' / p.id / 'resume.pdf').unlink()
+    service.researcher.research = lambda *a: pytest.fail('rejected repair reached research')
+    if change == 'replayed_row':
+        with database_session(service.engine) as s:
+            replay = SearchResult(run_id=row.run_id, legacy_key='replayed', payload=dict(row.payload))
+            s.add(replay); s.flush()
+        row = replay
+    else:
+        assert service.build_one(row).status == 'recovery_required'
+        if change == 'style':
+            (directory / 'style_memory.md').write_text('Prefer shorter sentences.\n')
+        else:
+            service.cover_prompt += '\nChanged writing input.'
+    with pytest.raises(ValueError):
+        service.build_one(row)
+    assert len(calls) == paid
+    with database_session(service.engine) as s:
+        assert len(s.exec(select(ApplicationPacket)).all()) == 1

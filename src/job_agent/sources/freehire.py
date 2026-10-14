@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import re
+import json
+import hashlib
 
 from job_agent.geo import infer_country
 from job_agent.http import SourceError, get_json
-from job_agent.models import Job
+from job_agent.models import Job, IntakeIssue
 from job_agent.sources.base import JobSource, parse_iso, truncate
 
 API_URL = "https://freehire.me/api/v1/agent/jobs/search"
@@ -36,11 +38,24 @@ class FreeHireSource(JobSource):
     """``board`` is a title search query, not a company identifier."""
 
     ats = "freehire"
+    snapshot_completeness = 'partial'
+    coverage_reason = 'bounded_first_page_limit_100_offset_0'
+
+    def __init__(self, board):
+        super().__init__(board)
+        self.original_records = {}
+        self.issues = []
+        self.rejected_rows = 0
+        self.snapshot_sha256 = None
 
     def discovery_filter(self) -> dict[str, str]:
         return {"countries": "US"}
 
     def fetch(self) -> list[Job]:
+        self.original_records = {}
+        self.issues = []
+        self.rejected_rows = 0
+        self.snapshot_sha256 = None
         params = {
             "q": self.board,
             "q_fields": "title",
@@ -52,6 +67,13 @@ class FreeHireSource(JobSource):
             "offset": 0,
         }
         payload = get_json(API_URL, params=params)
+        try:
+            encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+            if len(encoded.encode()) > 4 * 1024 * 1024:
+                raise ValueError('payload_limit')
+        except Exception:
+            raise SourceError('FreeHire response exceeds safe payload contract') from None
+        self.snapshot_sha256 = hashlib.sha256(encoded.encode()).hexdigest()
         if not isinstance(payload, dict):
             raise SourceError("FreeHire search response must be an object")
         if not isinstance(payload.get("data"), list):
@@ -76,11 +98,39 @@ class FreeHireSource(JobSource):
                 )
 
         jobs: list[Job] = []
-        for raw in payload["data"][:100]:
+        identity_claims = {}
+        for row_index, raw in enumerate(payload["data"][:100]):
             if not isinstance(raw, dict):
+                self.rejected_rows += 1
+                self.issues.append(IntakeIssue(code='invalid_row', locator=str(row_index)))
                 continue
             if not all(_text(raw.get(key)) for key in ("public_slug", "title", "company", "url")):
+                self.rejected_rows += 1
+                self.issues.append(IntakeIssue(code='invalid_row', locator=str(row_index)))
                 continue
+            # Preserve only source listing fields, never unknown response keys.
+            retained = {k: raw.get(k) for k in ('public_slug', 'source', 'external_id',
+                'title', 'company', 'location', 'url', 'description', 'posted_at',
+                'countries', 'work_mode', 'enrichment')}
+            original = json.dumps({'fields': retained, 'request': params}, ensure_ascii=False, sort_keys=True)
+            from job_agent.sources.simplify import _url, _bad_controls
+            try:
+                _url(raw['url'])
+                for field, bound in (('public_slug', 128), ('title', 512), ('company', 512),
+                                     ('location', 2048), ('description', 16384)):
+                    value = _text(raw.get(field))
+                    if len(value) > bound or _bad_controls(value):
+                        raise ValueError('field_limit')
+                if len(original) > 16384:
+                    raise ValueError('record_limit')
+            except Exception:
+                self.rejected_rows += 1
+                self.issues.append(IntakeIssue(code='invalid_row', locator=str(row_index)))
+                continue
+            identity = raw['public_slug']
+            if identity in identity_claims and identity_claims[identity] != retained:
+                raise SourceError('FreeHire conflicting source identity; details omitted')
+            identity_claims[identity] = retained
             mode = _text(raw.get("work_mode")).lower()
             remote = True if mode == "remote" else False if mode in {"onsite", "hybrid"} else None
             location = _text(raw.get("location")) or ("Remote" if remote else "Unknown")
@@ -88,6 +138,7 @@ class FreeHireSource(JobSource):
             enrichment = enrichment if isinstance(enrichment, dict) else {}
             relocation = enrichment.get("relocation")
             visa = enrichment.get("visa_sponsorship")
+            self.original_records[len(jobs)] = original
             jobs.append(Job(
                 id=raw["public_slug"],
                 source="freehire",

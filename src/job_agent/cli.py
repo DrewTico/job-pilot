@@ -31,7 +31,8 @@ from job_agent.search import SearchOutcome
 from job_agent.seen_cache import SeenCache
 from job_agent.store import resolve_apply_url
 from job_agent.search_state import (load_job_record, search_database, database_path,
-                                    SQLiteSeenCache, SearchRepository, AmbiguousJobError)
+                                    SQLiteSeenCache, SearchRepository, AmbiguousJobError,
+                                    persist_intake)
 from job_agent.database import database_session
 from job_agent.tailor.career_facts import load_career_facts
 from job_agent.tailor.jd_fetch import get_full_jd
@@ -171,14 +172,22 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
     with search_database(settings.data_dir) as engine, database_session(engine) as session:
         cache = SQLiteSeenCache(session, defer_writes=True)
         outcome = search.run(profile, seen_cache=cache, fresh_window=window)
-        observations, inserted = cache.observations, cache.inserted
+        observations = cache.observations
         # Buffer observations until the completed search can commit atomically.
         # Never hold a SQLite write transaction across a provider request.
     _print_pipeline_summary(console, outcome, args.max_age_hours)
+    if outcome.source_snapshots and not outcome.publishable:
+        with search_database(settings.data_dir) as engine:
+            persist_intake(engine, outcome, [])
+        console.print('[yellow]Incomplete intake retained; previous search preserved.[/yellow]')
+        return 1
     from job_agent.batch import plan_search_scoring, score_claimed_standard
     from job_agent.models import ScoredJob
     with search_database(settings.data_dir) as engine, database_session(engine) as session:
-        immediate, reused = plan_search_scoring(session, outcome.jobs, profile, settings, datetime.now(timezone.utc))
+        immediate, reused = plan_search_scoring(session,
+            [j for j in outcome.jobs if not outcome.observations or
+             outcome.observations[j.dedup_key()].filter_disposition == 'accepted'],
+            profile, settings, datetime.now(timezone.utc))
     immediate_scores = []
     for job in immediate:
         with search_database(settings.data_dir) as engine:
@@ -190,19 +199,27 @@ def cmd_search(console: Console, args: argparse.Namespace) -> int:
     scored = [by_key.get((j.source, j.id), ScoredJob(job=j, reasons=("Scoring pending",),
               content_flags=detect_content_flags(j)))
               for j in outcome.jobs]
-    with search_database(settings.data_dir) as engine, database_session(engine) as session:
-        cache = SQLiteSeenCache(session)
-        for (source, external_id), (first, last) in observations.items():
-            cache.first_seen(source, external_id, first)
-            if last != first:
-                cache.observe(source, external_id, last)
-        cache.inserted = inserted
-        SearchRepository(session).record_search(
-            scored, outcome.boards, cache=cache, baseline=outcome.baseline_scan,
-            sources_queried=len(outcome.per_source), deferred_profile=profile, scoring_model=settings.scoring_model)
-        saved_records = SearchRepository(session).latest()["jobs"].values()
-        pending_count = sum(r.get("scoring_status") == "pending" for r in saved_records)
-        recovery_count = sum(r.get("scoring_status") == "standard_in_progress" for r in saved_records)
+    with search_database(settings.data_dir) as engine:
+        if outcome.source_snapshots:
+            persist_intake(engine, outcome, scored, deferred_profile=profile,
+                           scoring_model=settings.scoring_model)
+        else:
+            # Compatibility for injected/legacy outcomes without intake metadata.
+            with database_session(engine) as session:
+                session.connection().exec_driver_sql('BEGIN IMMEDIATE')
+                cache = SQLiteSeenCache(session)
+                for (source, external_id), (first, last) in observations.items():
+                    cache.first_seen(source, external_id, first)
+                    if last != first:
+                        cache.observe(source, external_id, last)
+                SearchRepository(session).record_search(
+                    scored, outcome.boards, cache=cache, baseline=outcome.baseline_scan,
+                    sources_queried=len(outcome.per_source), deferred_profile=profile,
+                    scoring_model=settings.scoring_model, intake_evidence=outcome.intake_evidence)
+        with database_session(engine) as session:
+            saved_records = SearchRepository(session).latest()["jobs"].values()
+            pending_count = sum(r.get("scoring_status") == "pending" for r in saved_records)
+            recovery_count = sum(r.get("scoring_status") == "standard_in_progress" for r in saved_records)
     if recovery_count:
         console.print(f"[yellow]{recovery_count} job(s) have outstanding standard scoring claims; recovery required.[/yellow]")
     if pending_count:

@@ -201,8 +201,18 @@ class PacketService:
     def _key(self, row):
         return f'{row.payload["source"]}:{row.payload["id"]}'
 
-    def _eligible(self, session, row):
+    def _eligible(self, session, row, *, _allow_rejected_recovery=False):
         p = row.payload
+        from job_agent.search_state import intake_admission_allowed
+        if p.get('intake_disposition', 'accepted') != 'accepted':
+            return False
+        try:
+            observed_job = Job.model_validate(p)
+        except Exception:
+            return False
+        if not intake_admission_allowed(session, observed_job, now=self.clock,
+                _allow_rejected_recovery=_allow_rejected_recovery):
+            return False
         if type(p.get("score")) is not int or not 0 <= p["score"] <= 100:
             return False
         if p.get("scoring_status") not in (None, "succeeded") or p.get("score") is None or p["score"] < self.settings.score_threshold:
@@ -378,13 +388,84 @@ class PacketService:
             raise ValueError("unsafe_packet_path")
         return root
 
+    def _rejected_artifact_recovery(self, session, row):
+        """Explicit repair of an owned completed packet, never source readmission.
+
+        All intake/application gates still apply. Only retained facts and
+        authenticated cached writing may be reused; no new research/provider IO.
+        """
+        if not self._eligible(session, row, _allow_rejected_recovery=True):
+            return None
+        packet = session.exec(select(ApplicationPacket).where(
+            ApplicationPacket.search_result_id == row.id,
+            ApplicationPacket.job_key == self._key(row),
+            ApplicationPacket.canonical_job_id == row.payload.get('canonical_id'),
+            ApplicationPacket.ready_at.is_not(None)
+        ).order_by(ApplicationPacket.version.desc())).first()
+        if (packet is None or packet.status not in ('packet_ready', 'recovery_required')
+                or not re.fullmatch(r'[0-9a-f]{32}', packet.id)):
+            return None
+        try:
+            _, job, facts = _retained_packet_evidence(session, self.settings, packet, self, row)
+            bound_style = self._bound_style(session, packet)
+            context = self._context(row, facts, prompt_version=packet.writing_prompt_version, style=bound_style)
+            expected = digest(context)
+            predecessors = {p.fingerprint: p for p in session.exec(select(ApplicationPacket).where(
+                ApplicationPacket.job_key == packet.job_key, ApplicationPacket.version < packet.version))}
+            seen = set()
+            while expected != packet.fingerprint:
+                prior = predecessors.get(expected)
+                if prior is None or prior.ready_at is None or prior.id in seen:
+                    return None
+                seen.add(prior.id)
+                expected = digest({'recovery_of': prior.id, 'packet_fingerprint': expected})
+            _, requests = self._writing_requests(row, facts, prompt_version=packet.writing_prompt_version, style=bound_style)
+            if set(requests) != set(packet.writing_fingerprints):
+                return None
+            for task, (system, user) in requests.items():
+                model = self.settings.tailoring_model if task == 'tailor_resume' else self.settings.writing_model
+                fp = writing_fingerprint(task, model, digest(system), digest(user), packet.writing_prompt_version, WRITING_LIMITS[task])
+                work = session.get(WritingWorkItem, fp)
+                if (packet.writing_fingerprints[task] != fp or work is None or work.state != 'succeeded'
+                        or not isinstance(work.output, str) or not work.output or digest(work.output) != work.output_hash
+                        or work.prompt_name != task or work.task != task or work.model != model or work.system_hash != digest(system)
+                        or work.user_hash != digest(user) or work.prompt_version != packet.writing_prompt_version
+                        or work.max_tokens != WRITING_LIMITS[task]):
+                    return None
+            self._validate_screening(packet, row)
+            if packet.status == 'packet_ready':
+                try:
+                    verify_packet_integrity(session, self.settings, packet, verifier=self, row=row)
+                    return None  # A valid rejected packet cannot cause new work.
+                except ValueError:
+                    packet.status = 'recovery_required'
+                    packet.failure_reason = 'packet_integrity_requires_review'
+                    session.add(packet)
+                    session.commit()
+                    return packet, facts, False
+            if packet.failure_reason == 'packet_integrity_requires_review':
+                return packet, facts, True
+        except Exception:
+            return None
+        return None
+
     def _build_one_locked(self, row):
+        # Normal admission is strict. Explicit artifact repair must bind the
+        # exact old source row and cached outputs, retaining independent approval.
+        recovery = None
+        with Session(self.engine, expire_on_commit=False) as session:
+            if not self._eligible(session, row):
+                recovery = self._rejected_artifact_recovery(session, row)
+                if recovery is None:
+                    raise ValueError('job_no_longer_eligible')
+                if not recovery[2]:
+                    return recovery[0]
         try:
             job = Job.model_validate(row.payload)
         except Exception:
             raise ValueError("invalid_packet_job; source_details_omitted") from None
         try:
-            facts, flags = usable_facts(job, self.researcher.research(job))
+            facts, flags = (recovery[1], ()) if recovery else usable_facts(job, self.researcher.research(job))
             if isinstance(self.researcher, TavilyCompanyResearcher):
                 # Retain production cover-first order after the existing gate's
                 # canonical sorting. Fixture/custom ordering stays unchanged.
@@ -393,13 +474,16 @@ class PacketService:
             facts, flags = (), ("research_invalid_or_unavailable",)
         with style_lock(self.settings.data_dir) as locked_style:
             style = locked_style.read()
+            if recovery and (recovery[0].style_memory_hash != style.hash
+                             or recovery[0].writing_prompt_version != PACKET_PROMPT_VERSION):
+                raise ValueError('rejected_artifact_recovery_inputs_changed')
             ctx = self._context(row, facts, prompt_version=PACKET_PROMPT_VERSION, style=style)
             fp, key = digest(ctx), self._key(row)
             self._boundary("before_packet_claim")
             with Session(self.engine, expire_on_commit=False) as s:
                 s.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 ensure_style_snapshot(s, style)
-                if not self._eligible(s, row):
+                if not self._eligible(s, row, _allow_rejected_recovery=bool(recovery)):
                     s.commit()
                     raise ValueError("job_no_longer_eligible")
                 existing = s.exec(select(ApplicationPacket).where(ApplicationPacket.fingerprint == fp)).first()

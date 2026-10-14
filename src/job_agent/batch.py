@@ -51,6 +51,9 @@ def plan_search_scoring(session, jobs, profile, settings, now):
     immediate, reused = [], {}
     repo = JobRepository(session)
     for job in jobs:
+        from job_agent.search_state import intake_admission_allowed
+        if not intake_admission_allowed(session, job):
+            continue
         fingerprint = scoring_fingerprint(job, profile, settings.scoring_model)
         work = session.exec(select(ScoringWorkItem).where(ScoringWorkItem.fingerprint == fingerprint)).first()
         if work:
@@ -88,6 +91,10 @@ def claim_standard_score(engine, job, profile, model):
         state="standard_in_progress", priority_at=_utc())
     with Session(engine, expire_on_commit=False) as session:
         session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+        from job_agent.search_state import intake_admission_allowed
+        if not intake_admission_allowed(session, job):
+            session.rollback()
+            return None, False
         canonical = session.exec(select(ScoringWorkItem).where(
             ScoringWorkItem.fingerprint == fingerprint)).first()
         if canonical is None:
@@ -126,6 +133,9 @@ def score_claimed_standard(engine, job, profile, model, score):
     from job_agent.scoring import detect_content_flags
     work, owned = claim_standard_score(engine, job, profile, model)
     if not owned:
+        if work is None:
+            return ScoredJob(job=job, reasons=("Intake review required",),
+                             content_flags=detect_content_flags(job))
         if work.state == "succeeded":
             return ScoredJob(job=job, **work.result)
         return ScoredJob(job=job, reasons=("Scoring recovery required",),
@@ -161,8 +171,8 @@ def checkpoint_immediate_score(engine, scored, profile, model):
     return scored
 
 
-def enqueue(session, result, job, profile, model):
-    fingerprint = scoring_fingerprint(job, profile, model)
+def enqueue(session, result, job, profile, model, *, plan=None):
+    fingerprint = plan["fingerprint"] if plan is not None else scoring_fingerprint(job, profile, model)
     work = session.exec(select(ScoringWorkItem).where(ScoringWorkItem.fingerprint == fingerprint)).first()
     if work is None:
         observed = result.payload.get("first_seen")
@@ -171,7 +181,8 @@ def enqueue(session, result, job, profile, model):
         work = ScoringWorkItem(fingerprint=fingerprint, source=job.source, external_id=job.id,
                               canonical_job_id=result.payload.get("canonical_id"), search_result_id=result.id,
                               model=model, candidate_hash=candidate_hash(profile),
-                              reservation_cost_usd=str(reservation_cost(build_score_request(model, job, profile), "batch")),
+                              reservation_cost_usd=(plan["reservation_cost_usd"] if plan is not None else
+                                  str(reservation_cost(build_score_request(model, job, profile), "batch"))),
                               priority_at=priority)
         session.add(work)
         session.flush()
@@ -232,6 +243,12 @@ class BatchService:
             for work in rows:
                 target = session.get(SearchResult, work.search_result_id)
                 job = Job.model_validate(target.payload)
+                from job_agent.search_state import intake_admission_allowed
+                if not intake_admission_allowed(session, job, now=now):
+                    work.failure = 'intake_admission_blocked'
+                    session.add(work)
+                    blocked = 'intake_admission_blocked'
+                    continue
                 if self.profile is None:
                     raise ValueError("Scoring profile required for submission")
                 if scoring_fingerprint(job, self.profile, work.model, prompt_version=work.prompt_version) != work.fingerprint:

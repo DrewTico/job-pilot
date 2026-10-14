@@ -215,8 +215,8 @@ def test_run_pipeline_counts_and_dedup(tmp_path):
                  remote=True, country="US", posted_at=NOW - timedelta(days=15)),          # freshness drop
         make_job(id="5", title="Machine Learning Engineer", company="Beta", location="Remote",
                  remote=True, country="US", posted_at=NOW - timedelta(hours=1)),
-        make_job(id="6", title="Machine Learning Engineer", company="Beta", location="Remote",
-                 remote=True, country="US", posted_at=NOW - timedelta(hours=1)),           # dup of 5
+        make_job(id="5", title="Machine Learning Engineer", company="Beta", location="Remote",
+                 remote=True, country="US", posted_at=NOW - timedelta(hours=1)),           # identical repeat of 5
     ]
     factory = lambda ats, board: FakeSource(board, jobs)
     out = run(profile(), seen_cache=SeenCache(tmp_path / "s.json"), now=NOW, source_factory=factory)
