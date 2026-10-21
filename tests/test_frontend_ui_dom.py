@@ -409,3 +409,156 @@ def test_known_demo_identity_is_subordinate_and_unknown_company_stays_exact(revi
     select(review)
     expect(page.locator('.company-label')).to_have_text('Synthetic · Arbitrary Production Name')
     assert not page.locator('.company-label .demo-label').count()
+
+
+@pytest.mark.parametrize('width', [1440, 1024, 390])
+def test_resume_link_opens_actual_protected_pdf_without_mutations(ui, ready, width):
+    from job_agent.dashboard.approval_security import SECURITY_HEADERS
+    page = ui[0]; page.set_viewport_size({'width': width, 'height': 900 if width > 599 else 844})
+    before = (ready[4] / 'test.sqlite').read_bytes()
+    page.goto(ui[2] + '/ui'); page.locator('.queue-row').click(); evidence(page, 'Resume')
+    link = page.get_by_role('link', name='Open resume PDF · v1', exact=False)
+    path = f'/api/packets/{ready[2].id}/artifacts/resume.pdf'
+    expect(link).to_have_attribute('href', path)
+    expect(link).to_have_attribute('target', '_blank')
+    expect(link).to_have_attribute('rel', 'noopener noreferrer')
+    link.focus(); page.keyboard.press('Tab'); page.keyboard.press('Shift+Tab'); expect(link).to_be_focused()
+    assert link.evaluate('n=>getComputedStyle(n).outlineStyle') != 'none'
+    with page.expect_popup() as opened:
+        page.keyboard.press('Enter')
+    tab = opened.value; tab.wait_for_load_state('commit')
+    assert any(url.endswith(path) for url in ui[5])
+    response = ui[1].request.get(ui[2] + path)
+    assert response.status == 200 and response.headers['content-type'] == 'application/pdf'
+    assert response.headers['content-disposition'] == 'inline; filename="resume-v1.pdf"'
+    for name, value in SECURITY_HEADERS.items(): assert response.headers[name.lower()] == value
+    assert response.body() == (ready[4] / 'packets' / ready[2].id / 'resume.pdf').read_bytes()
+    tab.close()
+    assert not ui[4]
+    assert not any('/submit' in url or '/apply' in url for url in ui[5])
+    assert before == (ready[4] / 'test.sqlite').read_bytes()
+
+
+@pytest.mark.parametrize('damage,status,code', [('missing', 404, 'artifact_unavailable'), ('tampered', 409, 'artifact_integrity_failed')])
+def test_resume_link_fails_closed_if_artifact_changes_after_read(ui, ready, damage, status, code):
+    page = ui[0]; page.goto(ui[2] + '/ui'); page.locator('.queue-row').click(); evidence(page, 'Resume')
+    link = page.get_by_role('link', name='Open resume PDF', exact=False)
+    expect(link).to_be_visible()
+    artifact = ready[4] / 'packets' / ready[2].id / 'resume.pdf'
+    if damage == 'missing': artifact.unlink()
+    else: artifact.write_bytes(b'SYNTHETIC_DAMAGED_PDF_MUST_NOT_BE_SERVED')
+    before = (ready[4] / 'test.sqlite').read_bytes()
+    with page.expect_popup() as opened:
+        link.click()
+    tab = opened.value
+    expect(tab.locator('body')).to_contain_text(code)
+    response = ui[1].request.get(ui[2] + f'/api/packets/{ready[2].id}/artifacts/resume.pdf')
+    assert response.status == status and response.json() == {'error': {'code': code}}
+    assert response.headers['cache-control'] == 'no-store'
+    assert 'SYNTHETIC_DAMAGED_PDF' not in tab.locator('body').inner_text()
+    tab.close()
+    assert not ui[4] and before == (ready[4] / 'test.sqlite').read_bytes()
+
+
+def test_resume_viewer_requires_existing_private_identity_and_rejects_path_selectors(ready):
+    from concurrent.futures import ThreadPoolExecutor
+    from job_agent.dashboard.approval_app import create_approval_app
+    from job_agent.dashboard.approval_security import SECURITY_HEADERS
+    from test_approval_security import request
+    from test_tailscale_security import HOST, LOGIN, settings, headers
+    app = create_approval_app(engine=ready[1].engine, settings=settings(data_dir=ready[4]), access='tailscale')
+    path = f'/api/packets/{ready[2].id}/artifacts/resume.pdf'
+    # Playwright's module-scoped sync browser owns the main-thread event loop.
+    def read(**kwargs):
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            return pool.submit(request, app, path, **kwargs).result()
+    before = (ready[4] / 'test.sqlite').read_bytes()
+    for hs, expected, code in [
+        ([(b'host', HOST)], 401, 'authentication_required'),
+        ([(b'host', HOST), (b'tailscale-user-login', b'other@example.test')], 403, 'authorization_failed'),
+        ([(b'host', b'foreign.example'), (b'tailscale-user-login', LOGIN)], 400, 'invalid_host'),
+    ]:
+        status, secured, body, reads = read(headers=hs)
+        assert status == expected and json.loads(body) == {'error': {'code': code}} and reads == 0
+        for name, value in SECURITY_HEADERS.items(): assert secured[name.lower().encode()] == value.encode()
+    assert read(headers=headers(), query='path=../facts.yaml')[0] == 422
+    assert read(headers=headers(), query='version=2')[0] == 422
+    status, secured, body, _ = read(headers=headers())
+    assert status == 200 and secured[b'content-type'] == b'application/pdf' and body.startswith(b'%PDF-')
+    assert before == (ready[4] / 'test.sqlite').read_bytes()
+
+
+@pytest.mark.parametrize('width', [1440, 390])
+def test_resume_handoff_tracks_original_successor_unavailable_and_stale_selection(review, width):
+    page = review[0]; page.set_viewport_size({'width': width, 'height': 900 if width > 599 else 844})
+    current_id, original_id = f'{1:032x}', f'{90:032x}'
+    current = review[3][f'/api/packets/{current_id}']
+    current['history'][0].update(source_packet_id=original_id, lineage_kind='revision', revision_decision_id='synthetic-revision')
+    current['history'][1]['decision'] = 'revise'
+    original = copy.deepcopy(current)
+    original.update(packet_id=original_id, version=1, decision='revise', approval_preview=None)
+    original['revision'].update(source_packet_id=original_id, decision_id='synthetic-revision', state='succeeded', label='Revision ready', successor_packet_id=current_id, successor_version=2, successor_status='packet_ready')
+    review[3][f'/api/packets/{original_id}'] = original
+    review[3][f'/api/packets/{original_id}/revision-status'] = original['revision']
+    review[3][f'/api/packets/{original_id}/decision-detail'] = {'decision_id': 'synthetic-revision', 'decision': 'revise', 'created_at': '2026-10-01T14:10:00Z', 'reason_code': None, 'detail': None, 'feedback': 'Synthetic feedback'}
+    open_review(review); select(review); evidence(page, 'Resume')
+    expect(page.get_by_role('link', name='Open resume PDF', exact=False)).to_have_attribute('href', f'/api/packets/{current_id}/artifacts/resume.pdf')
+    evidence(page, 'History'); page.get_by_role('button', name='Inspect v1', exact=True).click()
+    expect(page.locator('#packet-title')).to_be_visible(); evidence(page, 'Resume')
+    link = page.get_by_role('link', name='Open resume PDF · v1', exact=False)
+    expect(link).to_have_attribute('href', f'/api/packets/{original_id}/artifacts/resume.pdf')
+    close_phone_sheet(page); page.get_by_role('button', name='Back to queue', exact=True).click()
+    select(review, 3); evidence(page, 'Resume')
+    assert not page.get_by_role('link', name='Open resume PDF', exact=False).count()
+    expect(page.locator('.resume-package')).to_contain_text('Unavailable')
+    close_phone_sheet(page); page.get_by_role('button', name='Back to queue', exact=True).click()
+    select(review, 2); evidence(page, 'Resume')
+    expect(page.get_by_role('link', name='Open resume PDF · v2', exact=False)).to_have_attribute('href', f'/api/packets/{2:032x}/artifacts/resume.pdf')
+    review[3][f'/api/packets/{2:032x}'] = (409, {'error': {'code': 'stale_packet'}})
+    close_phone_sheet(page)
+    if page.locator('.phone-app').count():
+        page.get_by_role('button', name='Back to queue', exact=True).click()
+        page.get_by_role('button', name=f"{PACKETS[f'{2:032x}']['company']} ").click()
+    else:
+        page.get_by_role('button', name='Reload evidence').click()
+    expect(page.get_by_text('Evidence changed during this read. Reload to review the current packet.', exact=True)).to_be_visible()
+    assert not page.get_by_role('link', name='Open resume PDF', exact=False).count()
+    assert not any('/artifacts/' in url for url in review[5]), 'PDF must require explicit activation'
+
+
+@pytest.mark.parametrize('width', [1440, 1024, 390])
+def test_readable_queue_geometry_and_synthetic_review_captures(review, width):
+    page = review[0]; page.set_viewport_size({'width': width, 'height': 900 if width > 599 else 844})
+    page.emulate_media(reduced_motion='reduce'); open_review(review)
+    output = Path('/tmp/job-pilot-pre-shpe-layout'); output.mkdir(parents=True, exist_ok=True)
+    if width > 599:
+        assert page.locator('.queue-pane').bounding_box()['width'] == (300 if width == 1440 else 260)
+        tabs = page.get_by_role('tablist', name='Queue section').get_by_role('tab')
+        boxes = [tab.bounding_box() for tab in tabs.all()]
+        assert len({round(box['y']) for box in boxes}) == 2
+        for tab in tabs.all():
+            expect(tab).to_be_visible()
+            metrics = tab.evaluate('n=>{const s=getComputedStyle(n);return {font:parseFloat(s.fontSize),line:parseFloat(s.lineHeight),fits:n.scrollWidth<=n.clientWidth && n.scrollHeight<=n.clientHeight}}')
+            assert metrics['font'] == 13 and metrics['line'] >= 19.5 and metrics['fits']
+            assert tab.bounding_box()['height'] >= 44
+        assert tabs.first.evaluate('n=>getComputedStyle(n).fontWeight') == '600'
+        tabs.first.focus(); page.keyboard.press('ArrowRight'); expect(tabs.nth(1)).to_be_focused()
+        assert tabs.nth(1).evaluate('n=>getComputedStyle(n).outlineStyle') != 'none'
+        for selector in ('.queue-heading .muted', '.queue-status', '.row-location', '.row-state', '.manual-badge', '.row-evidence', '.pagination-label', '.pagination .quiet', '.queue-footer'):
+            for node in page.locator('.queue-pane').locator(selector).all():
+                assert node.evaluate('n=>parseFloat(getComputedStyle(n).fontSize)') >= 12
+                assert node.evaluate('n=>n.scrollWidth<=n.clientWidth && n.scrollHeight<=n.clientHeight'), selector
+        for left, right in zip(boxes, boxes[1:]):
+            assert left['y'] + left['height'] <= right['y'] or left['x'] + left['width'] <= right['x']
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    page.screenshot(path=str(output / f'candidate-queue-{width}.png'))
+    select(review); page.screenshot(path=str(output / f'candidate-review-{width}.png'))
+    evidence(page, 'Resume'); expect(page.get_by_role('link', name='Open resume PDF', exact=False)).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    page.screenshot(path=str(output / f'candidate-resume-{width}.png'))
+    close_phone_sheet(page); page.get_by_role('button', name='Back to queue', exact=True).click()
+    review[3]['/api/queue'] = {'section': 'needs-review', 'limit': 25, 'offset': 0, 'items': []}
+    page.get_by_role('button', name='Reload evidence').click()
+    expect(page.get_by_role('heading', name='You’re all caught up')).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    page.screenshot(path=str(output / f'candidate-empty-{width}.png'))
