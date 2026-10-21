@@ -121,6 +121,35 @@ STOP AND ASK before:
 - reusing code with an unclear license
 - changing any rule or architecture requirement from the build brief
 
+## Durable validation evidence
+
+Andrew restarts Windows and WSL nightly. Consequential test and validation evidence MUST survive normal restarts and remain machine-local, outside Git.
+
+Default persistent root: `~/.local/state/job-pilot/validation/`. Use owner-only, execution-specific subdirectories outside the repository and outside `/tmp` (directories `0700`, evidence files `0600`).
+
+Before expensive tests:
+
+- Resolve an absolute evidence path in the actual execution environment; do not assume custom environment variables propagate to Codex's tool execution environment.
+- Verify restrictive ownership/permissions and perform a harmless create/read/delete write probe.
+- If sandbox access is denied, request one-time, narrowly scoped permission to the exact destination. If durable storage remains unavailable, STOP before testing.
+
+For substantial validations, retain:
+
+- Exact Git HEAD, branch and candidate/tree identity, including file hashes and diff for uncommitted candidates.
+- Exact command, tool version, UTC time, execution-session identifiers where available and actual exit code. Preserve real exit codes through logging pipelines.
+- Safe complete stdout/stderr where appropriate; passing, failing and skipped counts; warnings, classifications and dispositions; failure/recovery evidence.
+- Production-file before/after hashes and metadata when needed; candidate manifest; final repository state; reconciliation between evidence and final reports.
+
+Never claim missing historical logs were reconstructed. A fresh test proves the freshly tested candidate, not an unrecorded past execution. Verify retained evidence actually exists and is readable before declaring a checkpoint ready for review.
+
+Mutation-capable tests MUST use isolated synthetic storage. Required production inventory is read-only. Do not open production SQLite through mutation-capable access merely to compute an identity check. Never automatically restore unexpected mutations; stop and report them for Andrew's review.
+
+Retain no private resumes, applicant records, secrets, cookies, authentication tokens, provider payloads, production DB copies or sensitive contacts in logs or evidence. Apply existing privacy and diagnostic-redaction rules.
+
+Do not relocate or rewrite the existing verified Run 6B evidence at `~/.local/state/job-pilot/run6b-evidence/`.
+
+On multi-day work, retain a restart-safe handoff with current Git/candidate identity, results, evidence paths, open blockers and the next authorized action.
+
 ## Engineering rules
 
 - Python backend uses Python 3.12.
